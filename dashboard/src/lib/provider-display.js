@@ -36,7 +36,6 @@ const ROUTED_PROVIDER_WORDS = {
   cli: "CLI",
   github: "GitHub",
   openai: "OpenAI",
-  opencode: "OpenCode",
   xai: "xAI",
 };
 

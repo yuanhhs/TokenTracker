@@ -64,12 +64,6 @@ test("diagnostics redacts device token and home paths", async () => {
       "utf8",
     );
 
-    await fs.writeFile(
-      path.join(trackerDir, "openclaw.signal"),
-      "2026-02-12T00:00:00.000Z\n",
-      "utf8",
-    );
-
     let out = "";
     process.stdout.write = (chunk, enc, cb) => {
       out += typeof chunk === "string" ? chunk : chunk.toString(enc || "utf8");
@@ -87,8 +81,6 @@ test("diagnostics redacts device token and home paths", async () => {
     // diagnostics must neither echo nor report them.
     assert.equal(data?.config?.device_token, undefined);
     assert.equal(data?.auto_retry, undefined);
-    assert.equal(data?.notify?.last_openclaw_triggered_sync, "2026-02-12T00:00:00.000Z");
-    assert.equal(data?.notify?.openclaw_session_plugin_conversation_access, false);
     assert.equal(data?.notify?.grok_hook_configured, true);
     assert.equal(data?.notify?.grok_hook_handler_exists, true);
     assert.equal(typeof data?.paths?.codex_home, "string");

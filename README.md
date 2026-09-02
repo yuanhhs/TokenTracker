@@ -4,7 +4,7 @@ Token Tracker is a local-first Windows system-tray app for tracking token usage 
 
 ## Features
 
-- Local usage dashboard for 34 supported AI coding tools
+- Local usage dashboard for 29 supported AI coding tools
 - Windows system-tray integration
 - Self-contained .NET 8 application with an embedded Node.js server
 - Usage totals, trends, model breakdowns, projects, and limits

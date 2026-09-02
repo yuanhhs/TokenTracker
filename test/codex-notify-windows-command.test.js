@@ -11,7 +11,6 @@ const { test } = require("node:test");
 
 process.env.TOKENTRACKER_SKIP_LOCAL_RUNTIME_COPY = "1";
 process.env.TOKENTRACKER_SKIP_FIRST_SYNC = "1";
-process.env.TOKENTRACKER_SKIP_OPENCLAW_CLI = "1";
 
 const {
   buildCodexNotifyCmd,

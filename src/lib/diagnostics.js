@@ -12,9 +12,6 @@ const {
   buildGeminiHookCommand,
   isGeminiHookConfigured,
 } = require("./gemini-config");
-const { resolveOpencodeConfigDir, isOpencodePluginInstalled } = require("./opencode-config");
-const { probeOpenclawHookState } = require("./openclaw-hook");
-const { probeOpenclawSessionPluginState } = require("./openclaw-session-plugin");
 const { probeGrokHookState } = require("./grok-hook");
 const { resolveTrackerPaths } = require("./tracker-paths");
 const wsl = require("./wsl-probe");
@@ -74,7 +71,6 @@ async function collectTrackerDiagnostics({
   const queueStatePath = path.join(trackerDir, "queue.state.json");
   const cursorsPath = path.join(trackerDir, "cursors.json");
   const notifySignalPath = path.join(trackerDir, "notify.signal");
-  const openclawSignalPath = path.join(trackerDir, "openclaw.signal");
   const throttlePath = path.join(trackerDir, "sync.throttle");
   const syncSkipPath = path.join(trackerDir, "sync.skip.json");
   const codexConfigPath = path.join(codexHome, "config.toml");
@@ -82,7 +78,6 @@ async function collectTrackerDiagnostics({
   const claudeConfigPath = path.join(home, ".claude", "settings.json");
   const geminiConfigDir = resolveGeminiConfigDir({ home, env: process.env });
   const geminiSettingsPath = resolveGeminiSettingsPath({ configDir: geminiConfigDir });
-  const opencodeConfigDir = resolveOpencodeConfigDir({ home, env: process.env });
   const grokHome =
     process.env.TOKENTRACKER_GROK_HOME ||
     process.env.GROK_HOME ||
@@ -98,7 +93,6 @@ async function collectTrackerDiagnostics({
   const offsetBytes = Number(queueState.offset || 0);
 
   const lastNotify = (await safeReadText(notifySignalPath))?.trim() || null;
-  const lastOpenclawSync = (await safeReadText(openclawSignalPath))?.trim() || null;
   const lastNotifySpawn = parseEpochMsToIso((await safeReadText(throttlePath))?.trim() || null);
 
   const codexNotifyRaw = await readCodexNotify(codexConfigPath);
@@ -119,15 +113,6 @@ async function collectTrackerDiagnostics({
     settingsPath: geminiSettingsPath,
     hookCommand: geminiHookCommand,
   });
-  const opencodePluginConfigured = await isOpencodePluginInstalled({
-    configDir: opencodeConfigDir,
-  });
-  const openclawSessionPluginState = await probeOpenclawSessionPluginState({
-    home,
-    trackerDir,
-    env: process.env,
-  });
-  const openclawHookState = await probeOpenclawHookState({ home, trackerDir, env: process.env });
   const grokHookState = await probeGrokHookState({ home, trackerDir, env: process.env });
 
   // Kiro IDE and Kiro CLI sub-path presence — merged under one "kiro" source
@@ -188,7 +173,6 @@ async function collectTrackerDiagnostics({
       claude_projects: redactValue(path.join(home, ".claude", "projects"), home),
       ...(process.platform === "win32" ? { claude_projects_wsl: claudeWslProjects } : {}),
       gemini_config: redactValue(geminiSettingsPath, home),
-      opencode_config: redactValue(opencodeConfigDir, home),
       grok_home: redactValue(grokHome, home),
       grok_hooks: redactValue(grokHookState?.grokHooksDir, home),
       grok_handler: redactValue(grokHookState?.handlerPath, home),
@@ -224,7 +208,6 @@ async function collectTrackerDiagnostics({
     },
     notify: {
       last_notify: lastNotify,
-      last_openclaw_triggered_sync: lastOpenclawSync,
       last_notify_triggered_sync: lastNotifySpawn,
       codex_notify_configured: notifyConfigured,
       codex_notify: codexNotify,
@@ -232,16 +215,6 @@ async function collectTrackerDiagnostics({
       every_code_notify: everyCodeNotify,
       claude_hook_configured: claudeHookConfigured,
       gemini_hook_configured: geminiHookConfigured,
-      opencode_plugin_configured: opencodePluginConfigured,
-      openclaw_session_plugin_configured: Boolean(openclawSessionPluginState?.configured),
-      openclaw_session_plugin_linked: Boolean(openclawSessionPluginState?.linked),
-      openclaw_session_plugin_enabled: Boolean(openclawSessionPluginState?.enabled),
-      openclaw_session_plugin_conversation_access: Boolean(
-        openclawSessionPluginState?.conversationAccess,
-      ),
-      openclaw_hook_configured: Boolean(openclawHookState?.configured),
-      openclaw_hook_linked: Boolean(openclawHookState?.linked),
-      openclaw_hook_enabled: Boolean(openclawHookState?.enabled),
       grok_hook_configured: Boolean(grokHookState?.configured),
       grok_hook_exists: Boolean(grokHookState?.hookExists),
       grok_hook_handler_exists: Boolean(grokHookState?.handlerExists),

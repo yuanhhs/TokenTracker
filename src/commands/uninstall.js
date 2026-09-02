@@ -20,9 +20,6 @@ const {
   buildGeminiHookCommand,
   removeGeminiHook,
 } = require("../lib/gemini-config");
-const { resolveOpencodeConfigDir, removeOpencodePlugin } = require("../lib/opencode-config");
-const { removeOpenclawHookConfig } = require("../lib/openclaw-hook");
-const { removeOpenclawSessionPluginConfig } = require("../lib/openclaw-session-plugin");
 const { removeGrokHook } = require("../lib/grok-hook");
 const { removeOmpHook } = require("../lib/omp-hook");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
@@ -42,7 +39,6 @@ async function cmdUninstall(argv) {
   const workbuddySettingsPath = path.join(workbuddyDir, "settings.json");
   const geminiConfigDir = resolveGeminiConfigDir({ home, env: process.env });
   const geminiSettingsPath = resolveGeminiSettingsPath({ configDir: geminiConfigDir });
-  const opencodeConfigDir = resolveOpencodeConfigDir({ home, env: process.env });
   const notifyPath = path.join(binDir, "notify.cjs");
   const notifyOriginalPath = path.join(trackerDir, "codex_notify_original.json");
   const codeNotifyOriginalPath = path.join(trackerDir, "code_notify_original.json");
@@ -59,7 +55,6 @@ async function cmdUninstall(argv) {
   const codebuddyConfigExists = await isFile(codebuddySettingsPath);
   const workbuddyConfigExists = await isFile(workbuddySettingsPath);
   const geminiConfigExists = await isDir(geminiConfigDir);
-  const opencodeConfigExists = await isDir(opencodeConfigDir);
   const codexRestore = codexConfigExists
     ? await restoreCodexNotify({
         codexConfigPath,
@@ -95,15 +90,6 @@ async function cmdUninstall(argv) {
   const geminiRemove = geminiConfigExists
     ? await removeGeminiHook({ settingsPath: geminiSettingsPath, hookCommand: geminiHookCommand })
     : { removed: false, skippedReason: "config-missing" };
-  const opencodeRemove = opencodeConfigExists
-    ? await removeOpencodePlugin({ configDir: opencodeConfigDir })
-    : { removed: false, skippedReason: "config-missing" };
-  const openclawSessionPluginRemove = await removeOpenclawSessionPluginConfig({
-    home,
-    trackerDir,
-    env: process.env,
-  });
-  const openclawHookRemove = await removeOpenclawHookConfig({ home, trackerDir, env: process.env });
   const grokHookRemove = await removeGrokHook({ home, trackerDir, env: process.env });
   const ompHookRemove = await removeOmpHook({ home, trackerDir, env: process.env });
 
@@ -166,25 +152,6 @@ async function cmdUninstall(argv) {
             ? "- Gemini hooks: no change"
             : "- Gemini hooks: skipped"
         : `- Gemini hooks: skipped (${geminiConfigDir} not found)`,
-      opencodeConfigExists
-        ? opencodeRemove?.removed
-          ? `- Opencode plugin removed: ${opencodeConfigDir}`
-          : opencodeRemove?.skippedReason === "plugin-missing"
-            ? "- Opencode plugin: no change"
-            : opencodeRemove?.skippedReason === "unexpected-content"
-              ? "- Opencode plugin: skipped (unexpected content)"
-              : "- Opencode plugin: skipped"
-        : `- Opencode plugin: skipped (${opencodeConfigDir} not found)`,
-      openclawSessionPluginRemove?.removed
-        ? `- OpenClaw session plugin removed: ${openclawSessionPluginRemove.openclawConfigPath}`
-        : openclawSessionPluginRemove?.skippedReason === "openclaw-config-missing"
-          ? "- OpenClaw session plugin: skipped (openclaw config not found)"
-          : "- OpenClaw session plugin: no change",
-      openclawHookRemove?.removed
-        ? `- OpenClaw hook (legacy) removed: ${openclawHookRemove.openclawConfigPath}`
-        : openclawHookRemove?.skippedReason === "openclaw-config-missing"
-          ? "- OpenClaw hook (legacy): skipped (openclaw config not found)"
-          : "- OpenClaw hook (legacy): no change",
       grokHookRemove?.removed
         ? `- Grok Build hook removed: ${grokHookRemove.hookPath}`
         : "- Grok Build hook: no change",

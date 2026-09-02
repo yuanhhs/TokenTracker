@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TokenTracker Dynamic Island</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+      * { box-sizing: border-box; }
+      html, body, #island-root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+      button { font: inherit; }
+      .island-stage { width: 100%; height: 100%; display: flex; justify-content: center; align-items: flex-start; }
+      .island-shell {
+        margin-top: 0; color: white; background: rgba(5, 5, 7, .96);
+        border: 1px solid rgba(255, 255, 255, .12); border-top: 0;
+        box-shadow: 0 14px 38px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .06);
+        overflow: hidden; user-select: none; -webkit-user-select: none;
+        transition: width .22s cubic-bezier(.2,.8,.2,1), min-height .22s cubic-bezier(.2,.8,.2,1), border-radius .22s ease;
+      }
+      .island-shell.compact { width: 326px; min-height: 44px; border-radius: 0 0 18px 18px; }
+      .island-shell.expanded { width: 460px; min-height: 286px; border-radius: 0 0 24px 24px; }
+      .island-shell.expanded.without-limits { min-height: 164px; }
+      .island-header { height: 44px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 15px; cursor: move; }
+      .island-wing { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .island-wing.right { justify-content: flex-end; }
+      .island-wing-copy.right { text-align: right; }
+      .island-value { font-size: 13px; font-weight: 650; line-height: 1; letter-spacing: -.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .island-caption { margin-top: 3px; color: rgba(255,255,255,.48); font-size: 9px; line-height: 1; white-space: nowrap; }
+      .island-center { display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+      .island-mark { width: 20px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.1); }
+      .island-dot { width: 5px; height: 5px; border-radius: 50%; background: #52d273; box-shadow: 0 0 10px rgba(82,210,115,.7); }
+      .island-dot.offline { background: #ff6b6b; box-shadow: 0 0 10px rgba(255,107,107,.65); }
+      .island-ring { --island-ring-color: #62d58b; width: 20px; height: 20px; padding: 2px; border-radius: 50%; background: conic-gradient(var(--island-ring-color) var(--island-ring-progress), rgba(255,255,255,.13) 0); }
+      .island-ring.warning { --island-ring-color: #f1b34c; }
+      .island-ring.danger { --island-ring-color: #ff6b6b; }
+      .island-ring > span { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; border-radius: 50%; background: #050507; color: rgba(255,255,255,.78); font-size: 8px; font-weight: 700; }
+      .island-content { padding: 4px 16px 16px; animation: island-in .18s ease-out; }
+      @keyframes island-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+      .island-toolbar { display: flex; align-items: center; justify-content: space-between; height: 34px; border-top: 1px solid rgba(255,255,255,.07); }
+      .island-title { font-size: 11px; font-weight: 650; color: rgba(255,255,255,.72); }
+      .island-actions { display: flex; gap: 5px; }
+      .island-button { width: 27px; height: 24px; border: 0; border-radius: 8px; color: rgba(255,255,255,.66); background: rgba(255,255,255,.06); cursor: pointer; }
+      .island-button:hover { color: white; background: rgba(255,255,255,.12); }
+      .island-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+      .island-stat { min-width: 0; padding: 9px 8px; border-radius: 11px; background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.055); }
+      .island-stat-label { color: rgba(255,255,255,.48); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .island-stat-value { margin-top: 5px; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .island-stat-sub { margin-top: 3px; color: rgba(255,255,255,.42); font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .island-section-title { margin: 13px 1px 7px; color: rgba(255,255,255,.58); font-size: 9px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; }
+      .island-limits { display: grid; gap: 7px; max-height: 112px; overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+      .island-limit { display: grid; grid-template-columns: 112px 1fr 42px; align-items: center; gap: 9px; }
+      .island-limit-name { min-width: 0; font-size: 9px; color: rgba(255,255,255,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .island-track { height: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.09); }
+      .island-fill { height: 100%; border-radius: inherit; background: #62d58b; }
+      .island-fill.warning { background: #f1b34c; }
+      .island-fill.danger { background: #ff6b6b; }
+      .island-limit-value { color: rgba(255,255,255,.72); font-size: 9px; text-align: right; font-variant-numeric: tabular-nums; }
+      .island-empty { padding: 12px; border-radius: 10px; color: rgba(255,255,255,.42); background: rgba(255,255,255,.04); font-size: 10px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div id="island-root"></div>
+    <script type="module" src="/src/island.jsx"></script>
+  </body>
+</html>

@@ -241,7 +241,7 @@ test("model rankings merge provider-qualified ids only when a bare peer exists (
       ],
     },
     {
-      label: "OPENCODE",
+      label: "KILO-CLI",
       models: [
         { id: "volcengine/glm-5.2", name: "volcengine/glm-5.2", usage: 70, cost: 0.7 },
         { id: "bedrock/shared", name: "bedrock/shared", usage: 10, cost: 0.1 },
@@ -262,7 +262,7 @@ test("model rankings merge provider-qualified ids only when a bare peer exists (
         models: [{ model: "GLM-5.2", totals: { total_tokens: 30 } }],
       },
       {
-        source: "opencode",
+        source: "kilo-cli",
         models: [
           { model: "volcengine/glm-5.2", totals: { total_tokens: 70 } },
           { model: "openrouter/shared", totals: { total_tokens: 20 } },

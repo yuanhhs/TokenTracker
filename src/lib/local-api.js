@@ -1307,21 +1307,27 @@ function createLocalApiHandler({ queuePath }) {
       };
       const sumDays = (days) =>
         days.reduce((a, r) => {
+          a.total_tokens += r.total_tokens;
           a.billable_total_tokens += r.billable_total_tokens;
+          a.total_cost_usd += r.total_cost_usd || 0;
           a.conversation_count += r.conversation_count;
           return a;
-        }, { billable_total_tokens: 0, conversation_count: 0 });
+        }, { total_tokens: 0, billable_total_tokens: 0, total_cost_usd: 0, conversation_count: 0 });
 
       const l7 = collectDays(7);
       const l30 = collectDays(30);
       const l7t = sumDays(l7);
       const l30t = sumDays(l30);
+      const allTimeTotals = sumDays(allDaily);
       const l7fromStr = shiftDay(todayStr, -6);
       const l30fromStr = shiftDay(todayStr, -29);
 
       json(res, {
         from, to, days: daily.length, scope, excluded_sources: excludedSources,
         totals: { ...totals, total_cost_usd: totalCost.toFixed(6) },
+        all_time: {
+          totals: { ...allTimeTotals, total_cost_usd: allTimeTotals.total_cost_usd.toFixed(6) },
+        },
         rolling: {
           last_7d: { from: l7fromStr, to: todayStr, active_days: l7.length, totals: l7t },
           last_30d: { from: l30fromStr, to: todayStr, active_days: l30.length, totals: l30t, avg_per_active_day: l30.length > 0 ? Math.round(l30t.billable_total_tokens / l30.length) : 0 },
@@ -2235,6 +2241,58 @@ function createLocalApiHandler({ queuePath }) {
         json(res, { ok: false, error: "Method Not Allowed" }, 405);
       } catch (e) {
         json(res, { ok: false, error: e?.message || "Unknown skills error" }, 500);
+      }
+      return true;
+    }
+
+    // --- MCP manager (reads and writes each tool's live config directly) ---
+    if (p === "/functions/tokentracker-mcp") {
+      const method = String(req.method || "GET").toUpperCase();
+      const mcp = require("./mcp-manager");
+      try {
+        if (method === "GET") {
+          json(res, await mcp.getMcpState());
+          return true;
+        }
+        if (method === "POST") {
+          if (!isAuthorizedLocalMutation(req)) {
+            json(res, { ok: false, error: "Unauthorized" }, 401);
+            return true;
+          }
+          const body = await readJsonBody(req);
+          const action = String(body?.action || "");
+          if (action === "preview") {
+            json(res, { ok: true, ...(await mcp.previewMcpMutation(body.operation)) });
+            return true;
+          }
+          if (action === "commit") {
+            json(res, {
+              ok: true,
+              ...(await mcp.commitMcpMutation(body.operation, body.reviewToken)),
+            });
+            return true;
+          }
+          if (action === "upsert") {
+            json(res, { ok: true, ...(await mcp.upsertMcpServer(body.server)) });
+            return true;
+          }
+          if (action === "toggle") {
+            json(res, {
+              ok: true,
+              ...(await mcp.toggleMcpTarget(body.id, body.target, Boolean(body.enabled))),
+            });
+            return true;
+          }
+          if (action === "delete") {
+            json(res, { ok: true, ...(await mcp.deleteMcpServer(body.id)) });
+            return true;
+          }
+          json(res, { ok: false, error: "Unknown MCP action" }, 400);
+          return true;
+        }
+        json(res, { ok: false, error: "Method Not Allowed" }, 405);
+      } catch (error) {
+        json(res, { ok: false, error: error?.message || "MCP operation failed" }, 400);
       }
       return true;
     }

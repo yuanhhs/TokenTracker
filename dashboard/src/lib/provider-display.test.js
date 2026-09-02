@@ -29,7 +29,7 @@ describe("formatProviderDisplayName", () => {
 
   it("names pi backends that are not in the enumerated list", () => {
     expect(formatProviderDisplayName("pi-xai")).toBe("Pi · xAI");
-    expect(formatProviderDisplayName("pi-opencode-go")).toBe("Pi · OpenCode Go");
+    expect(formatProviderDisplayName("pi-custom")).toBe("Pi · Custom");
     expect(formatProviderDisplayName("pi")).toBe("Pi");
   });
 

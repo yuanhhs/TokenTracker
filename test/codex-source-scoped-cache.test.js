@@ -87,13 +87,8 @@ async function withTempSyncEnv(fn) {
     CODEX_HOME: process.env.CODEX_HOME,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_HOME: process.env.OPENCODE_HOME,
     XDG_DATA_HOME: process.env.XDG_DATA_HOME,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
-    TOKENTRACKER_OPENCLAW_AGENT_ID: process.env.TOKENTRACKER_OPENCLAW_AGENT_ID,
-    TOKENTRACKER_OPENCLAW_PREV_SESSION_ID: process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID,
-    TOKENTRACKER_OPENCLAW_SESSION_KEY: process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY,
-    TOKENTRACKER_OPENCLAW_HOME: process.env.TOKENTRACKER_OPENCLAW_HOME,
     TOKENTRACKER_INSFORGE_BASE_URL: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
     DSH_HOME: process.env.DSH_HOME,
     TOKENTRACKER_DSH_HOME: process.env.TOKENTRACKER_DSH_HOME,
@@ -104,12 +99,7 @@ async function withTempSyncEnv(fn) {
     process.env.CODEX_HOME = path.join(home, ".codex");
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
-    process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.XDG_DATA_HOME = path.join(home, ".local", "share");
-    process.env.TOKENTRACKER_OPENCLAW_HOME = path.join(home, ".openclaw");
-    delete process.env.TOKENTRACKER_OPENCLAW_AGENT_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY;
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     delete process.env.TOKENTRACKER_INSFORGE_BASE_URL;
     delete process.env.DSH_HOME;
@@ -246,26 +236,6 @@ test("legacy retry auto sync without source remains a full scan", async () => {
     const queue = await fs.readFile(path.join(home, ".tokentracker", "tracker", "queue.jsonl"), "utf8");
     assert.match(queue, /"source":"codex"/);
     assert.match(queue, /"total_tokens":23/);
-  });
-});
-
-test("OpenClaw auto sync does not enumerate Codex sessions", async () => {
-  await withTempSyncEnv(async (home) => {
-    const codexHome = process.env.CODEX_HOME;
-    await writeCodexRollout(
-      codexHome,
-      "2026-06-30",
-      "019f16bd-4545-7666-8777-888888888888",
-      31,
-    );
-
-    const codexRoot = path.join(codexHome);
-    const { count } = await countReaddir(
-      () => cmdSync(["--auto", "--from-openclaw"]),
-      (target) => target.startsWith(codexRoot),
-    );
-
-    assert.equal(count, 0, "OpenClaw lifecycle sync should only inspect OpenClaw state");
   });
 });
 
@@ -544,7 +514,6 @@ test("background auto sync does not enumerate broad provider roots", async () =>
     const broadRoots = [
       path.join(home, ".claude"),
       path.join(home, ".gemini"),
-      path.join(home, ".opencode"),
       path.join(home, ".local", "share", "mimocode"),
       path.join(home, ".workbuddy"),
     ];

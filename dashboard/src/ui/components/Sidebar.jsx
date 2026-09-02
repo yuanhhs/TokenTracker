@@ -15,6 +15,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  PanelsTopLeft,
 } from "lucide-react";
 import { copy } from "../../lib/copy";
 import { cn } from "../../lib/cn";
@@ -22,6 +23,7 @@ import { useTheme } from "../../hooks/useTheme.js";
 import { useLocale } from "../../hooks/useLocale.js";
 import { shouldFetchGithubStars } from "../dashboard/util/should-fetch-github-stars.js";
 import { isNativeApp, isNativeEmbed, isNativeWindowsApp } from "../../lib/native-bridge.js";
+import { McpIcon } from "../icons/McpIcon.jsx";
 
 const STORAGE_KEY = "tt.sidebarCollapsed";
 
@@ -43,6 +45,8 @@ export function getNavGroups() {
       label: copy("nav.group.tools"),
       items: [
         { id: "skills", to: "/skills", icon: Puzzle, label: copy("nav.skills") },
+        { id: "mcp", to: "/mcp", icon: McpIcon, label: copy("nav.mcp") },
+        { id: "widgets", to: "/widgets", icon: PanelsTopLeft, label: copy("nav.widgets") },
         { id: "ip-check", to: "/ip-check", icon: Globe, label: copy("nav.ip_check") },
         { id: "service-status", to: "/service-status", icon: Activity, label: copy("nav.service_status") },
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },

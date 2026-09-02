@@ -10,50 +10,49 @@ const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "u
 
 // The translated READMEs, the desktop pet, the desktop widgets, and the
 // achievement badges went away with the Windows-only, local-first refactor. The
-// 34-tool count is still the number every surviving public discovery surface
+// The supported-tool count is still the number every surviving public discovery surface
 // has to agree on.
-test("public discovery surfaces describe all 34 supported tools", () => {
+test("public discovery surfaces describe all 29 supported tools", () => {
   const readme = read("README.md");
-  assert.match(readme, /34 supported AI coding tools/, "README.md has the current provider count");
+  assert.match(readme, /29 supported AI coding tools/, "README.md has the current provider count");
 
   const index = read("dashboard/index.html");
   assert.doesNotMatch(index, /13 AI coding/);
-  assert.match(index, /Supported AI coding tools \(34\)/);
+  assert.match(index, /Supported AI coding tools \(29\)/);
   assert.match(index, /TRAE Work CN/);
   assert.match(index, /Service Status page/);
-  assert.match(index, /usage limits for 13 providers/i);
+  assert.match(index, /usage limits for 10 providers/i);
   assert.doesNotMatch(index, /desktop pet|desktop widget/i);
   assert.doesNotMatch(index, /achievement/i, "removed achievements must not be advertised");
 
   const llms = read("dashboard/public/llms.txt");
-  assert.match(llms, /Supported AI coding tools \(34\)/);
+  assert.match(llms, /Supported AI coding tools \(29\)/);
   assert.match(llms, /TRAE Work CN/);
   assert.doesNotMatch(llms, /desktop pet|desktop widget/i);
   assert.doesNotMatch(llms, /achievement/i, "removed achievements must not be advertised");
 });
 
-test("marketing logo wall includes the same 34 product integrations", () => {
+test("marketing logo wall includes the same 29 product integrations", () => {
   const source = read("dashboard/src/ui/marketing/agent-logos.js");
   const providers = [...source.matchAll(/provider:\s*"([^"]+)"/g)].map((match) => match[1]);
-  assert.equal(providers.length, 34);
-  assert.equal(new Set(providers).size, 34);
+  assert.equal(providers.length, 29);
+  assert.equal(new Set(providers).size, 29);
 
-  for (const provider of ["every-code", "reasonix", "kilocode", "roocode", "zed", "goose", "droid", "qoder", "anythingllm", "dsh", "prime-agent", "trae-cn", "dots"]) {
+  for (const provider of ["every-code", "reasonix", "kilocode", "roocode", "goose", "droid", "anythingllm", "dsh", "prime-agent", "trae-cn", "dots"]) {
     assert.ok(providers.includes(provider), `logo wall includes ${provider}`);
   }
 });
 
-test("CLI onboarding advertises the same 34 supported integrations", () => {
+test("CLI onboarding advertises the same 29 supported integrations", () => {
   const source = read("src/commands/init.js");
   const block = source.match(/const SUPPORTED_PROVIDERS = \[([\s\S]*?)\];/);
   assert.ok(block, "init defines SUPPORTED_PROVIDERS");
 
   const providers = [...block[1].matchAll(/^\s*"([^"]+)",?$/gm)].map((match) => match[1]);
-  assert.equal(providers.length, 34);
-  assert.equal(new Set(providers).size, 34);
+  assert.equal(providers.length, 29);
+  assert.equal(new Set(providers).size, 29);
   assert.ok(providers.includes("Droid"));
   assert.ok(providers.includes("AnythingLLM Desktop"));
-  assert.ok(providers.includes("Qoder"));
   assert.ok(providers.includes("Reasonix"));
   assert.ok(providers.includes("DeepSeek Harness"));
   assert.ok(providers.includes("Prime Agent"));

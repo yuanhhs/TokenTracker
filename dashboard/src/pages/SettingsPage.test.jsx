@@ -14,6 +14,19 @@ const nativeSettingsMock = vi.hoisted(() => ({
   setSetting: vi.fn(),
 }));
 
+const nativeIslandMock = vi.hoisted(() => ({
+  available: true,
+  settings: {
+    dynamicIslandSupported: true,
+    dynamicIslandEnabled: true,
+    dynamicIslandAutoCollapse: true,
+    dynamicIslandShowLimits: true,
+    nativePlatform: "windows",
+  },
+  setSetting: vi.fn(),
+  runAction: vi.fn(),
+}));
+
 const proxySettingsMock = vi.hoisted(() => ({
   available: false,
 }));
@@ -22,6 +35,7 @@ const LABELS = {
   "settings.page.title": "Settings",
   "settings.page.subtitle": "Manage your preferences",
   "settings.section.appearance": "Appearance",
+  "settings.section.island": "Dynamic Island",
   "settings.section.menubar": "Menu Bar App",
   "settings.section.limits": "Limits Display",
   "settings.section.labs": "Labs",
@@ -59,6 +73,10 @@ vi.mock("../hooks/use-native-settings.js", () => ({
   }),
 }));
 
+vi.mock("../hooks/use-native-island-settings.js", () => ({
+  useNativeIslandSettings: () => nativeIslandMock,
+}));
+
 vi.mock("../hooks/use-proxy-settings.js", () => ({
   useProxySettings: () => ({
     available: proxySettingsMock.available,
@@ -71,6 +89,10 @@ vi.mock("../hooks/use-proxy-settings.js", () => ({
 
 vi.mock("../components/settings/AppearanceSection.jsx", () => ({
   AppearanceSection: () => <div data-testid="appearance-content" />,
+}));
+
+vi.mock("../components/settings/DynamicIslandSection.jsx", () => ({
+  DynamicIslandSection: () => <div data-testid="island-content" />,
 }));
 
 vi.mock("../components/settings/MenuBarSection.jsx", () => ({
@@ -131,6 +153,16 @@ describe("SettingsPage category navigation", () => {
       confettiOnReset: true,
     };
     nativeSettingsMock.setSetting.mockReset();
+    nativeIslandMock.available = true;
+    nativeIslandMock.settings = {
+      dynamicIslandSupported: true,
+      dynamicIslandEnabled: true,
+      dynamicIslandAutoCollapse: true,
+      dynamicIslandShowLimits: true,
+      nativePlatform: "windows",
+    };
+    nativeIslandMock.setSetting.mockReset();
+    nativeIslandMock.runAction.mockReset();
     proxySettingsMock.available = false;
   });
 
@@ -184,6 +216,15 @@ describe("SettingsPage category navigation", () => {
     expect(screen.getByRole("button", { name: "Appearance" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("omits the Dynamic Island category when the Windows island bridge is unavailable", () => {
+    nativeIslandMock.available = false;
+    const { container } = renderSettings("/settings?section=island");
+
+    expect(screen.queryByRole("button", { name: "Dynamic Island" })).not.toBeInTheDocument();
+    expect(container.querySelector('[data-settings-panel="island"]')).toBeNull();
+    expect(screen.getByRole("button", { name: "Appearance" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("keeps reset feedback settings visible but disabled without the native bridge", () => {
     nativeSettingsMock.available = false;
     renderSettings("/settings?section=limits");
@@ -201,6 +242,17 @@ describe("SettingsPage category navigation", () => {
     );
     expect(container.querySelector('[data-settings-panel="limits"]')).not.toHaveAttribute("hidden");
     expect(container.querySelector('[data-settings-panel="appearance"]')).toHaveAttribute("hidden");
+  });
+
+  it("selects Dynamic Island from its Windows settings deep link", () => {
+    const { container } = renderSettings("/settings?section=island");
+
+    expect(screen.getByRole("button", { name: "Dynamic Island" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(container.querySelector('[data-settings-panel="island"]')).not.toHaveAttribute("hidden");
+    expect(screen.getByTestId("island-content")).toBeInTheDocument();
   });
 
   it("offers independent reset toast and confetti settings in Limits Display", async () => {

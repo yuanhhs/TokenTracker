@@ -53,15 +53,11 @@ const DELETE_KEYS = [
   "TOKENTRACKER_DEVICE_TOKEN",
   "TOKENTRACKER_INSFORGE_BASE_URL",
   "TOKENTRACKER_INSFORGE_ANON_KEY",
-  "TOKENTRACKER_OPENCLAW_AGENT_ID",
-  "TOKENTRACKER_OPENCLAW_PREV_SESSION_ID",
-  "TOKENTRACKER_OPENCLAW_SESSION_KEY",
   "KILO_HOME",
   "MIMO_HOME",
   "ZCODE_HOME",
   "KIRO_CLI_DB_PATH",
   "KIRO_HOME",
-  "TOKENTRACKER_HERMES_HOME",
   "TOKENTRACKER_COPILOT_SESSION_STORE_DB",
   "DSH_HOME",
   "TOKENTRACKER_DSH_HOME",
@@ -73,9 +69,7 @@ const ENV_KEYS = [
   "CODEX_HOME",
   "CODE_HOME",
   "GEMINI_HOME",
-  "OPENCODE_HOME",
   "XDG_DATA_HOME",
-  "TOKENTRACKER_OPENCLAW_HOME",
   "APPDATA",
   "LOCALAPPDATA",
   "TOKENTRACKER_WSL_MODE",
@@ -92,9 +86,7 @@ async function withIsolatedEnv(fn) {
     process.env.CODEX_HOME = path.join(home, ".codex");
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
-    process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.XDG_DATA_HOME = path.join(home, ".local", "share");
-    process.env.TOKENTRACKER_OPENCLAW_HOME = path.join(home, ".openclaw");
     process.env.APPDATA = path.join(home, "AppData", "Roaming");
     process.env.LOCALAPPDATA = path.join(home, "AppData", "Local");
     for (const key of DELETE_KEYS) delete process.env[key];

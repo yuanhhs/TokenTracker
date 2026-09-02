@@ -104,16 +104,11 @@ async function withTempSyncEnv(fn) {
     CODEX_HOME: process.env.CODEX_HOME,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_HOME: process.env.OPENCODE_HOME,
     XDG_DATA_HOME: process.env.XDG_DATA_HOME,
     TOKENTRACKER_REASONIX_HOME: process.env.TOKENTRACKER_REASONIX_HOME,
     REASONIX_STATE_HOME: process.env.REASONIX_STATE_HOME,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
     TOKENTRACKER_INSFORGE_BASE_URL: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
-    TOKENTRACKER_OPENCLAW_HOME: process.env.TOKENTRACKER_OPENCLAW_HOME,
-    TOKENTRACKER_OPENCLAW_AGENT_ID: process.env.TOKENTRACKER_OPENCLAW_AGENT_ID,
-    TOKENTRACKER_OPENCLAW_PREV_SESSION_ID: process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID,
-    TOKENTRACKER_OPENCLAW_SESSION_KEY: process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY,
   };
   try {
     process.env.HOME = home;
@@ -121,16 +116,11 @@ async function withTempSyncEnv(fn) {
     process.env.CODEX_HOME = path.join(home, ".codex");
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
-    process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.XDG_DATA_HOME = path.join(home, ".local", "share");
-    process.env.TOKENTRACKER_OPENCLAW_HOME = path.join(home, ".openclaw");
     delete process.env.TOKENTRACKER_REASONIX_HOME;
     delete process.env.REASONIX_STATE_HOME;
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     delete process.env.TOKENTRACKER_INSFORGE_BASE_URL;
-    delete process.env.TOKENTRACKER_OPENCLAW_AGENT_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY;
     return await fn(home);
   } finally {
     for (const [key, value] of Object.entries(saved)) {
@@ -283,7 +273,6 @@ test("background auto sync avoids broad provider traversal", async () => {
     const broadRoots = [
       path.join(home, ".claude"),
       path.join(home, ".gemini"),
-      path.join(home, ".opencode"),
       path.join(home, ".local", "share", "mimocode"),
       path.join(home, ".workbuddy"),
     ];

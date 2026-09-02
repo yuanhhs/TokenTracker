@@ -24,10 +24,6 @@ const {
   isGeminiHookConfigured,
   buildGeminiHookCommand,
 } = require("../lib/gemini-config");
-const {
-  resolveOpencodeConfigDir,
-  isOpencodePluginInstalled,
-} = require("../lib/opencode-config");
 const { collectLocalSubscriptions } = require("../lib/subscriptions");
 const {
   describeCopilotOtelStatus,
@@ -35,10 +31,6 @@ const {
 } = require("../lib/usage-limits");
 const { collectTrackerDiagnostics } = require("../lib/diagnostics");
 const { detectPassiveProviders, isPassiveModeActive } = require("../lib/passive-mode");
-const { probeOpenclawHookState } = require("../lib/openclaw-hook");
-const {
-  probeOpenclawSessionPluginState,
-} = require("../lib/openclaw-session-plugin");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");
 const {
   resolveKimiWireFiles,
@@ -65,9 +57,6 @@ const {
   resolveReasonixTelemetryFiles,
   resolveKilocodeTaskFiles,
   resolveRoocodeTaskFiles,
-  resolveZedDbPath,
-  resolveQoderDbPaths,
-  resolveQoderCnDbPaths,
   resolveClaudeScienceDbPaths,
   resolveAnythingllmDbPath,
   resolveGooseDbPath,
@@ -78,8 +67,6 @@ const {
   resolveTraeStoragePath,
   readTraeEntitlementFromStorage,
   resolveGrokBuildSessions,
-  resolveHermesPath,
-  resolveHermesDbPath,
   resolveCopilotSessionStorePaths,
   describeCopilotSessionStoreDb,
   resolveCopilotAppDbPath,
@@ -165,7 +152,6 @@ async function cmdStatus(argv = []) {
   const queueStatePath = path.join(trackerDir, "queue.state.json");
   const cursorsPath = path.join(trackerDir, "cursors.json");
   const notifySignalPath = path.join(trackerDir, "notify.signal");
-  const openclawSignalPath = path.join(trackerDir, "openclaw.signal");
   const throttlePath = path.join(trackerDir, "sync.throttle");
   const syncSkipPath = path.join(trackerDir, "sync.skip.json");
   const codexHome = process.env.CODEX_HOME || path.join(home, ".codex");
@@ -185,10 +171,6 @@ async function cmdStatus(argv = []) {
   const geminiSettingsPath = resolveGeminiSettingsPath({
     configDir: geminiConfigDir,
   });
-  const opencodeConfigDir = resolveOpencodeConfigDir({
-    home,
-    env: process.env,
-  });
   const notifyPath = path.join(binDir, "notify.cjs");
   const codexNotifyCmd = buildCodexNotifyCmd(notifyPath);
   const claudeHookCommand = buildClaudeHookCommand(notifyPath);
@@ -207,8 +189,6 @@ async function cmdStatus(argv = []) {
   const pendingBytes = 0;
 
   const lastNotify = (await safeReadText(notifySignalPath))?.trim() || null;
-  const lastOpenclawSync =
-    (await safeReadText(openclawSignalPath))?.trim() || null;
   const lastNotifySpawn = parseEpochMsToIso(
     (await safeReadText(throttlePath))?.trim() || null,
   );
@@ -236,19 +216,6 @@ async function cmdStatus(argv = []) {
   const geminiHookConfigured = await isGeminiHookConfigured({
     settingsPath: geminiSettingsPath,
     hookCommand: geminiHookCommand,
-  });
-  const opencodePluginConfigured = await isOpencodePluginInstalled({
-    configDir: opencodeConfigDir,
-  });
-  const openclawSessionPluginState = await probeOpenclawSessionPluginState({
-    home,
-    trackerDir,
-    env: process.env,
-  });
-  const openclawHookState = await probeOpenclawHookState({
-    home,
-    trackerDir,
-    env: process.env,
   });
 
   const syncSkipLine = syncSkip?.at
@@ -440,7 +407,7 @@ async function cmdStatus(argv = []) {
   const kiloInstalled = kiloActive.length > 0;
   const kiloDbPath = kiloActive.join(" | ");
 
-  // Mimo (mimocode — OpenCode-fork SQLite) — passive scan of mimocode.db.
+  // Mimo (mimocode — compatible SQLite schema) — passive scan of mimocode.db.
   const mimoHome = process.env.MIMO_HOME || path.join(xdgDataHome, "mimocode");
   const mimoNativeValue = process.platform === "win32" && typeof process.env.APPDATA === "string"
     ? path.join(process.env.APPDATA.trim(), "mimocode", "mimocode.db")
@@ -453,7 +420,7 @@ async function cmdStatus(argv = []) {
   const mimoInstalled = mimoActive.length > 0;
   const mimoDbPath = mimoActive.join(" | ");
 
-  // ZCode (Z.ai's coding agent — OpenCode-fork SQLite) — passive scan of db.sqlite.
+  // ZCode (Z.ai's coding agent — compatible SQLite schema) — passive scan of db.sqlite.
   const zcodeNativeValue = resolveZcodeNativeDbPath({ home });
   const wslZcodeDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
     ? wsl.discoverWslHome(".zcode")
@@ -463,26 +430,6 @@ async function cmdStatus(argv = []) {
   const zcodeInstalled = zcodeActive.length > 0;
   const zcodeDbPath = zcodeActive.join(" | ");
 
-  // Qoder Desktop 1.18+ — token usage lives in SharedClientCache/local.db.
-  const qoderPaths = resolveQoderDbPaths({
-    home,
-    env: process.env,
-    platform: process.platform,
-  });
-  const qoderActive = formatResolvedPaths(qoderPaths);
-  const qoderInstalled = qoderActive.length > 0;
-  const qoderDbPath = qoderActive.join(" | ");
-
-  // Qoder CN (国内版) — same schema, separate Application Support/QoderCN dir.
-  const qoderCnPaths = resolveQoderCnDbPaths({
-    home,
-    env: process.env,
-    platform: process.platform,
-  });
-  const qoderCnActive = formatResolvedPaths(qoderCnPaths);
-  const qoderCnInstalled = qoderCnActive.length > 0;
-  const qoderCnDbPath = qoderCnActive.join(" | ");
-
   // Claude Science — token usage lives on the `frames` table of operon-cli.db.
   // Unlike the native/WSL pair other providers resolve to, this is an open-ended
   // list: multi-org installs keep one DB per org (and on Windows they all sit
@@ -490,28 +437,6 @@ async function cmdStatus(argv = []) {
   const claudeScienceActive = resolveClaudeScienceDbPaths({ home, env: process.env });
   const claudeScienceInstalled = claudeScienceActive.length > 0;
   const claudeScienceDbPath = claudeScienceActive.join(" | ");
-
-  // OpenCode (JSON files + SQLite DB) — passive scan of storage/message/ and opencode.db.
-  const opencodeStorageNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
-  const wslOpencodeStorageDir = process.platform === "win32" && shouldProbeWsl(process.env)
-    ? discoverWslHome(".local/share/opencode")
-    : null;
-  const opencodeStoragePaths = resolveInstallPaths({
-    nativeValue: opencodeStorageNativeValue,
-    wslValue: wslOpencodeStorageDir,
-  });
-  const opencodeStorageActive = formatResolvedPaths(opencodeStoragePaths);
-
-  const opencodeDbNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
-  const wslOpencodeDbDir = process.platform === "win32" && shouldProbeWsl(process.env)
-    ? discoverWslHome(".local/share/opencode")
-    : null;
-  const opencodeDbPaths = resolveInstallPaths({
-    nativeValue: opencodeDbNativeValue,
-    wslValue: wslOpencodeDbDir,
-  });
-  const opencodeDbActive = formatResolvedPaths(opencodeDbPaths, "opencode.db");
-  const opencodeInstalled = opencodeStorageActive.length > 0 || opencodeDbActive.length > 0;
 
   // Every Code (passive sessions scan)
   const codePaths = resolveInstallPaths({
@@ -589,17 +514,6 @@ async function cmdStatus(argv = []) {
   const roocodeTaskFiles = resolveRoocodeTaskFiles(process.env);
   const roocodeInstalled = roocodeTaskFiles.length > 0;
 
-  // Zed Agent — passive read of threads.db across all model providers
-  // (hosted "zed.dev" and bring-your-own alike). threadTotals tracks one entry
-  // per thread we've surfaced usage for, so its size distinguishes "DB present
-  // with usage" from "DB present but nothing counted yet" (fresh/undecodable).
-  const zedDbPath = resolveZedDbPath(process.env);
-  const zedInstalled = Boolean(zedDbPath && fssync.existsSync(zedDbPath));
-  const zedThreadsCounted =
-    cursors?.zed?.threadTotals && typeof cursors.zed.threadTotals === "object"
-      ? Object.keys(cursors.zed.threadTotals).length
-      : 0;
-
   // Goose (Block) — passive cumulative-delta read of sessions.db.
   const gooseDbPath = resolveGooseDbPath(process.env);
   const gooseInstalled = Boolean(gooseDbPath && fssync.existsSync(gooseDbPath));
@@ -659,19 +573,6 @@ async function cmdStatus(argv = []) {
     : [];
   const grokInstalled = grokHookState.hasGrokInstall || grokSessions.length > 0;
 
-  // Hermes Agent — SQLite state.db, resolved via override / native Windows
-  // install / WSL auto-discovery. Surface the resolved path (UNC included) and,
-  // on Windows, the discovered distros so WSL users can debug "why no sync"
-  // without guessing the right UNC alias (#87).
-  const hermesPaths = resolveInstallPaths({
-    nativeValue: process.env.TOKENTRACKER_HERMES_HOME || (process.platform === "win32" && typeof process.env.LOCALAPPDATA === "string"
-      ? path.join(process.env.LOCALAPPDATA.trim(), "hermes")
-      : path.join(home, ".hermes")),
-    wslDir: ".hermes",
-  });
-  const hermesActive = formatResolvedPaths(hermesPaths, "state.db");
-  const hermesInstalled = hermesActive.length > 0;
-  const hermesPath = hermesActive.join(" | ");
   const wslDistros = process.platform === "win32" && shouldProbeWsl(process.env) ? probeWslDistros() : [];
 
   const copilotToken = readCopilotOauthToken({ home });
@@ -809,8 +710,6 @@ async function cmdStatus(argv = []) {
       every_code_notify: everyCodeConfigured,
       claude: claudeHookConfigured,
       gemini: geminiHookConfigured,
-      opencode_plugin: opencodePluginConfigured,
-      openclaw_session_plugin: Boolean(openclawSessionPluginState?.configured),
       codebuddy: Boolean(codebuddyHookConfigured),
       workbuddy: Boolean(workbuddyHookConfigured),
       grok: Boolean(grokHookState?.configured),
@@ -826,7 +725,6 @@ async function cmdStatus(argv = []) {
       },
       last_parse: cursors?.updatedAt || null,
       last_notify: lastNotify || null,
-      last_openclaw_sync: lastOpenclawSync || null,
       last_notify_spawn: lastNotifySpawn || null,
       last_sync_skipped: syncSkip?.at ? syncSkip : null,
       hooks: {
@@ -834,12 +732,6 @@ async function cmdStatus(argv = []) {
         every_code_notify: everyCodeConfigured,
         claude: claudeHookConfigured,
         gemini: geminiHookConfigured,
-        opencode_plugin: opencodePluginConfigured,
-        openclaw_session_plugin: Boolean(openclawSessionPluginState?.configured),
-        openclaw_session_plugin_conversation_access: Boolean(
-          openclawSessionPluginState?.conversationAccess,
-        ),
-        openclaw_legacy: Boolean(openclawHookState?.configured),
         codebuddy: codebuddyInstalled ? Boolean(codebuddyHookConfigured) : null,
         workbuddy: workbuddyInstalled ? Boolean(workbuddyHookConfigured) : null,
         grok: grokInstalled ? Boolean(grokHookState?.configured) : null,
@@ -902,12 +794,6 @@ async function cmdStatus(argv = []) {
         zcode: zcodeInstalled
           ? { installed: true, detail: zcodeDbPath }
           : { installed: false },
-        qoder: qoderInstalled
-          ? { installed: true, detail: qoderDbPath }
-          : { installed: false },
-        "qoder-cn": qoderCnInstalled
-          ? { installed: true, detail: qoderCnDbPath }
-          : { installed: false },
         "claude-science": claudeScienceInstalled
           ? { installed: true, detail: claudeScienceDbPath }
           : { installed: false },
@@ -917,7 +803,6 @@ async function cmdStatus(argv = []) {
         roocode: roocodeInstalled
           ? { installed: true, files: roocodeTaskFiles.length }
           : { installed: false },
-        zed: zedInstalled ? { installed: true, detail: zedDbPath } : { installed: false },
         goose: gooseInstalled
           ? { installed: true, detail: gooseDbPath }
           : { installed: false },
@@ -949,10 +834,6 @@ async function cmdStatus(argv = []) {
               detail: grokHookState.configured ? "hook installed" : "detected",
             }
           : { installed: false },
-        hermes: {
-          installed: hermesInstalled,
-          detail: hermesPath,
-        },
       },
       copilot: {
         token_set: Boolean(copilotToken),
@@ -991,7 +872,6 @@ async function cmdStatus(argv = []) {
       `- Queue: ${queueSize} bytes`,
       `- Last parse: ${cursors?.updatedAt || "never"}`,
       `- Last notify: ${lastNotify || "never"}`,
-      `- Last OpenClaw-triggered sync: ${lastOpenclawSync || "never"}`,
       `- Last notify-triggered sync: ${lastNotifySpawn || "never"}`,
       syncSkipLine,
       `- Codex notify: ${notifyConfigured ? JSON.stringify(codexNotify) : "unset"}`,
@@ -1001,10 +881,6 @@ async function cmdStatus(argv = []) {
         ? `- Claude Code: projects found (${claudeCodeActive.join(" | ")})`
         : null,
       `- Gemini hooks: ${geminiHookConfigured ? "set" : "unset"}`,
-      `- Opencode plugin: ${opencodePluginConfigured ? "set" : "unset"}`,
-      `- OpenClaw session plugin: ${openclawSessionPluginState?.configured ? "set" : "unset"}`,
-      `- OpenClaw session plugin conversation access: ${openclawSessionPluginState?.conversationAccess ? "set" : "unset"}`,
-      `- OpenClaw hook (legacy): ${openclawHookState?.configured ? "set" : "unset"}`,
       kimiInstalled || kimiCodeInstalled
         ? `- Kimi Code: passive reader (${kimiWireFiles.length + kimiCodeWireFiles.length} wire.jsonl file${(kimiWireFiles.length + kimiCodeWireFiles.length) !== 1 ? "s" : ""} found, directories: ${kimiActive.join(" | ") || "none"})`
         : null,
@@ -1047,17 +923,8 @@ async function cmdStatus(argv = []) {
       zcodeInstalled
         ? `- ZCode: passive reader (${zcodeDbPath})`
         : null,
-      qoderInstalled
-        ? `- Qoder: passive reader (${qoderDbPath})`
-        : null,
-      qoderCnInstalled
-        ? `- Qoder CN: passive reader (${qoderCnDbPath})`
-        : null,
       claudeScienceInstalled
         ? `- Claude Science: passive reader (${claudeScienceDbPath})`
-        : null,
-      opencodeInstalled
-        ? `- OpenCode: passive reader (storage: ${opencodeStorageActive.join(" | ") || "not found"}, DB: ${opencodeDbActive.join(" | ") || "not found"})`
         : null,
       codeInstalled
         ? `- Every Code: sessions found (${codeActive.join(" | ")})`
@@ -1079,13 +946,6 @@ async function cmdStatus(argv = []) {
         : null,
       roocodeInstalled
         ? `- Roo Code (VS Code extension): passive reader (${roocodeTaskFiles.length} task${roocodeTaskFiles.length !== 1 ? "s" : ""} across ${new Set(roocodeTaskFiles.map((t) => t.ide)).size} IDE${new Set(roocodeTaskFiles.map((t) => t.ide)).size !== 1 ? "s" : ""})`
-        : null,
-      zedInstalled
-        ? `- Zed Agent: passive reader (threads.db, all providers${
-            zedThreadsCounted > 0
-              ? `, ${zedThreadsCounted} thread${zedThreadsCounted !== 1 ? "s" : ""} counted`
-              : ", no usage counted yet"
-          })`
         : null,
       gooseInstalled
         ? `- Goose (Block): passive reader (sessions.db, cumulative-delta)`
@@ -1114,10 +974,6 @@ async function cmdStatus(argv = []) {
         // combination (opted in, or no readable auth to send) is neutral.
         ? `- ${traeCnAuthState === "readable" && !traeCnUsageOptIn ? "⚠ " : ""}Trae SOLO CN: usage sync ${traeCnUsageOptIn ? "opted in" : `off (set ${TRAE_CN_USAGE_ENV}=1 to enable)`}, auth ${traeCnAuthState} (${traeCnStoragePath})`
         : null,
-      ...(() => {
-        if (!hermesInstalled) return [];
-        return [`- Hermes Agent: state.db found (${hermesPath})`];
-      })(),
       ...(() => {
         const passive = passiveProviders.filter((p) => p.passive);
         if (passive.length === 0) return [];
@@ -1213,9 +1069,7 @@ function formatSubscriptionLine(entry = {}) {
   const toolLabel =
     tool === "codex"
       ? "Codex"
-      : tool === "opencode"
-        ? "OpenCode"
-        : tool === "claude"
+      : tool === "claude"
           ? "Claude Code"
           : tool;
 

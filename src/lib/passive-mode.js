@@ -86,7 +86,7 @@ function classifyWritableFailure(filePath) {
  * @param {string} opts.home  - user home directory
  * @param {Object} opts.hookStatus - per-provider hook-installed booleans
  *   (already collected by status.js); shape: { claude, gemini, codex,
- *   every_code, opencode, openclaw, codebuddy, workbuddy, grok }
+ *   every_code, codebuddy, workbuddy, grok }
  * @returns {PassiveProvider[]}
  */
 function detectPassiveProviders({ home, hookStatus }) {

@@ -25,17 +25,12 @@ const {
   parseRolloutIncremental,
   parseClaudeIncremental,
   parseGeminiIncremental,
-  parseOpencodeIncremental,
-  parseOpencodeDbIncremental,
-  readOpencodeDbMessages,
+  parseAgentDbIncremental,
+  readAgentDbMessages,
   readZcodeDbMessages,
   parseKiroIncremental,
-  parseHermesIncremental,
-  resolveHermesPath,
-  resolveHermesDbPath,
   parseWslListVerbose,
   probeWslDistros,
-  discoverWslHermesHome,
   resolveCopilotOtelPaths,
   parseCopilotIncremental,
   parseKimiIncremental,
@@ -70,7 +65,6 @@ const {
   resolveKimiCodeWireFiles,
   resolveKimiCodeDefaultModel,
   resolveKilocodeRoots,
-  resolveZedDbPath,
   resolveGooseDbPath,
   listRolloutFilesDeep,
   filterColdCodexRolloutFiles,
@@ -3048,66 +3042,18 @@ test("parseCursorApiIncremental preserves history older than a windowed/truncate
   }
 });
 
-test("parseOpencodeIncremental aggregates message tokens and model", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
+test("readAgentDbMessages falls back to node:sqlite when sqlite3 CLI is unavailable", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-agent-db-"));
   try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 10, output: 2, reasoning: 1, cached: 3, cacheWrite: 5 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.filesProcessed, 1);
-    assert.equal(res.eventsAggregated, 1);
-    assert.equal(res.bucketsQueued, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].source, "opencode");
-    assert.equal(queued[0].model, "gpt-4o");
-    assert.equal(queued[0].hour_start, "2025-12-29T10:00:00.000Z");
-    assert.equal(queued[0].input_tokens, 10);
-    assert.equal(queued[0].cached_input_tokens, 3);
-    assert.equal(queued[0].cache_creation_input_tokens, 5);
-    assert.equal(queued[0].output_tokens, 2);
-    assert.equal(queued[0].reasoning_output_tokens, 1);
-    assert.equal(queued[0].total_tokens, 21); // 10 + 2 + 1 + 3 + 5
-    assert.equal(queued[0].conversation_count, 1);
-    assert.equal(typeof queued[0].content, "undefined");
-
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("readOpencodeDbMessages falls back to node:sqlite when sqlite3 CLI is unavailable", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-db-"));
-  try {
-    const dbPath = path.join(tmp, "opencode.db");
+    const dbPath = path.join(tmp, "agent.db");
     await fs.writeFile(dbPath, "", "utf8");
-    const message = buildOpencodeMessage({
+    const message = buildAgentDbMessage({
       modelID: "deepseek-v4-flash-free",
       created: "2025-12-29T10:14:00.000Z",
       completed: "2025-12-29T10:15:00.000Z",
       tokens: { input: 34, output: 10, reasoning: 2, cached: 0, cacheWrite: 0 },
     });
-    const rows = readOpencodeDbMessages(dbPath, {
+    const rows = readAgentDbMessages(dbPath, {
       execFileSync() {
         throw new Error("spawn sqlite3 ENOENT");
       },
@@ -3153,7 +3099,7 @@ test("readOpencodeDbMessages falls back to node:sqlite when sqlite3 CLI is unava
   }
 });
 
-// Build a fake node:sqlite injection that returns the given OpenCode-shaped
+// Build a fake node:sqlite injection that returns compatible agent-schema
 // message objects as `message` table rows (id/session_id/time_updated/data).
 function fakeZcodeSqliteOptions(dbPath, messages) {
   return {
@@ -3329,7 +3275,7 @@ test("readZcodeDbMessages queries a real native schema and ignores unfinished re
 
     const queuePath = path.join(tmp, "queue.jsonl");
     const cursors = { version: 1, files: {}, updatedAt: null };
-    const first = await parseOpencodeDbIncremental({
+    const first = await parseAgentDbIncremental({
       dbMessages: rows,
       dbPath,
       cursors,
@@ -3348,7 +3294,7 @@ test("readZcodeDbMessages queries a real native schema and ignores unfinished re
     assert.equal(queued.total_tokens, 122);
 
     const beforeSecondRun = await fs.readFile(queuePath, "utf8");
-    const second = await parseOpencodeDbIncremental({
+    const second = await parseAgentDbIncremental({
       dbMessages: readZcodeDbMessages(dbPath),
       dbPath,
       cursors,
@@ -3417,21 +3363,21 @@ test("readZcodeDbMessages keeps Z.ai/BigModel + third-party rows, drops bundled 
     };
     const messages = [
       // ZCode-native (its own GLM agent via Z.ai / BigModel) — KEEP
-      { ...buildOpencodeMessage({ ...base, modelID: "GLM-5.2" }), id: "z1", sessionID: "s1", providerID: "builtin:zai-start-plan" },
-      { ...buildOpencodeMessage({ ...base, modelID: "GLM-5-Turbo" }), id: "z2", sessionID: "s1", providerID: "builtin:bigmodel-coding-plan" },
+      { ...buildAgentDbMessage({ ...base, modelID: "GLM-5.2" }), id: "z1", sessionID: "s1", providerID: "builtin:zai-start-plan" },
+      { ...buildAgentDbMessage({ ...base, modelID: "GLM-5-Turbo" }), id: "z2", sessionID: "s1", providerID: "builtin:bigmodel-coding-plan" },
       // Custom providers the user adds to ZCode (a built-in feature beyond the
       // Z.ai plan subscription) get a random UUID as providerID — NOT a vendor
       // name. Observed on a real box: mimo-v2.5-pro under UUID "265956bf-…". An
       // allowlist of vendor keywords can never match a UUID, so these turns must
       // be KEEP-by-default or they go uncounted entirely (issue #216).
-      { ...buildOpencodeMessage({ ...base, modelID: "mimo-v2.5-pro" }), id: "m1", sessionID: "s5", providerID: "265956bf-e1b9-491d-879a-28a7944ff1b9" },
-      { ...buildOpencodeMessage({ ...base, modelID: "fugu-ultra" }), id: "f1", sessionID: "s4", providerID: "a1b2c3d4-0000-4000-8000-000000000000" },
+      { ...buildAgentDbMessage({ ...base, modelID: "mimo-v2.5-pro" }), id: "m1", sessionID: "s5", providerID: "265956bf-e1b9-491d-879a-28a7944ff1b9" },
+      { ...buildAgentDbMessage({ ...base, modelID: "fugu-ultra" }), id: "f1", sessionID: "s4", providerID: "a1b2c3d4-0000-4000-8000-000000000000" },
       // Bundled sub-agents ZCode can orchestrate — already counted by the
       // standalone Claude/Codex/Gemini parsers, so DROP
       // (anthropic/openai/google providerID).
-      { ...buildOpencodeMessage({ ...base, modelID: "claude-opus-4-8" }), id: "a1", sessionID: "s2", providerID: "anthropic" },
-      { ...buildOpencodeMessage({ ...base, modelID: "gpt-5.2-codex" }), id: "o1", sessionID: "s3", providerID: "openai" },
-      { ...buildOpencodeMessage({ ...base, modelID: "gemini-3-pro" }), id: "g1", sessionID: "s6", providerID: "google" },
+      { ...buildAgentDbMessage({ ...base, modelID: "claude-opus-4-8" }), id: "a1", sessionID: "s2", providerID: "anthropic" },
+      { ...buildAgentDbMessage({ ...base, modelID: "gpt-5.2-codex" }), id: "o1", sessionID: "s3", providerID: "openai" },
+      { ...buildAgentDbMessage({ ...base, modelID: "gemini-3-pro" }), id: "g1", sessionID: "s6", providerID: "google" },
     ];
 
     const rows = readZcodeDbMessages(dbPath, fakeZcodeSqliteOptions(dbPath, messages));
@@ -3446,7 +3392,7 @@ test("readZcodeDbMessages keeps Z.ai/BigModel + third-party rows, drops bundled 
   }
 });
 
-test("parseOpencodeDbIncremental aggregates ZCode GLM rows into source=zcode buckets (idempotent)", async () => {
+test("parseAgentDbIncremental aggregates ZCode GLM rows into source=zcode buckets (idempotent)", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-zcode-parse-"));
   try {
     const dbPath = path.join(tmp, "db.sqlite");
@@ -3456,7 +3402,7 @@ test("parseOpencodeDbIncremental aggregates ZCode GLM rows into source=zcode buc
 
     const messages = [
       {
-        ...buildOpencodeMessage({
+        ...buildAgentDbMessage({
           modelID: "GLM-5.2",
           created: "2026-06-15T09:00:00.000Z",
           completed: "2026-06-15T09:00:12.000Z",
@@ -3469,7 +3415,7 @@ test("parseOpencodeDbIncremental aggregates ZCode GLM rows into source=zcode buc
     ];
 
     const dbMessages = readZcodeDbMessages(dbPath, fakeZcodeSqliteOptions(dbPath, messages));
-    const res = await parseOpencodeDbIncremental({
+    const res = await parseAgentDbIncremental({
       dbMessages,
       cursors,
       queuePath,
@@ -3490,7 +3436,7 @@ test("parseOpencodeDbIncremental aggregates ZCode GLM rows into source=zcode buc
 
     // Second run over the same DB must be a no-op (cursor dedup).
     const dbMessages2 = readZcodeDbMessages(dbPath, fakeZcodeSqliteOptions(dbPath, messages));
-    const resAgain = await parseOpencodeDbIncremental({
+    const resAgain = await parseAgentDbIncremental({
       dbMessages: dbMessages2,
       cursors,
       queuePath,
@@ -3498,328 +3444,6 @@ test("parseOpencodeDbIncremental aggregates ZCode GLM rows into source=zcode buc
       cursorKey: "zcode",
     });
     assert.equal(resAgain.bucketsQueued, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental defaults missing model to unknown", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      created: "2025-12-29T10:20:00.000Z",
-      tokens: { input: 1, output: 0, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].model, "unknown");
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental falls back to model field when modelID missing", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      model: "glm-4.7-free",
-      created: "2025-12-29T10:30:00.000Z",
-      tokens: { input: 2, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].model, "glm-4.7-free");
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental does not double count after message rewrite", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    await fs.rm(messagePath);
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 0);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].total_tokens, 5);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental falls back to legacy cursors when opencode state missing", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    delete cursors.opencode;
-
-    await fs.rm(messagePath);
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 0);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].total_tokens, 5);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental counts usage once timestamp appears", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const messageNoTime = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(messageNoTime), "utf8");
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 0);
-
-    await fs.rm(messagePath);
-    const messageWithTime = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-    await fs.writeFile(messagePath, JSON.stringify(messageWithTime), "utf8");
-
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].total_tokens, 5);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental preserves totals after empty rewrite", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const message = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    delete cursors.opencode;
-
-    await fs.rm(messagePath);
-    await fs.writeFile(messagePath, "", "utf8");
-    const resEmpty = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resEmpty.bucketsQueued, 0);
-
-    await fs.rm(messagePath);
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 0);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].total_tokens, 5);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-test("parseOpencodeIncremental updates totals after message rewrite with new tokens", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    const baseMessage = {
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-    };
-
-    const messageV1 = buildOpencodeMessage({
-      ...baseMessage,
-      tokens: { input: 5, output: 0, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(messageV1), "utf8");
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.bucketsQueued, 1);
-
-    await fs.rm(messagePath);
-    const messageV2 = buildOpencodeMessage({
-      ...baseMessage,
-      tokens: { input: 8, output: 0, reasoning: 0, cached: 0 },
-    });
-    await fs.writeFile(messagePath, JSON.stringify(messageV2), "utf8");
-
-    const resAgain = await parseOpencodeIncremental({
-      messageFiles: [messagePath],
-      cursors,
-      queuePath,
-    });
-    assert.equal(resAgain.bucketsQueued, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 2);
-    assert.equal(queued[1].total_tokens, 8);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseOpencodeIncremental preserves legacy file totals when opencode index missing", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-opencode-"));
-  try {
-    const messageDir = path.join(tmp, "message", "ses_test");
-    await fs.mkdir(messageDir, { recursive: true });
-    const messagePath = path.join(messageDir, "msg_test.json");
-    const queuePath = path.join(tmp, "queue.jsonl");
-
-    const message = buildOpencodeMessage({
-      modelID: "gpt-4o",
-      created: "2025-12-29T10:14:00.000Z",
-      completed: "2025-12-29T10:15:00.000Z",
-      tokens: { input: 4, output: 1, reasoning: 0, cached: 0 },
-    });
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-    const st = await fs.stat(messagePath);
-
-    const legacyTotals = {
-      input_tokens: 4,
-      cached_input_tokens: 0,
-      output_tokens: 1,
-      reasoning_output_tokens: 0,
-      total_tokens: 5,
-    };
-
-    const cursors = {
-      version: 1,
-      files: {
-        [messagePath]: {
-          inode: st.ino,
-          size: st.size,
-          mtimeMs: st.mtimeMs,
-          lastTotals: legacyTotals,
-          updatedAt: "2025-12-29T10:20:00.000Z",
-        },
-      },
-      updatedAt: null,
-    };
-
-    await fs.writeFile(messagePath, JSON.stringify(message), "utf8");
-
-    const res = await parseOpencodeIncremental({ messageFiles: [messagePath], cursors, queuePath });
-    assert.equal(res.eventsAggregated, 0);
-    assert.equal(res.bucketsQueued, 0);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 0);
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }
@@ -5223,7 +4847,7 @@ function buildGeminiSession({ messages }) {
   };
 }
 
-function buildOpencodeMessage({ modelID, model, modelId, created, completed, tokens }) {
+function buildAgentDbMessage({ modelID, model, modelId, created, completed, tokens }) {
   const createdMs = created ? Date.parse(created) : null;
   const completedMs = completed ? Date.parse(completed) : null;
   return {
@@ -5357,286 +4981,6 @@ async function readJsonLines(filePath) {
   return lines.map((l) => JSON.parse(l));
 }
 
-// ── Hermes Agent integration tests ──
-
-function createHermesDb(dbPath, sessions) {
-  require("node:fs").mkdirSync(path.dirname(dbPath), { recursive: true });
-  sqliteCli.execFileSync("sqlite3", [
-    dbPath,
-    `CREATE TABLE sessions (
-      id TEXT PRIMARY KEY,
-      source TEXT NOT NULL,
-      user_id TEXT,
-      model TEXT,
-      model_config TEXT,
-      system_prompt TEXT,
-      parent_session_id TEXT,
-      started_at REAL NOT NULL,
-      ended_at REAL,
-      end_reason TEXT,
-      message_count INTEGER DEFAULT 0,
-      tool_call_count INTEGER DEFAULT 0,
-      input_tokens INTEGER DEFAULT 0,
-      output_tokens INTEGER DEFAULT 0,
-      cache_read_tokens INTEGER DEFAULT 0,
-      cache_write_tokens INTEGER DEFAULT 0,
-      reasoning_tokens INTEGER DEFAULT 0,
-      billing_provider TEXT,
-      billing_base_url TEXT,
-      billing_mode TEXT,
-      estimated_cost_usd REAL,
-      actual_cost_usd REAL,
-      cost_status TEXT,
-      cost_source TEXT,
-      pricing_version TEXT,
-      title TEXT
-    );`,
-  ]);
-  for (const s of sessions) {
-    const vals = [
-      `'${s.id}'`, `'${s.source || "cli"}'`, s.model ? `'${s.model}'` : "NULL",
-      s.started_at, s.ended_at || "NULL",
-      s.input_tokens || 0, s.output_tokens || 0,
-      s.cache_read_tokens || 0, s.cache_write_tokens || 0,
-      s.reasoning_tokens || 0, s.message_count || 0,
-    ].join(",");
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `INSERT INTO sessions (id, source, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count) VALUES (${vals});`,
-    ]);
-  }
-}
-
-test("parseHermesIncremental reads default and named profile databases with isolated cursors", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-profiles-"));
-  try {
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-    const defaultDbPath = path.join(tmp, "state.db");
-    const workDbPath = path.join(tmp, "profiles", "work", "state.db");
-    const personalDbPath = path.join(tmp, "profiles", "personal", "state.db");
-    const defaultEpoch = 1775993779.0;
-    const workEpoch = 1775997400.0;
-    const personalEpoch = 1776001000.0;
-
-    createHermesDb(defaultDbPath, [
-      { id: "shared_session", model: "gpt-5.4-mini", started_at: defaultEpoch, ended_at: defaultEpoch + 120, input_tokens: 1000, output_tokens: 500, message_count: 4 },
-    ]);
-    createHermesDb(workDbPath, [
-      { id: "shared_session", model: "claude-sonnet-4-6", started_at: workEpoch, ended_at: workEpoch + 120, input_tokens: 2000, output_tokens: 700, cache_read_tokens: 300, message_count: 5 },
-    ]);
-    createHermesDb(personalDbPath, [
-      { id: "personal_session", model: "gpt-5.4", started_at: personalEpoch, ended_at: personalEpoch + 120, input_tokens: 3000, output_tokens: 900, cache_write_tokens: 400, reasoning_tokens: 100, message_count: 6 },
-    ]);
-
-    const first = await parseHermesIncremental({ hermesPath: tmp, cursors, queuePath });
-    assert.equal(first.recordsProcessed, 3);
-    assert.equal(first.eventsAggregated, 3);
-    assert.ok(first.bucketsQueued >= 3);
-
-    assert.equal(cursors.hermes.lastStartedAt, defaultEpoch);
-    assert.equal(cursors.hermes.lastCompletedStartedAt, defaultEpoch);
-    assert.equal(cursors.hermes.snapshots["shared_session"].in, 1000);
-    assert.equal(cursors.hermes.profiles.work.lastCompletedStartedAt, workEpoch);
-    assert.equal(cursors.hermes.profiles.work.snapshots["shared_session"].in, 2000);
-    assert.equal(cursors.hermes.profiles.personal.lastCompletedStartedAt, personalEpoch);
-    assert.equal(cursors.hermes.profiles.personal.snapshots["personal_session"].cacheWrite, 400);
-
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.some((b) => b.source === "hermes" && b.model === "gpt-5.4-mini" && b.input_tokens === 1000));
-    assert.ok(queued.some((b) => b.source === "hermes" && b.model === "claude-sonnet-4-6" && b.cached_input_tokens === 300));
-    assert.ok(queued.some((b) => b.source === "hermes" && b.model === "gpt-5.4" && b.cache_creation_input_tokens === 400 && b.reasoning_output_tokens === 100));
-
-    const second = await parseHermesIncremental({ hermesPath: tmp, cursors, queuePath });
-    assert.equal(second.recordsProcessed, 3);
-    assert.equal(second.eventsAggregated, 0);
-    assert.equal(second.bucketsQueued, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental processes profiles when default database is absent", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-profile-only-"));
-  try {
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-    const workDbPath = path.join(tmp, "profiles", "work", "state.db");
-    const epoch = 1775993779.0;
-
-    createHermesDb(workDbPath, [
-      { id: "work_session", model: "claude-sonnet-4-6", started_at: epoch, ended_at: epoch + 120, input_tokens: 1234, output_tokens: 567, message_count: 3 },
-    ]);
-
-    const result = await parseHermesIncremental({ hermesPath: tmp, cursors, queuePath });
-    assert.equal(result.recordsProcessed, 1);
-    assert.equal(result.eventsAggregated, 1);
-    assert.equal(cursors.hermes.profiles.work.lastCompletedStartedAt, epoch);
-    assert.equal(cursors.hermes.profiles.work.snapshots["work_session"].out, 567);
-    assert.equal(cursors.hermes.lastCompletedStartedAt, undefined);
-
-    const queued = await readJsonLines(queuePath);
-    assert.equal(queued.length, 1);
-    assert.equal(queued[0].source, "hermes");
-    assert.equal(queued[0].model, "claude-sonnet-4-6");
-    assert.equal(queued[0].input_tokens, 1234);
-    assert.equal(queued[0].output_tokens, 567);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental processes sessions incrementally", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1, files: {}, updatedAt: null };
-
-    // Two sessions at different times
-    const epoch1 = 1775993779.0; // 2026-04-12T11:36:19Z
-    const epoch2 = 1775997400.0; // 2026-04-12T12:36:40Z
-    createHermesDb(dbPath, [
-      { id: "sess_001", model: "gpt-5.4-mini", started_at: epoch1, ended_at: epoch1 + 120, input_tokens: 1000, output_tokens: 500, cache_read_tokens: 200, message_count: 4 },
-      { id: "sess_002", model: "claude-sonnet-4-6", started_at: epoch2, ended_at: epoch2 + 300, input_tokens: 2000, output_tokens: 1000, cache_read_tokens: 500, reasoning_tokens: 100, message_count: 8 },
-    ]);
-
-    // First parse — should process both sessions
-    const first = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(first.recordsProcessed, 2);
-    assert.equal(first.eventsAggregated, 2);
-    assert.ok(first.bucketsQueued >= 1);
-    assert.equal(cursors.hermes.lastStartedAt, epoch2);
-
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.length >= 1);
-    const hermesBuckets = queued.filter((b) => b.source === "hermes");
-    assert.ok(hermesBuckets.length >= 1);
-    // Verify token fields on first bucket
-    const b1 = hermesBuckets.find((b) => b.model === "gpt-5.4-mini");
-    assert.ok(b1);
-    assert.equal(b1.input_tokens, 1000);
-    assert.equal(b1.output_tokens, 500);
-    assert.equal(b1.cached_input_tokens, 200);
-
-    // Second parse — cursor-boundary row is re-read, but duplicate suppression makes it a no-op
-    const second = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(second.recordsProcessed, 1);
-    assert.equal(second.eventsAggregated, 0);
-    assert.equal(second.bucketsQueued, 0);
-
-    // Add a third session and parse again — incremental
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `INSERT INTO sessions (id, source, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count) VALUES ('sess_003', 'cli', 'gpt-5.4-mini', ${epoch2 + 3600}, ${epoch2 + 3700}, 500, 250, 0, 0, 0, 2);`,
-    ]);
-    const third = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(third.recordsProcessed, 2);
-    assert.equal(third.eventsAggregated, 1);
-    assert.ok(third.bucketsQueued >= 1);
-    assert.equal(cursors.hermes.lastStartedAt, epoch2 + 3600);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental re-reads cursor timestamp sessions so same-second inserts are not dropped", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-same-second-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-    const epoch = 1775993779.0;
-
-    createHermesDb(dbPath, [
-      { id: "sess_original", model: "gpt-5.4-mini", started_at: epoch, ended_at: epoch + 120, input_tokens: 1000, output_tokens: 500, message_count: 4 },
-    ]);
-
-    const first = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(first.recordsProcessed, 1);
-    assert.equal(first.eventsAggregated, 1);
-    assert.equal(cursors.hermes.lastCompletedStartedAt, epoch);
-
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `INSERT INTO sessions (id, source, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count) VALUES ('sess_same_second', 'cli', 'gpt-5.4-mini', ${epoch}, ${epoch + 240}, 300, 150, 0, 0, 0, 2);`,
-    ]);
-
-    const second = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(second.recordsProcessed, 2);
-    assert.equal(second.eventsAggregated, 1);
-    assert.ok(second.bucketsQueued >= 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.some((b) => b.source === "hermes" && b.model === "gpt-5.4-mini" && b.input_tokens === 1300 && b.output_tokens === 650));
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("resolveHermesPath honors TOKENTRACKER_HERMES_HOME override", () => {
-  const override = "/tmp/tokentracker-hermes-override";
-  assert.equal(resolveHermesPath({ TOKENTRACKER_HERMES_HOME: override }), override);
-  assert.equal(
-    resolveHermesDbPath({ TOKENTRACKER_HERMES_HOME: override }),
-    path.join(override, "state.db"),
-  );
-  // Falls back to ~/.hermes when override is empty or absent.
-  // Suppress the WSL probe so this assertion is deterministic on Windows (#87).
-  const noWsl = { runWsl: () => { throw new Error("no WSL"); } };
-  const fallback = resolveHermesPath({ TOKENTRACKER_HERMES_HOME: "  " }, noWsl);
-  assert.equal(fallback, path.join(os.homedir(), ".hermes"));
-  assert.equal(resolveHermesPath({}, noWsl), path.join(os.homedir(), ".hermes"));
-});
-
-test("resolveHermesPath prefers %LOCALAPPDATA%\\hermes on Windows when present", async (t) => {
-  // The auto-detect branch only triggers on win32. Stub process.platform so
-  // the same assertion runs on mac/Linux CI.
-  const originalPlatform = process.platform;
-  Object.defineProperty(process, "platform", { value: "win32", configurable: true });
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-localappdata-"));
-  t.after(async () => {
-    Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
-    await fs.rm(tmp, { recursive: true, force: true });
-  });
-
-  // LOCALAPPDATA points at a dir that does NOT contain `hermes` → fall back.
-  // Suppress WSL probe so fallback is deterministic on Windows (#87).
-  const noWsl = { runWsl: () => { throw new Error("no WSL"); } };
-  assert.equal(
-    resolveHermesPath({ LOCALAPPDATA: tmp }, noWsl),
-    path.join(os.homedir(), ".hermes"),
-  );
-
-  // After we create LOCALAPPDATA\hermes the resolver should prefer it over ~/.hermes.
-  const winNative = path.join(tmp, "hermes");
-  await fs.mkdir(winNative, { recursive: true });
-  assert.equal(resolveHermesPath({ LOCALAPPDATA: tmp }, noWsl), winNative);
-
-  // Explicit TOKENTRACKER_HERMES_HOME still wins over LOCALAPPDATA auto-detect.
-  assert.equal(
-    resolveHermesPath({ LOCALAPPDATA: tmp, TOKENTRACKER_HERMES_HOME: "/custom/hermes" }),
-    "/custom/hermes",
-  );
-});
-
-test("Zed wsl-only does not return or stat native Windows DB", (t) => {
-  mockPlatform(t, "win32");
-  mockMethod(t, cp, "execFileSync", () => { throw new Error("wsl unavailable"); });
-  mockMethod(t, fssync, "existsSync", (candidate) => {
-    assert.ok(!String(candidate).includes("AppData"), `native path was probed: ${candidate}`);
-    return false;
-  });
-
-  const dbPath = resolveZedDbPath({
-    HOME: "C:\\Users\\me",
-    LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local",
-    TOKENTRACKER_WSL_MODE: "wsl-only",
-  });
-
-  assert.equal(dbPath, null);
-});
-
 test("Goose wsl-only does not return or stat native Windows candidates", (t) => {
   resetWslProbeCache();
   mockPlatform(t, "win32");
@@ -5769,312 +5113,6 @@ test("probeWslDistros sorts the default distro first and is fail-safe", () => {
     probeWslDistros({ runWsl: () => { throw new Error("wsl not found"); } }),
     [],
   );
-});
-
-test("discoverWslHermesHome resolves ~/.hermes via the right UNC alias per distro", () => {
-  const list = "  NAME    STATE    VERSION\n* Ubuntu  Running  2\n  Legacy  Running  1\n";
-  // Linux usernames differ from %USERNAME% — whoami is asked per distro (#87).
-  const users = { Ubuntu: "alice\n", Legacy: "bob\n" };
-  const runWsl = (args) => (args[0] === "-l" ? list : users[args[1]]);
-
-  // WSL2 distro found via the legacy \\wsl$\ alias (tried first for v2).
-  const tried = [];
-  const hit = discoverWslHermesHome({
-    runWsl,
-    existsSync: (p) => {
-      tried.push(p);
-      return p === "\\\\wsl$\\Ubuntu\\home\\alice\\.hermes";
-    },
-  });
-  assert.equal(hit, "\\\\wsl$\\Ubuntu\\home\\alice\\.hermes");
-  assert.equal(tried[0], "\\\\wsl$\\Ubuntu\\home\\alice\\.hermes");
-
-  // WSL1 distro: \\wsl.localhost\ is tried before \\wsl$\.
-  const tried1 = [];
-  const hit1 = discoverWslHermesHome({
-    runWsl,
-    existsSync: (p) => {
-      tried1.push(p);
-      return p === "\\\\wsl.localhost\\Legacy\\home\\bob\\.hermes";
-    },
-  });
-  assert.equal(hit1, "\\\\wsl.localhost\\Legacy\\home\\bob\\.hermes");
-  // Ubuntu (default) probed first, both its roots miss, then Legacy via localhost.
-  assert.equal(tried1[tried1.length - 1], "\\\\wsl.localhost\\Legacy\\home\\bob\\.hermes");
-  assert.ok(tried1.indexOf("\\\\wsl.localhost\\Legacy\\home\\bob\\.hermes") <
-    tried1.indexOf("\\\\wsl$\\Legacy\\home\\bob\\.hermes") || !tried1.includes("\\\\wsl$\\Legacy\\home\\bob\\.hermes"));
-
-  // No .hermes anywhere → null (caller falls back to ~/.hermes).
-  assert.equal(discoverWslHermesHome({ runWsl, existsSync: () => false }), null);
-  // A distro whose whoami fails is skipped, not crashed on.
-  assert.equal(
-    discoverWslHermesHome({
-      runWsl: (args) => { if (args[0] === "-l") return list; throw new Error("whoami failed"); },
-      existsSync: () => true,
-    }),
-    null,
-  );
-});
-
-test("parseHermesIncremental snapshots the DB locally for UNC paths", async () => {
-  // Simulate the \\wsl$\Ubuntu\... case: we can't actually create a UNC path
-  // in CI, but the codepath is gated on isUncPath() and the rest of the
-  // pipeline is identical. We point a junction-style "\\?\..." path at a real
-  // file so the snapshot helper copies it, then read the snapshot.
-  if (process.platform !== "win32") {
-    // On non-Windows the // prefix is treated as POSIX-absolute by node, so we
-    // can use it to exercise the snapshot branch without a UNC mount.
-  }
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-unc-"));
-  try {
-    const realDbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-    const epoch = 1775993779.0;
-    createHermesDb(realDbPath, [
-      { id: "unc_session", model: "gpt-5.4-mini", started_at: epoch, ended_at: epoch + 60, input_tokens: 700, output_tokens: 100, message_count: 2 },
-    ]);
-    // Prefix so isUncPath() returns true while node's path layer still
-    // resolves it to the same inode.
-    const uncStyle = process.platform === "win32"
-      ? "\\\\?\\" + realDbPath
-      : "/" + realDbPath;
-    const result = await parseHermesIncremental({ dbPath: uncStyle, cursors, queuePath });
-    assert.equal(result.recordsProcessed, 1);
-    assert.equal(result.eventsAggregated, 1);
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.some((b) => b.source === "hermes" && b.input_tokens === 700 && b.output_tokens === 100));
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental reads a database under TOKENTRACKER_HERMES_HOME override", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-env-override-"));
-  const prev = process.env.TOKENTRACKER_HERMES_HOME;
-  try {
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-    const dbPath = path.join(tmp, "state.db");
-    const epoch = 1775993779.0;
-    createHermesDb(dbPath, [
-      { id: "envoverride_session", model: "gpt-5.4-mini", started_at: epoch, ended_at: epoch + 120, input_tokens: 800, output_tokens: 200, message_count: 2 },
-    ]);
-
-    process.env.TOKENTRACKER_HERMES_HOME = tmp;
-    const hermesPath = resolveHermesPath();
-    assert.equal(hermesPath, tmp);
-
-    const result = await parseHermesIncremental({ hermesPath, cursors, queuePath });
-    assert.equal(result.recordsProcessed, 1);
-    assert.equal(result.eventsAggregated, 1);
-
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.some((b) => b.source === "hermes" && b.input_tokens === 800 && b.output_tokens === 200));
-  } finally {
-    if (prev === undefined) delete process.env.TOKENTRACKER_HERMES_HOME;
-    else process.env.TOKENTRACKER_HERMES_HOME = prev;
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental returns zero for nonexistent database", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "nonexistent.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-
-    const result = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(result.recordsProcessed, 0);
-    assert.equal(result.eventsAggregated, 0);
-    assert.equal(result.bucketsQueued, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental skips sessions with zero tokens", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-
-    createHermesDb(dbPath, [
-      { id: "sess_empty", model: "gpt-5.4-mini", started_at: 1775993779.0, input_tokens: 0, output_tokens: 0, message_count: 1 },
-    ]);
-
-    const result = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    // The SQL WHERE clause already filters zero-token sessions, so 0 records returned
-    assert.equal(result.recordsProcessed, 0);
-    assert.equal(result.eventsAggregated, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental tracks real-time token growth for active sessions (ended_at IS NULL)", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-
-    const epoch1 = 1775993779.0; // 2026-04-12T11:36:19Z
-
-    // Start with one completed session and one active (no ended_at)
-    createHermesDb(dbPath, [
-      { id: "sess_done", model: "gpt-5.4-mini", started_at: epoch1, ended_at: epoch1 + 120, input_tokens: 1000, output_tokens: 500, cache_read_tokens: 200, message_count: 4 },
-      { id: "sess_active", model: "claude-sonnet-4-6", started_at: epoch1 + 200, ended_at: null, input_tokens: 5000, output_tokens: 200, cache_read_tokens: 1000, message_count: 5 },
-    ]);
-
-    // First parse — both sessions processed
-    const first = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(first.recordsProcessed, 2);
-    assert.equal(first.eventsAggregated, 2);
-
-    // Cursor should have snapshots for both sessions
-    assert.ok(cursors.hermes.snapshots);
-    assert.equal(cursors.hermes.snapshots["sess_active"].in, 5000);
-    assert.equal(cursors.hermes.snapshots["sess_done"].in, 1000);
-
-    // Cursor only advances past completed sessions
-    assert.equal(cursors.hermes.lastCompletedStartedAt, epoch1);
-
-    // Simulate Hermes updating the active session in real-time
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `UPDATE sessions SET input_tokens = 8000, output_tokens = 400, cache_read_tokens = 2000, message_count = 10 WHERE id = 'sess_active';`,
-    ]);
-
-    // Second parse — should pick up the delta for the active session
-    const second = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(second.recordsProcessed, 2); // cursor-boundary completed session plus active session are re-read
-    assert.equal(second.eventsAggregated, 1);
-
-    // Verify the delta was computed correctly
-    // queue.jsonl accumulates lines per sync; the last line for this model
-    // holds the running total (first full + subsequent deltas).
-    const queued2 = await readJsonLines(queuePath);
-    const activeBuckets = queued2.filter((b) => b.source === "hermes" && b.model === "claude-sonnet-4-6");
-    const activeBucket = activeBuckets[activeBuckets.length - 1];
-    assert.ok(activeBucket);
-    assert.equal(activeBucket.input_tokens, 8000);
-    assert.equal(activeBucket.output_tokens, 400);
-    assert.equal(activeBucket.cached_input_tokens, 2000);
-    assert.equal(activeBucket.conversation_count, 10);
-
-    // Snapshot should be updated
-    assert.equal(cursors.hermes.snapshots["sess_active"].in, 8000);
-    assert.equal(cursors.hermes.snapshots["sess_active"].out, 400);
-    assert.equal(cursors.hermes.snapshots["sess_active"].message_count, 10);
-
-    // Cursor still hasn't advanced past the active session
-    assert.equal(cursors.hermes.lastCompletedStartedAt, epoch1);
-
-    // Now end the active session
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `UPDATE sessions SET ended_at = ${epoch1 + 600}, input_tokens = 10000, output_tokens = 600, cache_read_tokens = 3000 WHERE id = 'sess_active';`,
-    ]);
-
-    const third = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(third.recordsProcessed, 2);
-    assert.equal(third.eventsAggregated, 1);
-
-    // Now cursor should advance past the ended session
-    assert.equal(cursors.hermes.lastCompletedStartedAt, epoch1 + 200);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental ingests final deltas for active sessions older than newer completed sessions", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-old-active-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-
-    const activeEpoch = 1775990000.0;
-    const completedEpoch = activeEpoch + 7200;
-
-    createHermesDb(dbPath, [
-      { id: "sess_active_old", model: "gpt-5.4-mini", started_at: activeEpoch, ended_at: null, input_tokens: 100, output_tokens: 10, message_count: 2 },
-      { id: "sess_done_newer", model: "claude-sonnet-4-6", started_at: completedEpoch, ended_at: completedEpoch + 120, input_tokens: 1000, output_tokens: 50, message_count: 4 },
-    ]);
-
-    const first = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(first.recordsProcessed, 2);
-    assert.equal(first.eventsAggregated, 2);
-    assert.equal(cursors.hermes.lastCompletedStartedAt, activeEpoch);
-    assert.equal(cursors.hermes.snapshots["sess_active_old"].in, 100);
-
-    sqliteCli.execFileSync("sqlite3", [
-      dbPath,
-      `UPDATE sessions SET ended_at = ${activeEpoch + 3600}, input_tokens = 150, output_tokens = 25, message_count = 3 WHERE id = 'sess_active_old';`,
-    ]);
-
-    const second = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(second.eventsAggregated, 1);
-    assert.equal(cursors.hermes.lastCompletedStartedAt, completedEpoch);
-
-    const queued = await readJsonLines(queuePath);
-    assert.ok(queued.some((b) => b.source === "hermes" && b.model === "gpt-5.4-mini" && b.input_tokens === 50 && b.output_tokens === 15));
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental skips active session when delta is zero (unchanged)", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    const cursors = { version: 1 };
-
-    const epoch1 = 1775993779.0;
-    createHermesDb(dbPath, [
-      { id: "sess_active", model: "gpt-5.4-mini", started_at: epoch1, ended_at: null, input_tokens: 5000, output_tokens: 200, message_count: 5 },
-    ]);
-
-    // First parse
-    const first = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(first.eventsAggregated, 1);
-
-    // Second parse without any changes — should be no-op
-    const second = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(second.eventsAggregated, 0);
-    assert.equal(second.bucketsQueued, 0);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("parseHermesIncremental backward compat: old cursor without snapshots", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-hermes-"));
-  try {
-    const dbPath = path.join(tmp, "state.db");
-    const queuePath = path.join(tmp, "queue.jsonl");
-    // Old-style cursor with lastStartedAt but no snapshots
-    const cursors = { version: 1, hermes: { lastStartedAt: 0, updatedAt: "2026-04-12T00:00:00Z" } };
-
-    const epoch1 = 1775993779.0;
-    createHermesDb(dbPath, [
-      { id: "sess_001", model: "gpt-5.4-mini", started_at: epoch1, ended_at: epoch1 + 120, input_tokens: 1000, output_tokens: 500, message_count: 4 },
-    ]);
-
-    const result = await parseHermesIncremental({ dbPath, cursors, queuePath });
-    assert.equal(result.eventsAggregated, 1);
-    // Should have created snapshots
-    assert.ok(cursors.hermes.snapshots);
-    assert.equal(cursors.hermes.snapshots["sess_001"].in, 1000);
-    // New cursor field
-    assert.equal(cursors.hermes.lastCompletedStartedAt, epoch1);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
 });
 
 // ── GitHub Copilot OTEL parser tests ──
@@ -11529,7 +10567,7 @@ test("parseAntigravityIncremental bills only newly added context per planner cal
     assert.equal(queued[0].output_tokens, 10);
     assert.equal(queued[0].reasoning_output_tokens, 6);
     assert.equal(queued[0].conversation_count, 2);
-    // total_tokens = sum of every column (matches Codebuddy / Kilocode / OMP / Hermes).
+    // total_tokens = sum of every token column used by cumulative parsers.
     assert.equal(
       queued[0].total_tokens,
       queued[0].input_tokens + queued[0].output_tokens + queued[0].reasoning_output_tokens,

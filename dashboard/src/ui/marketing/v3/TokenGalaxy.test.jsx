@@ -1,7 +1,7 @@
 import { render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getViewportHeight, TokenGalaxy } from "./TokenGalaxy";
-import { DISC, orbScreenPos, orbitSpeedForViewport, sceneConfigForViewport } from "./galaxy-config";
+import { DISC, GALAXY_PROVIDERS, orbScreenPos, orbitSpeedForViewport, sceneConfigForViewport } from "./galaxy-config";
 
 vi.mock("three", () => ({
   WebGLRenderer: vi.fn(() => {
@@ -37,7 +37,7 @@ describe("TokenGalaxy", () => {
     const { container } = render(<TokenGalaxy mode="static" progressRef={{ current: 0 }} />);
     const providerOrbs = container.querySelectorAll("[data-provider-orb]");
 
-    expect(providerOrbs).toHaveLength(8);
+    expect(providerOrbs).toHaveLength(GALAXY_PROVIDERS.length);
     providerOrbs.forEach((orb) => {
       expect(orb).toHaveClass("flex", "h-10", "w-10", "lg:h-12", "lg:w-12");
       expect(orb).not.toHaveClass("hidden");

@@ -11,8 +11,8 @@
  *   - mapWslCwdToUnc / wslUncRoot: the pure POSIX -> UNC transform, including
  *     the shapes reported in #374 and every case that must stay untouched.
  *   - every parser call site that resolves a project from a recorded cwd:
- *     Claude, both Codex scans, oh-my-pi, the opencode-family DB parser
- *     (opencode / kilo-cli / mimo / zcode) and qoder. The mapped path is what
+ *     Claude, both Codex scans, oh-my-pi, the compatible agent DB parser
+ *     (kilo-cli / mimo / zcode). The mapped path is what
  *     actually reaches project resolution, so a WSL session ends up with a
  *     real projectRef/projectKey. The UNC string itself is unresolvable off
  *     Windows, so these stub the transform onto a real temp repo — what is
@@ -33,8 +33,7 @@ const wsl = require("../src/lib/wsl-probe");
 const {
   parseClaudeIncremental,
   parseRolloutIncremental,
-  parseOpencodeDbIncremental,
-  parseQoderDbIncremental,
+  parseAgentDbIncremental,
   parseOmpIncremental,
 } = require("../src/lib/rollout");
 
@@ -95,8 +94,8 @@ test("mapWslCwdToUnc leaves every non-WSL combination untouched", () => {
   );
   // A Windows cwd inside a WSL-hosted transcript is not a POSIX path.
   assert.equal(wsl.mapWslCwdToUnc("C:\\dev\\app", WSL_TRANSCRIPT), "C:\\dev\\app");
-  // Qoder's project_uri decodes a Windows path to "/C:/dev/app" — leading
-  // slash, but re-anchoring it would invent \\wsl$\Distro\C:\dev\app.
+  // A file URI can decode a Windows path to "/C:/dev/app" — leading slash,
+  // but re-anchoring it would invent \\wsl$\Distro\C:\dev\app.
   const fromFileUri = decodeURIComponent(new URL("file:///C:/dev/app").pathname);
   assert.equal(fromFileUri, "/C:/dev/app");
   assert.equal(wsl.mapWslCwdToUnc(fromFileUri, WSL_TRANSCRIPT), "/C:/dev/app");
@@ -503,8 +502,8 @@ test("sync.js passes dbPath to every DB parser that resolves projects", async ()
     path.join(__dirname, "..", "src", "commands", "sync.js"),
     "utf8",
   );
-  const calls = [...source.matchAll(/parse(?:OpencodeDb|QoderDb)Incremental\(\{([\s\S]*?)\}\)/g)];
-  assert.ok(calls.length >= 3, `expected the known call sites, found ${calls.length}`);
+  const calls = [...source.matchAll(/parseAgentDbIncremental\(\{([\s\S]*?)\}\)/g)];
+  assert.equal(calls.length, 1, `expected the shared AgentDb call site, found ${calls.length}`);
   for (const [, args] of calls) {
     assert.match(args, /\bdbPath\b/, `a DB parser call site lost dbPath:\n${args}`);
   }
@@ -562,23 +561,23 @@ test("parseOmpIncremental maps a WSL cwd from the session header", async (t) => 
   assert.equal(rows[0].project_key, "acme/pi");
 });
 
-// The SQLite-backed providers (opencode / kilo-cli / mimo / zcode via one
-// parser, plus qoder) record the cwd inside DB rows rather than a transcript,
+// The SQLite-backed providers (kilo-cli / mimo / zcode via one parser) record
+// the cwd inside DB rows rather than a transcript,
 // so their UNC prefix has to come from the DB path. `sync.js` reads those DBs
 // over the same \\wsl$ bridge, and the snapshot-to-tmp workaround happens
 // inside the read function — so the parser still receives the original UNC
 // path, which is what the mapping needs.
-test("the opencode-family DB parser maps a WSL cwd using the DB path", async (t) => {
+test("the compatible agent DB parser maps a WSL cwd using the DB path", async (t) => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-wsl-attr-"));
   t.after(() => fs.rm(tmp, { recursive: true, force: true }));
 
-  const repoRoot = await makeRepo(tmp, "oc", "https://github.com/acme/oc.git");
-  const posixCwd = "/home/alice/dev/oc";
-  const dbPath = "\\\\wsl$\\Ubuntu-24.04\\home\\alice\\.local\\share\\opencode\\opencode.db";
+  const repoRoot = await makeRepo(tmp, "kilo", "https://github.com/acme/kilo.git");
+  const posixCwd = "/home/alice/dev/kilo";
+  const dbPath = "\\\\wsl$\\Ubuntu-24.04\\home\\alice\\.local\\share\\kilo\\kilo.db";
   const seen = stubCwdMapping(t, (cwd) => (cwd === posixCwd ? repoRoot : cwd));
 
   const projectQueuePath = path.join(tmp, "project.queue.jsonl");
-  await parseOpencodeDbIncremental({
+  await parseAgentDbIncremental({
     // Rows arrive as { id, sessionID, data } — the message body lives in `data`.
     dbMessages: [
       {
@@ -598,51 +597,15 @@ test("the opencode-family DB parser maps a WSL cwd using the DB path", async (t)
     cursors: { version: 1 },
     queuePath: path.join(tmp, "queue.jsonl"),
     projectQueuePath,
-    source: "opencode",
-    cursorKey: "opencode",
+    source: "kilo-cli",
+    cursorKey: "kiloCli",
   });
 
   // The DB path is what carries the distro prefix here.
   assert.deepEqual(seen, [{ cwd: posixCwd, transcriptPath: dbPath }]);
   const rows = await readJsonLines(projectQueuePath);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].project_key, "acme/oc");
-});
-
-test("the qoder DB parser maps a WSL project_uri using the DB path", async (t) => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-wsl-attr-"));
-  t.after(() => fs.rm(tmp, { recursive: true, force: true }));
-
-  const repoRoot = await makeRepo(tmp, "qd", "https://github.com/acme/qd.git");
-  const posixCwd = "/home/alice/dev/qd";
-  const dbPath = "\\\\wsl$\\Ubuntu-24.04\\home\\alice\\.config\\Qoder\\qoder.db";
-  const seen = stubCwdMapping(t, (cwd) => (cwd === posixCwd ? repoRoot : cwd));
-
-  const projectQueuePath = path.join(tmp, "project.queue.jsonl");
-  await parseQoderDbIncremental({
-    dbMessages: [
-      {
-        row_id: 1,
-        id: "assistant-1",
-        session_id: "session-1",
-        request_id: "request-1",
-        gmt_create: Date.parse("2026-07-27T01:00:00.000Z"),
-        // Qoder stores it as a file:// URI, decoded to a POSIX path before use.
-        project_uri: `file://${posixCwd}`,
-        token_info: JSON.stringify({ prompt_tokens: 100, cached_tokens: 0, completion_tokens: 50 }),
-        model_info: JSON.stringify({ model_key: "quest-ultimate" }),
-      },
-    ],
-    dbPath,
-    cursors: { version: 1 },
-    queuePath: path.join(tmp, "queue.jsonl"),
-    projectQueuePath,
-  });
-
-  assert.deepEqual(seen, [{ cwd: posixCwd, transcriptPath: dbPath }]);
-  const rows = await readJsonLines(projectQueuePath);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].project_key, "acme/qd");
+  assert.equal(rows[0].project_key, "acme/kilo");
 });
 
 test("the Codex context-only rescan maps a WSL cwd too", async (t) => {

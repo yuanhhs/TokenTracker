@@ -14,8 +14,6 @@ delete process.env.GROK_HOME;
 delete process.env.TOKENTRACKER_ANTIGRAVITY_HOME;
 delete process.env.CODEX_HOME;
 delete process.env.ZCODE_HOME;
-delete process.env.TOKENTRACKER_OPENCLAW_HOME;
-delete process.env.TOKENTRACKER_OPENCLAW_WORKSPACE;
 
 const skills = require("../src/lib/skills-manager");
 
@@ -117,28 +115,6 @@ describe("read-only plugin skill inventory", () => {
     );
   });
 
-  it("scans only the active OpenClaw workspace skills directory", () => {
-    resetRegistry();
-    const openclawHome = path.join(sandboxHome, ".openclaw");
-    const activeWorkspace = path.join(openclawHome, "active-workspace");
-    fs.mkdirSync(openclawHome, { recursive: true });
-    fs.writeFileSync(
-      path.join(openclawHome, "openclaw.json"),
-      JSON.stringify({ agents: { defaults: { workspace: activeWorkspace } } }),
-    );
-    writeSkillDir(path.join(activeWorkspace, "skills", "active-skill"), "SKILL.md", "---\nname: Active Skill\n---\n");
-    writeSkillDir(
-      path.join(openclawHome, "workspace", "backup", "Other-Mac", "skills", "remote-snapshot"),
-      "SKILL.md",
-      "---\nname: Remote Snapshot\n---\n",
-    );
-
-    const installed = skills.listInstalledSkills();
-    const active = installed.find((s) => s.name === "Active Skill");
-    assert.ok(active);
-    assert.deepEqual(active.targets, ["openclaw"]);
-    assert.equal(installed.some((s) => s.name === "Remote Snapshot"), false);
-  });
 });
 
 describe("readSkillMetadata YAML block scalars", () => {

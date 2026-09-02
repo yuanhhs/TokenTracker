@@ -116,7 +116,6 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
     sourceIdentical: /^(?:App|Mac app)$/i,
     keyPatterns: [
       /^local_only[.]/,
-      /^limits[.]opencodeGo[.]setupHint[.](?:note_app|step2_cookie)$/,
       /^pet[.](?:codex[.]subtitle|controls[.]native_only)$/,
       /^settings[.]section[.]menubar$/,
       /^widgets[.]cta[.]download$/,

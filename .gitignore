@@ -46,7 +46,6 @@ index.scip
 .kilocode/
 .kilo/
 .kiro/
-.qoder/
 .qwen/
 .roo/
 .trae/
@@ -114,12 +113,10 @@ skills-lock.json
 .claude
 .cline
 .kilocode
-.qoder
 .qwen
 .roo
 .trae
 .windsurf
-.opencode/
 .serena/
 .codex/
 openspec/

@@ -67,8 +67,8 @@ export function isNativeEmbed() {
 
 /**
  * True when running inside the Windows tray app's WebView2 host
- * (`window.chrome.webview` exists only there) in native-app mode. Used to hide
- * macOS-only features (e.g. the Widgets page) on Windows.
+ * (`window.chrome.webview` exists only there) in native-app mode. Used for
+ * Windows-specific native layout and desktop-window settings.
  */
 export function isNativeWindowsApp() {
   if (typeof window === "undefined") return false;
@@ -82,6 +82,12 @@ function getHandler() {
 
 export function isBridgeAvailable() {
   return Boolean(getHandler());
+}
+
+/** Native settings bridge shared by native desktop hosts, including WebView2. */
+export function isNativeSettingsBridgeAvailable() {
+  if (typeof window === "undefined") return false;
+  return Boolean(getHandler() || window.chrome?.webview);
 }
 
 function post(message) {
@@ -113,15 +119,15 @@ export function notifyNative({ title, body, id }) {
 }
 
 export function requestNativeSettings() {
-  return post({ type: "getSettings" });
+  return postNativeMessage({ type: "getSettings" });
 }
 
 export function setNativeSetting(key, value) {
-  return post({ type: "setSetting", key, value });
+  return postNativeMessage({ type: "setSetting", key, value });
 }
 
 export function nativeAction(name) {
-  return post({ type: "action", name });
+  return postNativeMessage({ type: "action", name });
 }
 
 export function requestNativeSystemAppearance() {

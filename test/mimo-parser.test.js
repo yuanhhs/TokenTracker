@@ -8,12 +8,12 @@ const { sqliteOnlyCp: cp } = require("./helpers/sqlite-write");
 const { test } = require("node:test");
 
 const {
-  parseOpencodeDbIncremental,
+  parseAgentDbIncremental,
   readMimoDbMessages,
 } = require("../src/lib/rollout");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mimo — mimocode (Xiaomi MiMo, OpenCode-fork SQLite at ~/.local/share/mimocode/mimocode.db)
+// Mimo — mimocode (Xiaomi MiMo, compatible SQLite schema at ~/.local/share/mimocode/mimocode.db)
 //
 // mimocode mirrors the user's Claude Code + claude-mem history into its own
 // `message` table (claude_import AND a live observer/session sync), so most
@@ -105,7 +105,7 @@ test("Mimo: readMimoDbMessages keeps only mimo-native rows, drops mirrored Claud
 
     const queuePath = path.join(tmp, "queue.jsonl");
     const cursors = { version: 1 };
-    const result = await parseOpencodeDbIncremental({
+    const result = await parseAgentDbIncremental({
       dbMessages,
       cursors,
       queuePath,
@@ -130,7 +130,7 @@ test("Mimo: readMimoDbMessages keeps only mimo-native rows, drops mirrored Claud
     assert.equal(totalAll, 625 + 40);
 
     // Idempotent re-run + cursor isolated under the `mimo` namespace.
-    const result2 = await parseOpencodeDbIncremental({
+    const result2 = await parseAgentDbIncremental({
       dbMessages, cursors, queuePath, source: "mimo", cursorKey: "mimo",
     });
     assert.equal(result2.eventsAggregated, 0);
@@ -140,7 +140,7 @@ test("Mimo: readMimoDbMessages keeps only mimo-native rows, drops mirrored Claud
   }
 });
 
-test("Mimo: cursor namespace `mimo` is isolated from a pre-seeded opencode index", async () => {
+test("Mimo: cursor namespace `mimo` is isolated from another provider index", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-mimo-iso-"));
   try {
     const dbPath = path.join(tmp, "mimocode.db");
@@ -151,15 +151,15 @@ test("Mimo: cursor namespace `mimo` is isolated from a pre-seeded opencode index
     const dbMessages = readMimoDbMessages(dbPath);
     const cursors = {
       version: 1,
-      opencode: {
+      otherAgent: {
         messages: { "ses_a|msg_m1": { lastTotals: { input_tokens: 500 }, updatedAt: new Date().toISOString() } },
         updatedAt: new Date().toISOString(),
       },
     };
     const queuePath = path.join(tmp, "queue.jsonl");
-    const result = await parseOpencodeDbIncremental({ dbMessages, cursors, queuePath, source: "mimo", cursorKey: "mimo" });
-    assert.equal(result.eventsAggregated, 1, "opencode pre-seed must not block the mimo namespace");
-    assert.ok(cursors.opencode.messages["ses_a|msg_m1"], "opencode cursor untouched");
+    const result = await parseAgentDbIncremental({ dbMessages, cursors, queuePath, source: "mimo", cursorKey: "mimo" });
+    assert.equal(result.eventsAggregated, 1, "other-provider pre-seed must not block the mimo namespace");
+    assert.ok(cursors.otherAgent.messages["ses_a|msg_m1"], "other provider cursor untouched");
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }

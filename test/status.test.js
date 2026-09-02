@@ -56,12 +56,6 @@ test("status prints local sync markers and no cloud upload state", async () => {
       JSON.stringify({ offset: 0 }) + "\n",
       "utf8",
     );
-    await fs.writeFile(
-      path.join(trackerDir, "openclaw.signal"),
-      "2026-02-12T00:00:00.000Z\n",
-      "utf8",
-    );
-
     const lastSuccessMs = 1766053145522; // 2025-12-18T10:19:05.522Z
     const nextAllowedAtMs = lastSuccessMs + 1000;
     // A leftover upload throttle file from a pre-local-only install. Status
@@ -84,8 +78,6 @@ test("status prints local sync markers and no cloud upload state", async () => {
     };
 
     await cmdStatus();
-
-    assert.match(out, /- Last OpenClaw-triggered sync: 2026-02-12T00:00:00.000Z/);
 
     // The cloud endpoint and upload throttle are gone. Neither the legacy
     // config.json above nor upload.throttle.json may leak back into status.

@@ -579,7 +579,7 @@ export function DashboardPage({
 
   // The DMG starts its embedded server with --no-sync, so a page reload used
   // to fetch the same stale queue again. Refresh all local log/database sources
-  // (Claude, Gemini, OpenCode, Codex, etc.) without doing cloud upload, Cursor
+  // (Claude, Gemini, Codex, and others) without doing cloud upload, Cursor
   // network access, or deep Codex archive work, then re-read local aggregates.
   // Keep the promise in a ref so React Strict Mode can reattach to the first
   // request instead of starting a duplicate sync.

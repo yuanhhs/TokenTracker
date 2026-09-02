@@ -56,29 +56,6 @@ function normalizeAntigravityModel(model) {
   return lower;
 }
 
-// Zed stores model names inconsistently across versions and providers: a mix
-// of canonical ids (`gpt-5.5`, `claude-opus-4.8`) and human display names
-// (`Claude Sonnet 4`, `GPT-5 (Preview)`, `Gemini 3 Pro (Preview)`). Map both to
-// the pricing engine's keys for cost lookup ONLY — the raw name is still what
-// gets stored/displayed. Unlike normalizeAntigravityModel we must NOT strip the
-// word "fast" (it is part of `grok-code-fast-1`) and we keep dotted GPT minors
-// (`gpt-5.2`) while hyphenating Claude minors (`claude-opus-4.8` ->
-// `claude-opus-4-8`) to match each family's LiteLLM/curated key style.
-function normalizeZedModel(model) {
-  if (!model || typeof model !== "string") return model;
-  let m = model
-    .trim()
-    .replace(/\([^)]*\)/g, " ") // drop "(Preview)" and similar qualifiers
-    .toLowerCase()
-    .replace(/[^a-z0-9./]+/g, "-") // spaces/underscores -> hyphen; keep . and /
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-  if (/^claude-(sonnet|opus|haiku)-\d+\.\d+/.test(m)) {
-    m = m.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)/, "$1-$2");
-  }
-  return m;
-}
-
 // Claude desktop/CLI sometimes reports display-style names such as
 // `claude-opus-4.8` or `Claude Opus 4.8`, while curated keys use Anthropic's
 // historical dash style (`claude-opus-4-8`). Relay/gateway backends (OpenRouter
@@ -173,7 +150,6 @@ const SOURCE_MODEL_NORMALIZERS = {
   cursor: normalizeCursorModel,
   "pi-anthropic": normalizeClaudeModel,
   "prime-agent-anthropic": normalizeClaudeModel,
-  zed: normalizeZedModel,
   workbuddy: normalizeWorkbuddyModel,
 };
 
@@ -369,7 +345,6 @@ module.exports = {
   normalizeAntigravityModel,
   normalizeClaudeModel,
   normalizeCursorModel,
-  normalizeZedModel,
   convertLitellmEntry,
   buildLitellmPerMillionMap,
 };

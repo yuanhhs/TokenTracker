@@ -92,8 +92,8 @@ describe("skills-manager importLocalSkill sanitization", () => {
     assert.throws(() => skills.importLocalSkill("\\\\server\\share\\foo", []), /Invalid skill directory/);
     assert.throws(() => skills.importLocalSkill("foo:bar", []), /Invalid skill directory/);
     assert.throws(() => skills.importLocalSkill("", []), /Invalid skill directory/);
-    assert.throws(() => skills.deleteLocalSkill("C:/foo", ["hermes"]), /Invalid skill directory/);
-    assert.throws(() => skills.deleteLocalSkill("\\\\server\\share\\foo", ["hermes"]), /Invalid skill directory/);
+    assert.throws(() => skills.deleteLocalSkill("C:/foo", ["gemini"]), /Invalid skill directory/);
+    assert.throws(() => skills.deleteLocalSkill("\\\\server\\share\\foo", ["gemini"]), /Invalid skill directory/);
   });
 
   it("throws when skill is not present in any target folder", () => {
@@ -106,73 +106,73 @@ describe("skills-manager nested local skill folders", () => {
   const archivedSkill = ".archive/old-skill";
 
   before(() => {
-    writeLocalSkill(".hermes/skills", nestedSkill, "---\nname: Apple Notes\ndescription: Nested Hermes skill\n---\n");
-    writeLocalSkill(".hermes/skills", archivedSkill, "---\nname: Archived Skill\ndescription: Should stay hidden\n---\n");
+    writeLocalSkill(".gemini/skills", nestedSkill, "---\nname: Apple Notes\ndescription: Nested Gemini skill\n---\n");
+    writeLocalSkill(".gemini/skills", archivedSkill, "---\nname: Archived Skill\ndescription: Should stay hidden\n---\n");
   });
 
   it("lists nested skills below target skill folders while skipping hidden groups", () => {
     const installed = skills.listInstalledSkills();
     const nested = installed.find((s) => s.directory === nestedSkill);
-    assert.ok(nested, "nested Hermes skill should be discovered");
+    assert.ok(nested, "nested Gemini skill should be discovered");
     assert.equal(nested.name, "Apple Notes");
-    assert.deepEqual(nested.targets, ["hermes"]);
-    assert.equal(nested.targetStates.hermes, "synced");
+    assert.deepEqual(nested.targets, ["gemini"]);
+    assert.equal(nested.targetStates.gemini, "synced");
     assert.equal(installed.some((s) => s.directory === archivedSkill), false);
   });
 
   it("rejects direct local imports and deletes from hidden skill groups", () => {
-    assert.throws(() => skills.importLocalSkill(archivedSkill, ["hermes"]), /Invalid skill directory/);
-    assert.throws(() => skills.deleteLocalSkill(archivedSkill, ["hermes"]), /Invalid skill directory/);
+    assert.throws(() => skills.importLocalSkill(archivedSkill, ["gemini"]), /Invalid skill directory/);
+    assert.throws(() => skills.deleteLocalSkill(archivedSkill, ["gemini"]), /Invalid skill directory/);
   });
 
   it("can promote a nested unmanaged skill without flattening its target path", () => {
-    const imported = skills.importLocalSkill(nestedSkill, ["hermes", "codex"]);
+    const imported = skills.importLocalSkill(nestedSkill, ["gemini", "codex"]);
     assert.equal(imported.managed, true);
     assert.equal(imported.directory, nestedSkill);
-    assert.deepEqual(new Set(imported.targets), new Set(["hermes", "codex"]));
-    assert.ok(fs.existsSync(path.join(sandboxHome, ".hermes/skills", nestedSkill, "SKILL.md")));
+    assert.deepEqual(new Set(imported.targets), new Set(["gemini", "codex"]));
+    assert.ok(fs.existsSync(path.join(sandboxHome, ".gemini/skills", nestedSkill, "SKILL.md")));
     assert.ok(fs.existsSync(path.join(sandboxHome, ".codex/skills", nestedSkill, "SKILL.md")));
 
     skills.uninstallSkill(imported.id);
-    assert.ok(!fs.existsSync(path.join(sandboxHome, ".hermes/skills", nestedSkill)));
+    assert.ok(!fs.existsSync(path.join(sandboxHome, ".gemini/skills", nestedSkill)));
     assert.ok(!fs.existsSync(path.join(sandboxHome, ".codex/skills", nestedSkill)));
-    assert.ok(!fs.existsSync(path.join(sandboxHome, ".hermes/skills/apple")));
+    assert.ok(!fs.existsSync(path.join(sandboxHome, ".gemini/skills/apple")));
     assert.ok(!fs.existsSync(path.join(sandboxHome, ".codex/skills/apple")));
     assert.ok(!fs.existsSync(path.join(sandboxHome, ".tokentracker/skills/managed/apple")));
   });
 
   it("keeps non-empty parent folders when removing one nested managed skill", () => {
-    writeLocalSkill(".hermes/skills", "shared-parent/remove-one", "---\nname: Remove One\n---\n");
-    writeLocalSkill(".hermes/skills", "shared-parent/keep-one", "---\nname: Keep One\n---\n");
-    const removed = skills.importLocalSkill("shared-parent/remove-one", ["hermes"]);
-    const kept = skills.importLocalSkill("shared-parent/keep-one", ["hermes"]);
+    writeLocalSkill(".gemini/skills", "shared-parent/remove-one", "---\nname: Remove One\n---\n");
+    writeLocalSkill(".gemini/skills", "shared-parent/keep-one", "---\nname: Keep One\n---\n");
+    const removed = skills.importLocalSkill("shared-parent/remove-one", ["gemini"]);
+    const kept = skills.importLocalSkill("shared-parent/keep-one", ["gemini"]);
 
     skills.uninstallSkill(removed.id);
 
     assert.ok(!fs.existsSync(path.join(sandboxHome, ".tokentracker/skills/managed/shared-parent/remove-one")));
     assert.ok(fs.existsSync(path.join(sandboxHome, ".tokentracker/skills/managed/shared-parent/keep-one/SKILL.md")));
-    assert.ok(fs.existsSync(path.join(sandboxHome, ".hermes/skills/shared-parent/keep-one/SKILL.md")));
+    assert.ok(fs.existsSync(path.join(sandboxHome, ".gemini/skills/shared-parent/keep-one/SKILL.md")));
     assert.ok(fs.existsSync(path.join(sandboxHome, ".tokentracker/skills/managed/shared-parent")));
-    assert.ok(fs.existsSync(path.join(sandboxHome, ".hermes/skills/shared-parent")));
+    assert.ok(fs.existsSync(path.join(sandboxHome, ".gemini/skills/shared-parent")));
 
     skills.uninstallSkill(kept.id);
   });
 
   it("uses the leaf folder name as fallback display name for nested unmanaged skills", () => {
-    writeLocalSkill(".hermes/skills", "fallback/no-name", "---\ndescription: Missing explicit name\n---\n");
+    writeLocalSkill(".gemini/skills", "fallback/no-name", "---\ndescription: Missing explicit name\n---\n");
     const entry = skills.listInstalledSkills().find((s) => s.directory === "fallback/no-name");
     assert.ok(entry);
     assert.equal(entry.name, "no-name");
   });
 
   it("does not scan arbitrarily deep local skill directory trees", () => {
-    writeLocalSkill(".hermes/skills", "too/deep/for/scan/nested", "---\nname: Too Deep\n---\n");
+    writeLocalSkill(".gemini/skills", "too/deep/for/scan/nested", "---\nname: Too Deep\n---\n");
     const installed = skills.listInstalledSkills();
     assert.equal(installed.some((s) => s.directory === "too/deep/for/scan/nested"), false);
   });
 
   it("does not delete through symlinked parent directories", (t) => {
-    const root = path.join(sandboxHome, ".hermes/skills");
+    const root = path.join(sandboxHome, ".gemini/skills");
     const outside = path.join(sandboxHome, "outside-skill-delete");
     const victim = path.join(outside, "victim");
     fs.mkdirSync(victim, { recursive: true });
@@ -185,13 +185,13 @@ describe("skills-manager nested local skill folders", () => {
       return;
     }
 
-    skills.deleteLocalSkill("linked-delete/victim", ["hermes"]);
+    skills.deleteLocalSkill("linked-delete/victim", ["gemini"]);
 
     assert.ok(fs.existsSync(path.join(victim, "keep.txt")));
   });
 
   it("does not import through symlinked parent directories", (t) => {
-    const root = path.join(sandboxHome, ".hermes/skills");
+    const root = path.join(sandboxHome, ".gemini/skills");
     const outside = path.join(sandboxHome, "outside-skill-import");
     writeLocalSkill("outside-skill-import", "external-skill", "---\nname: External Skill\n---\n");
     fs.mkdirSync(root, { recursive: true });
@@ -202,15 +202,15 @@ describe("skills-manager nested local skill folders", () => {
       return;
     }
 
-    assert.throws(() => skills.importLocalSkill("linked-import/external-skill", ["hermes"]), /Local skill not found/);
+    assert.throws(() => skills.importLocalSkill("linked-import/external-skill", ["gemini"]), /Local skill not found/);
     assert.ok(!fs.existsSync(path.join(sandboxHome, ".tokentracker/skills/managed/linked-import/external-skill")));
   });
 
   it("keeps undo restore available for nested skills whose flattened names collide", () => {
-    writeLocalSkill(".hermes/skills", "collision/a-b", "---\nname: Collision Nested\ndescription: Nested\n---\n");
-    writeLocalSkill(".hermes/skills", "collision__a-b", "---\nname: Collision Flat\ndescription: Flat\n---\n");
-    const nested = skills.importLocalSkill("collision/a-b", ["hermes"]);
-    const flat = skills.importLocalSkill("collision__a-b", ["hermes"]);
+    writeLocalSkill(".gemini/skills", "collision/a-b", "---\nname: Collision Nested\ndescription: Nested\n---\n");
+    writeLocalSkill(".gemini/skills", "collision__a-b", "---\nname: Collision Flat\ndescription: Flat\n---\n");
+    const nested = skills.importLocalSkill("collision/a-b", ["gemini"]);
+    const flat = skills.importLocalSkill("collision__a-b", ["gemini"]);
     const originalNow = Date.now;
     Date.now = () => 1234567890;
     try {
@@ -221,8 +221,8 @@ describe("skills-manager nested local skill folders", () => {
       assert.notEqual(nestedRemoved.restoreId, flatRemoved.restoreId);
       skills.restoreSkill(nested.id);
       skills.restoreSkill(flat.id);
-      assert.ok(fs.existsSync(path.join(sandboxHome, ".hermes/skills/collision/a-b/SKILL.md")));
-      assert.ok(fs.existsSync(path.join(sandboxHome, ".hermes/skills/collision__a-b/SKILL.md")));
+      assert.ok(fs.existsSync(path.join(sandboxHome, ".gemini/skills/collision/a-b/SKILL.md")));
+      assert.ok(fs.existsSync(path.join(sandboxHome, ".gemini/skills/collision__a-b/SKILL.md")));
     } finally {
       Date.now = originalNow;
       for (const id of [nested.id, flat.id]) {
@@ -367,7 +367,7 @@ describe("skills-manager path hardening", () => {
     const sourceDir = "ssot-linked/imported-skill";
     const managedRoot = path.join(sandboxHome, ".tokentracker", "skills", "managed");
     const outside = path.join(sandboxHome, "outside-ssot-import");
-    writeLocalSkill(".config/opencode/skills", sourceDir, "---\nname: Imported Skill\n---\n");
+    writeLocalSkill(".gemini/skills", sourceDir, "---\nname: Imported Skill\n---\n");
     fs.mkdirSync(managedRoot, { recursive: true });
     fs.mkdirSync(outside, { recursive: true });
     try {

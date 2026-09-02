@@ -25,7 +25,6 @@ test("cmdSync ignores WorkBuddy context-only SQLite snapshots instead of billing
     CODEX_HOME: process.env.CODEX_HOME,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_HOME: process.env.OPENCODE_HOME,
     XDG_DATA_HOME: process.env.XDG_DATA_HOME,
     WORKBUDDY_HOME: process.env.WORKBUDDY_HOME,
   };
@@ -34,7 +33,6 @@ test("cmdSync ignores WorkBuddy context-only SQLite snapshots instead of billing
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini");
-    process.env.OPENCODE_HOME = path.join(tmp, ".opencode");
     process.env.XDG_DATA_HOME = path.join(tmp, ".local", "share");
     process.env.WORKBUDDY_HOME = path.join(tmp, ".workbuddy");
 

@@ -26,7 +26,7 @@ async function writeJson(p, obj) {
   await fs.writeFile(p, JSON.stringify(obj, null, 2) + "\n", "utf8");
 }
 
-test("collectLocalSubscriptions returns paid ChatGPT plans from codex + opencode", async () => {
+test("collectLocalSubscriptions returns a paid ChatGPT plan from Codex", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-subscriptions-"));
 
   try {
@@ -39,27 +39,18 @@ test("collectLocalSubscriptions returns paid ChatGPT plans from codex + opencode
       tokens: { access_token: codexJwt },
     });
 
-    const opencodeJwt = makeJwt({
-      "https://api.openai.com/auth": { chatgpt_plan_type: "plus" },
-    });
-    await writeJson(path.join(tmp, ".local", "share", "opencode", "auth.json"), {
-      openai: { access: opencodeJwt },
-    });
-
     const subs = await collectLocalSubscriptions({
       home,
       env: { CODEX_HOME: codexHome },
       platform: "linux",
     });
 
-    assert.equal(subs.length, 2);
+    assert.equal(subs.length, 1);
     assert.ok(subs.some((s) => s.tool === "codex" && s.planType === "pro"));
-    assert.ok(subs.some((s) => s.tool === "opencode" && s.planType === "plus"));
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
-
 test("collectLocalSubscriptions hides free/unknown plans", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-subscriptions-free-"));
 
@@ -446,66 +437,6 @@ test("collectLocalSubscriptions hides Claude Code line on Linux when credentials
     });
 
     assert.deepEqual(subs, []);
-  } finally {
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("collectLocalSubscriptions includes OpenClaw when session plugin is configured", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-subscriptions-openclaw-"));
-
-  try {
-    const home = tmp;
-    const pluginEntryDir = path.join(
-      home,
-      ".tokentracker",
-      "tracker",
-      "openclaw-plugin",
-      "openclaw-session-sync",
-    );
-    await fs.mkdir(pluginEntryDir, { recursive: true });
-    await fs.writeFile(
-      path.join(pluginEntryDir, "package.json"),
-      '{"name":"@tokentracker/openclaw-session-sync"}\n',
-      "utf8",
-    );
-    await fs.writeFile(path.join(pluginEntryDir, "index.js"), "export default {};\n", "utf8");
-
-    await writeJson(path.join(home, ".openclaw", "openclaw.json"), {
-      plugins: {
-        entries: {
-          "openclaw-session-sync": {
-            enabled: true,
-            hooks: { allowConversationAccess: true },
-          },
-        },
-        load: {
-          paths: [pluginEntryDir],
-        },
-        installs: {
-          "openclaw-session-sync": {
-            sourcePath: pluginEntryDir,
-            installPath: pluginEntryDir,
-          },
-        },
-      },
-    });
-
-    const subs = await collectLocalSubscriptions({
-      home,
-      env: {},
-      platform: "linux",
-    });
-
-    assert.ok(
-      subs.some(
-        (s) =>
-          s.tool === "openclaw" &&
-          s.provider === "openclaw" &&
-          s.product === "session_plugin" &&
-          s.planType === "enabled",
-      ),
-    );
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }

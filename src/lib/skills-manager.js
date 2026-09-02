@@ -18,9 +18,6 @@ const TARGETS = {
   grok: { id: "grok", label: "Grok", dir: () => path.join(resolveGrokHome(process.env), "skills") },
   antigravity: { id: "antigravity", label: "Antigravity", dirs: () => resolveAntigravitySkillDirs(process.env) },
   gemini: { id: "gemini", label: "Gemini", dir: () => path.join(os.homedir(), ".gemini", "skills") },
-  opencode: { id: "opencode", label: "OpenCode", dir: () => path.join(os.homedir(), ".config", "opencode", "skills") },
-  openclaw: { id: "openclaw", label: "OpenClaw", dir: resolveOpenClawSkillsDir },
-  hermes: { id: "hermes", label: "Hermes", dir: () => path.join(os.homedir(), ".hermes", "skills") },
   // ZCode currently exposes skills through its plugin cache rather than a
   // documented user-writable skills directory. Surface it in the inventory
   // and filters, but never offer sync/delete operations against the cache.
@@ -34,26 +31,6 @@ function resolveCodexHome() {
 
 function resolveZcodeHome() {
   return String(process.env.ZCODE_HOME || "").trim() || path.join(os.homedir(), ".zcode");
-}
-
-function resolveOpenClawHome() {
-  return String(process.env.TOKENTRACKER_OPENCLAW_HOME || "").trim() || path.join(os.homedir(), ".openclaw");
-}
-
-// OpenClaw can point at an arbitrary active workspace. Only scan that one
-// explicit workspace; recursively scanning ~/.openclaw would incorrectly
-// import backup/config snapshots belonging to other devices.
-function resolveOpenClawSkillsDir() {
-  const home = resolveOpenClawHome();
-  const override = String(process.env.TOKENTRACKER_OPENCLAW_WORKSPACE || "").trim();
-  let workspace = override;
-  if (!workspace) {
-    const config = readJson(path.join(home, "openclaw.json"), null);
-    workspace = String(config?.agents?.defaults?.workspace || "").trim();
-  }
-  if (!workspace) workspace = path.join(home, "workspace");
-  if (!path.isAbsolute(workspace)) workspace = path.resolve(home, workspace);
-  return path.join(workspace, "skills");
 }
 
 // Dual contract: a target exposes either dir() → string (single path) or

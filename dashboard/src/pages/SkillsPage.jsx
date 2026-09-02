@@ -54,11 +54,29 @@ const TARGET_CHIP_ICON_CLASSES = {
   grok: "text-zinc-700 dark:text-zinc-200",
   antigravity: "text-violet-600 dark:text-violet-300",
   gemini: "text-sky-600 dark:text-sky-300",
-  opencode: "text-amber-600 dark:text-amber-300",
-  hermes: "text-indigo-500 dark:text-indigo-300",
 };
 const SOURCE_ALL = "all";
 const SOURCE_SKILLSSH = "skillssh";
+const OFFICIAL_SKILL_REPOSITORIES = new Set([
+  "anthropic/skills",
+  "anthropics/skills",
+  "openai/skills",
+]);
+
+function isOfficialSkill(skill) {
+  if (!skill) return false;
+  if (skill.official === true) return true;
+
+  const repository = `${skill.repoOwner || ""}/${skill.repoName || ""}`.toLowerCase();
+  if (OFFICIAL_SKILL_REPOSITORIES.has(repository)) return true;
+
+  const sourceName = String(skill.sourceName || "").trim().toLowerCase();
+  if (!sourceName) return false;
+  if (/(^|[/_-])official($|[/_-])/.test(sourceName)) return true;
+
+  const publisher = sourceName.split(/[\\/]/)[0];
+  return /^(?:@?openai|@?anthropics?)(?:-|$)/.test(publisher);
+}
 
 function getSkillKey(skill) {
   return `${skill.repoOwner || "local"}/${skill.repoName || "local"}:${skill.directory}`;
@@ -712,6 +730,26 @@ const BrowseCard = React.memo(function BrowseCard({ skill, installed, installing
   );
 });
 
+function BrowseSkillGrid({ items, busyKey, manageableTargets, onInstall, onManage }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {items.map((skill) => (
+        <div key={skill.id || skill.key} style={BROWSE_CARD_STYLE}>
+          <BrowseCard
+            skill={skill}
+            installed={Boolean(skill.installed)}
+            installing={busyKey === installBusyKey(skill)}
+            allTargets={manageableTargets}
+            defaultTargets={DEFAULT_TARGETS}
+            onInstall={onInstall}
+            onManage={onManage}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RepoManager({ repos, repoInput, onRepoInput, busyKey, onAdd, onRemove }) {
   return (
     <div className="rounded-lg border border-oai-gray-200 bg-white p-4 dark:border-oai-gray-800 dark:bg-oai-gray-950">
@@ -777,7 +815,8 @@ function RepoManager({ repos, repoInput, onRepoInput, busyKey, onAdd, onRemove }
 function readTabFromUrl() {
   if (typeof window === "undefined") return "my";
   const params = new URLSearchParams(window.location.search);
-  return params.get("tab") === "browse" ? "browse" : "my";
+  const tab = params.get("tab");
+  return tab === "official" || tab === "browse" ? tab : "my";
 }
 
 export function SkillsPage() {
@@ -884,7 +923,7 @@ export function SkillsPage() {
   const handleRefresh = useCallback(async () => {
     await loadInitial();
     const fail = (err) => setError(err?.message || copy("skills.error.generic"));
-    if (tab === "my") {
+    if (tab !== "browse") {
       loadUpdates();
       loadUsage();
     } else if (source === SOURCE_POPULAR) {
@@ -912,7 +951,7 @@ export function SkillsPage() {
     if (!list.length) return; // wait for the first load
     const match = list.find((s) => s.directory === want || s.id === want);
     if (match) {
-      setTab("my");
+      setTab(isOfficialSkill(match) ? "official" : "my");
       setSelectedSkillId(match.id || match.directory);
     }
     appliedSkillParam.current = true;
@@ -948,7 +987,7 @@ export function SkillsPage() {
   const hasUpdatesLoaded = Object.keys(updates).length > 0;
   const hasUsageLoaded = Object.keys(usageBySkill).length > 0;
   useEffect(() => {
-    if (tab !== "my") return;
+    if (tab === "browse") return;
     if (!hasUpdatesLoaded) loadUpdates();
     if (!hasUsageLoaded) loadUsage();
   }, [tab, hasUpdatesLoaded, hasUsageLoaded, loadUpdates, loadUsage]);
@@ -1211,12 +1250,21 @@ export function SkillsPage() {
   const targets = installedData.targets || [];
   const manageableTargets = targets.filter(isManageableTarget);
   const mySkills = installedData.skills || [];
+  const officialSkills = useMemo(
+    () => mySkills.filter(isOfficialSkill),
+    [mySkills],
+  );
+  const personalSkills = useMemo(
+    () => mySkills.filter((skill) => !isOfficialSkill(skill)),
+    [mySkills],
+  );
+  const activeInstalledSkills = tab === "official" ? officialSkills : personalSkills;
 
-  const filteredMySkills = useMemo(() => {
+  const filteredInstalledSkills = useMemo(() => {
     const byAgent =
       agentFilter === "all"
-        ? mySkills
-        : mySkills.filter((skill) => (skill.targets || []).includes(agentFilter));
+        ? activeInstalledSkills
+        : activeInstalledSkills.filter((skill) => (skill.targets || []).includes(agentFilter));
     const q = myDebouncedQuery.trim().toLowerCase();
     if (!q) return byAgent;
     return byAgent.filter(
@@ -1225,7 +1273,7 @@ export function SkillsPage() {
         (skill.directory || "").toLowerCase().includes(q) ||
         (skill.description || "").toLowerCase().includes(q),
     );
-  }, [mySkills, agentFilter, myDebouncedQuery]);
+  }, [activeInstalledSkills, agentFilter, myDebouncedQuery]);
 
   // Search is not a "filter": the search box owns its own clear (×). The
   // toolbar "Clear filters" pill is gated on the agent filter only, so typing
@@ -1268,11 +1316,10 @@ export function SkillsPage() {
     [installedData.skills],
   );
 
-  // Multi-select is My-tab only; drop it when leaving. The detail panel may stay
-  // open on either tab (Browse "Manage" opens it in place).
+  // Selection is scoped to the active installed-skills tab.
   useEffect(() => {
-    if (tab !== "my" && selectedIds.size) setSelectedIds(new Set());
-  }, [tab, selectedIds.size]);
+    setSelectedIds((current) => (current.size ? new Set() : current));
+  }, [tab]);
   useEffect(() => {
     if (selectedSkillId && !selectedSkill) setSelectedSkillId(null);
   }, [selectedSkill, selectedSkillId]);
@@ -1326,33 +1373,38 @@ export function SkillsPage() {
   let contentNode;
   if (loading) {
     contentNode = loadingNode;
-  } else if (tab === "my") {
-    contentNode = mySkills.length ? (
-      <MySkillsView
-        items={filteredMySkills}
-        totalCount={mySkills.length}
-        targets={targets}
-        agentOptions={targets}
-        agentFilter={agentFilter}
-        onAgentFilter={setAgentFilter}
-        anyFilter={myAnyFilter}
-        onClearFilters={handleClearMyFilters}
-        searchQuery={myQuery}
-        onSearchQuery={setMyQuery}
-        searchPlaceholder={copy("skills.my.placeholder")}
-        selectedId={selectedSkillId}
-        onSelect={handleSelectSkill}
-        onToggleTarget={handleToggleTarget}
-        busyKey={busyKey}
-        updates={updates}
-        selectedIds={selectedIds}
-        onToggleSelect={handleToggleSelect}
-        onClearSelection={clearSelection}
-        onBulkSync={handleBulkSync}
-        onBulkRemove={handleBulkRemove}
-      />
-    ) : (
-      <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-oai-gray-200 px-4 py-10 text-center dark:border-oai-gray-800">
+  } else if (tab !== "browse") {
+    if (activeInstalledSkills.length) {
+      contentNode = (
+        <MySkillsView
+          items={filteredInstalledSkills}
+          totalCount={activeInstalledSkills.length}
+          targets={targets}
+          agentOptions={targets}
+          agentFilter={agentFilter}
+          onAgentFilter={setAgentFilter}
+          anyFilter={myAnyFilter}
+          onClearFilters={handleClearMyFilters}
+          searchQuery={myQuery}
+          onSearchQuery={setMyQuery}
+          searchPlaceholder={copy("skills.my.placeholder")}
+          selectedId={selectedSkillId}
+          onSelect={handleSelectSkill}
+          onToggleTarget={handleToggleTarget}
+          busyKey={busyKey}
+          updates={updates}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
+          onClearSelection={clearSelection}
+          onBulkSync={handleBulkSync}
+          onBulkRemove={handleBulkRemove}
+        />
+      );
+    } else if (tab === "official") {
+      contentNode = emptyNode("skills.empty.official");
+    } else {
+      contentNode = (
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-oai-gray-200 px-4 py-10 text-center dark:border-oai-gray-800">
         {targets.length > 0 ? (
           <div className="relative h-11 w-80 overflow-hidden" aria-hidden>
             {/* Blurred icons — masked to mid-edge transition zones (skips center) */}
@@ -1410,8 +1462,9 @@ export function SkillsPage() {
         <Button type="button" size="sm" onClick={() => setTab("browse")}>
           {copy("skills.empty.my_cta")}
         </Button>
-      </div>
-    );
+        </div>
+      );
+    }
   } else {
     // Browse
     const isSkillsSh = source === SOURCE_SKILLSSH;
@@ -1462,21 +1515,13 @@ export function SkillsPage() {
       );
     } else if (browseItems.length) {
       resultNode = (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {browseItems.map((skill) => (
-            <div key={skill.id || skill.key} style={BROWSE_CARD_STYLE}>
-              <BrowseCard
-                skill={skill}
-                installed={Boolean(skill.installed)}
-                installing={busyKey === installBusyKey(skill)}
-                allTargets={manageableTargets}
-                defaultTargets={DEFAULT_TARGETS}
-                onInstall={handleInstall}
-                onManage={handleManage}
-              />
-            </div>
-          ))}
-        </div>
+        <BrowseSkillGrid
+          items={browseItems}
+          busyKey={busyKey}
+          manageableTargets={manageableTargets}
+          onInstall={handleInstall}
+          onManage={handleManage}
+        />
       );
     } else if (browseAnyFilter) {
       resultNode = emptyNode(
@@ -1552,10 +1597,11 @@ export function SkillsPage() {
             </Button>
           </div>
 
-          <div className="mb-5 flex gap-6 border-b border-oai-gray-200 dark:border-oai-gray-800">
-            {[
-              ["my", copy("skills.tab.my")],
-              ["browse", copy("skills.tab.browse")],
+            <div className="mb-5 flex gap-6 border-b border-oai-gray-200 dark:border-oai-gray-800">
+              {[
+                ["official", copy("skills.tab.official")],
+                ["my", copy("skills.tab.my")],
+                ["browse", copy("skills.tab.browse")],
             ].map(([value, label]) => (
               <button
                 key={value}

@@ -69,7 +69,6 @@ jobs:
 
       - name: Test Windows-specific Node paths
         run: |
-          node --test test/openclaw-parser.test.js
           node --test --test-name-pattern="native Windows" test/usage-limits.test.js
           node --test test/command-runner.test.js
 

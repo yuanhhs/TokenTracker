@@ -198,14 +198,6 @@ async function listGeminiSessionFiles(tmpDir) {
   return out;
 }
 
-async function listOpencodeMessageFiles(storageDir) {
-  const out = [];
-  const messageDir = path.join(storageDir, "message");
-  await walkOpencodeMessages(messageDir, out);
-  out.sort((a, b) => a.localeCompare(b));
-  return out;
-}
-
 async function parseRolloutIncremental({
   rolloutFiles,
   cursors,
@@ -1231,777 +1223,6 @@ async function parseGeminiIncremental({
   return { filesProcessed, eventsAggregated, bucketsQueued, projectBucketsQueued };
 }
 
-async function parseOpencodeIncremental({
-  messageFiles,
-  cursors,
-  queuePath,
-  projectQueuePath,
-  onProgress,
-  source,
-  publicRepoResolver,
-}) {
-  await ensureDir(path.dirname(queuePath));
-  let filesProcessed = 0;
-  let eventsAggregated = 0;
-
-  const cb = typeof onProgress === "function" ? onProgress : null;
-  const files = Array.isArray(messageFiles) ? messageFiles : [];
-  const totalFiles = files.length;
-  const hourlyState = normalizeHourlyState(cursors?.hourly);
-  const projectEnabled = typeof projectQueuePath === "string" && projectQueuePath.length > 0;
-  const projectState = projectEnabled ? normalizeProjectState(cursors?.projectHourly) : null;
-  const projectTouchedBuckets = projectEnabled ? new Set() : null;
-  const projectMetaCache = projectEnabled ? new Map() : null;
-  const publicRepoCache = projectEnabled ? new Map() : null;
-  const opencodeState = normalizeOpencodeState(cursors?.opencode);
-  const messageIndex = opencodeState.messages;
-  const fingerprintIndex = buildOpencodeFingerprintIndex(messageIndex);
-  const touchedBuckets = new Set();
-  const defaultSource = normalizeSourceInput(source) || "opencode";
-
-  if (!cursors.files || typeof cursors.files !== "object") {
-    cursors.files = {};
-  }
-
-  for (let idx = 0; idx < files.length; idx++) {
-    const entry = files[idx];
-    const filePath = typeof entry === "string" ? entry : entry?.path;
-    if (!filePath) continue;
-    const fileSource =
-      typeof entry === "string"
-        ? defaultSource
-        : normalizeSourceInput(entry?.source) || defaultSource;
-    const st = await fs.stat(filePath).catch(() => null);
-    if (!st || !st.isFile()) continue;
-
-    const key = filePath;
-    const prev = cursors.files[key] || null;
-    const inode = st.ino || 0;
-    const size = Number.isFinite(st.size) ? st.size : 0;
-    const mtimeMs = Number.isFinite(st.mtimeMs) ? st.mtimeMs : 0;
-    const unchanged =
-      prev &&
-      prev.inode === inode &&
-      prev.size === size &&
-      prev.mtimeMs === mtimeMs &&
-      prev.opencodeForkRepairVersion === 1;
-    if (unchanged) {
-      filesProcessed += 1;
-      if (cb) {
-        cb({
-          index: idx + 1,
-          total: totalFiles,
-          filePath,
-          filesProcessed,
-          eventsAggregated,
-          bucketsQueued: touchedBuckets.size,
-        });
-      }
-      continue;
-    }
-
-    const fallbackTotals = prev && typeof prev.lastTotals === "object" ? prev.lastTotals : null;
-    const fallbackMessageKey =
-      prev && typeof prev.messageKey === "string" && prev.messageKey.trim()
-        ? prev.messageKey.trim()
-        : null;
-    const projectContext = projectEnabled
-      ? await resolveProjectContextForFile({
-          filePath,
-          projectMetaCache,
-          publicRepoCache,
-          publicRepoResolver,
-          projectState,
-        })
-      : null;
-    const projectRef = projectContext?.projectRef || null;
-    const projectKey = projectContext?.projectKey || null;
-
-    const result = await parseOpencodeMessageFile({
-      filePath,
-      messageIndex,
-      fingerprintIndex,
-      fallbackTotals,
-      fallbackMessageKey,
-      hourlyState,
-      touchedBuckets,
-      source: fileSource,
-      projectState,
-      projectTouchedBuckets,
-      projectRef,
-      projectKey,
-    });
-
-    cursors.files[key] = {
-      inode,
-      size,
-      mtimeMs,
-      lastTotals: result.lastTotals,
-      messageKey: result.messageKey || null,
-      opencodeForkRepairVersion: 1,
-      updatedAt: new Date().toISOString(),
-    };
-
-    filesProcessed += 1;
-    eventsAggregated += result.eventsAggregated;
-
-    if (result.messageKey && result.shouldUpdate) {
-      recordOpencodeMessage({
-        messageIndex,
-        fingerprintIndex,
-        messageKey: result.messageKey,
-        totals: result.lastTotals,
-        fingerprint: result.fingerprint || null,
-        dedupedForkCopy: result.dedupedForkCopy === true,
-      });
-    }
-
-    if (cb) {
-      cb({
-        index: idx + 1,
-        total: totalFiles,
-        filePath,
-        filesProcessed,
-        eventsAggregated,
-        bucketsQueued: touchedBuckets.size,
-      });
-    }
-  }
-
-  const bucketsQueued = await enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets });
-  const projectBucketsQueued = projectEnabled
-    ? await enqueueTouchedProjectBuckets({ projectQueuePath, projectState, projectTouchedBuckets })
-    : 0;
-  hourlyState.updatedAt = new Date().toISOString();
-  cursors.hourly = hourlyState;
-  opencodeState.updatedAt = new Date().toISOString();
-  cursors.opencode = opencodeState;
-  if (projectState) {
-    projectState.updatedAt = new Date().toISOString();
-    cursors.projectHourly = projectState;
-  }
-
-  return { filesProcessed, eventsAggregated, bucketsQueued, projectBucketsQueued };
-}
-
-// Passive discovery of OpenClaw session transcripts (issue #264). OpenClaw was
-// previously counted ONLY when its session plugin fired an `agent_end` hook and
-// pointed sync at one specific <sessionId>.jsonl. That hook silently fails for a
-// whole class of real usage — messages arriving through a channel (e.g. the
-// WeChat ClawBot) whose sessionKey the plugin can't map back to a sessions.json
-// entry, gateways where the plugin never loaded, or newer installs that keep
-// runtime rows in SQLite and only leave archived transcripts on disk. In all of
-// those cases usage exists but shows as 0. Scanning the on-disk transcripts on
-// every full sync (like every other passive provider) closes that gap; the
-// event-identity dedup in parseOpenclawSessionFile makes a plugin trigger and a
-// passive scan of the same file idempotent, so the two paths never double-count.
-// Mirrors OpenClaw's own precedence (OPENCLAW_HOME > state dir override), but
-// deliberately keeps os.homedir() — NOT env.HOME — as the base. OpenClaw itself
-// prefers env.HOME, yet every OpenClaw cursor we have ever written was keyed off
-// an os.homedir()-derived path; switching the base would make Git Bash / MSYS
-// (HOME=/c/Users/x vs C:\Users\x) miss its own cursor and re-count the whole
-// transcript history.
-function resolveOpenclawHome(env = process.env) {
-  const override =
-    (typeof env.TOKENTRACKER_OPENCLAW_HOME === "string" && env.TOKENTRACKER_OPENCLAW_HOME.trim()) ||
-    (typeof env.OPENCLAW_HOME === "string" && env.OPENCLAW_HOME.trim()) ||
-    (typeof env.OPENCLAW_STATE_DIR === "string" && env.OPENCLAW_STATE_DIR.trim()) ||
-    "";
-  return override || path.join(os.homedir(), ".openclaw");
-}
-
-// On Windows the recommended OpenClaw install provisions an app-owned WSL
-// distro and runs the gateway inside it, so %USERPROFILE%\.openclaw is empty
-// while the real state dir sits on the distro's ext4 home (issue #264).
-function resolveOpenclawHomes(env = process.env, deps = {}) {
-  const roots = [resolveOpenclawHome(env)];
-  const platform = deps.platform || process.platform;
-  const overridden =
-    env.TOKENTRACKER_OPENCLAW_HOME || env.OPENCLAW_HOME || env.OPENCLAW_STATE_DIR;
-  if (platform === "win32" && !overridden) {
-    const discoverWslHome = deps.discoverWslHome || wsl.discoverWslHome;
-    const wslRoot = wsl.shouldProbeWsl(env) ? discoverWslHome(".openclaw", { ...deps, env }) : null;
-    if (wslRoot) roots.push(wslRoot);
-  }
-  return roots;
-}
-
-// Transcript artifacts are not always a bare `<sessionId>.jsonl`: resets and
-// deletes leave `<sessionId>.jsonl.reset.<iso>` / `.deleted.<ts>` siblings, and
-// the SQLite migration moves still-hot transcripts into
-// `session-sqlite-import-archive/`. Match the same `*.jsonl*` shape other
-// OpenClaw readers use so those are not silently dropped.
-const OPENCLAW_TRANSCRIPT_SUBDIRS = ["sessions", "session-sqlite-import-archive"];
-
-function isOpenclawTranscriptName(name) {
-  return typeof name === "string" && name.includes(".jsonl") && !name.endsWith(".json");
-}
-
-async function resolveOpenclawSessionFiles(env = process.env, deps = {}) {
-  const out = [];
-  const seen = new Set();
-  for (const openclawHome of resolveOpenclawHomes(env, deps)) {
-    const agentsDir = path.join(openclawHome, "agents");
-    const agents = await safeReadDir(agentsDir);
-    for (const agent of agents) {
-      if (!agent.isDirectory()) continue;
-      for (const subdir of OPENCLAW_TRANSCRIPT_SUBDIRS) {
-        const dir = path.join(agentsDir, agent.name, subdir);
-        const entries = await safeReadDir(dir);
-        for (const entry of entries) {
-          if (!entry.isFile() || !isOpenclawTranscriptName(entry.name)) continue;
-          const full = path.join(dir, entry.name);
-          const key = openclawCursorKey(full);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push(full);
-        }
-      }
-    }
-  }
-  out.sort((a, b) => a.localeCompare(b));
-  return out;
-}
-
-async function parseOpenclawIncremental({
-  sessionFiles,
-  cursors,
-  queuePath,
-  projectQueuePath,
-  onProgress,
-  source,
-}) {
-  await ensureDir(path.dirname(queuePath));
-  let filesProcessed = 0;
-  let eventsAggregated = 0;
-
-  const cb = typeof onProgress === "function" ? onProgress : null;
-  const files = Array.isArray(sessionFiles) ? sessionFiles : [];
-  const totalFiles = files.length;
-  const hourlyState = normalizeHourlyState(
-    cursors?.hourly ? structuredClone(cursors.hourly) : null,
-  );
-  const projectEnabled = typeof projectQueuePath === "string" && projectQueuePath.length > 0;
-  const projectState = projectEnabled
-    ? normalizeProjectState(
-        cursors?.projectHourly ? structuredClone(cursors.projectHourly) : null,
-      )
-    : null;
-  const projectTouchedBuckets = projectEnabled ? new Set() : null;
-  const touchedBuckets = new Set();
-  const defaultSource = normalizeSourceInput(source) || "openclaw";
-
-  const stagedFiles =
-    cursors.files && typeof cursors.files === "object"
-      ? { ...cursors.files }
-      : {};
-  const cursorKeys = new Map();
-  for (const existingKey of Object.keys(stagedFiles)) {
-    cursorKeys.set(openclawCursorKey(existingKey), existingKey);
-  }
-
-  for (let idx = 0; idx < files.length; idx++) {
-    const entry = files[idx];
-    const filePath = typeof entry === "string" ? entry : entry?.path;
-    if (!filePath) continue;
-    const fileSource =
-      typeof entry === "string"
-        ? defaultSource
-        : normalizeSourceInput(entry?.source) || defaultSource;
-    const key = openclawCursorKey(filePath);
-    const previousKey = cursorKeys.get(key);
-    const prev = previousKey ? stagedFiles[previousKey] : null;
-    const prevUsageEvents =
-      prev?.usageEvents && typeof prev.usageEvents === "object" ? prev.usageEvents : {};
-    const hasUsageEventCursor =
-      prev &&
-      Object.prototype.hasOwnProperty.call(prev, "usageEvents") &&
-      prev.usageEvents &&
-      typeof prev.usageEvents === "object";
-    const legacyCursor = prev && !hasUsageEventCursor;
-    const previousOffset = Number(prev?.offset || 0);
-    let accepted = null;
-    let openedRegularFile = false;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const fileHandle = await fs.open(filePath, "r").catch(() => null);
-      if (!fileHandle) break;
-      try {
-        const openedStat = await fileHandle.stat();
-        if (!openedStat.isFile()) break;
-        openedRegularFile = true;
-        const fileEndOffset = openedStat.size;
-        let prefixFingerprint = null;
-        let prefixFingerprintState = null;
-        const offsetBoundaryMatches =
-          hasUsageEventCursor &&
-          previousOffset <= fileEndOffset &&
-          await openclawOffsetEndsAtLineBoundary(fileHandle, previousOffset);
-        const parsedLegacyUpdatedAt = Date.parse(String(prev?.updatedAt || ""));
-        const legacyAggregateAfterMs =
-          legacyCursor
-            ? Number.isFinite(parsedLegacyUpdatedAt)
-              ? parsedLegacyUpdatedAt
-              : Number.POSITIVE_INFINITY
-            : null;
-        if (
-          hasUsageEventCursor &&
-          offsetBoundaryMatches &&
-          prev?.usageFingerprint
-        ) {
-          const prefix = await parseOpenclawSessionFile({
-            filePath,
-            fileHandle,
-            startOffset: 0,
-            endOffsetLimit: previousOffset,
-            previousUsageEvents: {},
-            appendOnly: false,
-            collectOnly: true,
-          });
-          prefixFingerprint = prefix.usageFingerprint;
-          prefixFingerprintState = prefix.usageFingerprintState;
-        }
-        const appendOnly =
-          hasUsageEventCursor &&
-          previousOffset <= fileEndOffset &&
-          offsetBoundaryMatches &&
-          sameOpenclawUsageFingerprint(
-            prefixFingerprint,
-            prev.usageFingerprint,
-          );
-        const startOffset = appendOnly ? previousOffset : 0;
-        const attemptHourly = { version: 3, buckets: {}, groupQueued: {} };
-        const attemptTouched = new Set();
-        const result = await parseOpenclawSessionFile({
-          filePath,
-          fileHandle,
-          startOffset,
-          endOffsetLimit: fileEndOffset,
-          previousUsageEvents: prevUsageEvents,
-          appendOnly,
-          aggregateAfterMs: legacyAggregateAfterMs,
-          usageFingerprintState: appendOnly ? prefixFingerprintState : null,
-          hourlyState: attemptHourly,
-          touchedBuckets: attemptTouched,
-          source: fileSource,
-          projectState: null,
-          projectTouchedBuckets: null,
-        });
-        const closedStat = await fileHandle.stat();
-        const pathStat = await fs.stat(filePath).catch(() => null);
-        if (
-          !sameOpenclawFileGeneration(openedStat, closedStat) ||
-          !sameOpenclawFileGeneration(closedStat, pathStat)
-        ) {
-          continue;
-        }
-        accepted = {
-          inode: closedStat.ino || 0,
-          result,
-          hourly: attemptHourly,
-          touched: attemptTouched,
-          usageEvents: result.usageEvents,
-          usageFingerprint: result.usageFingerprint,
-        };
-        break;
-      } finally {
-        await fileHandle.close().catch(() => {});
-      }
-    }
-    if (!accepted) {
-      if (!openedRegularFile) continue;
-      throw new Error(`OpenClaw session changed repeatedly while parsing: ${filePath}`);
-    }
-
-    mergeOpenclawAttemptBuckets(
-      hourlyState,
-      touchedBuckets,
-      accepted.hourly,
-      accepted.touched,
-    );
-    if (previousKey && previousKey !== key) delete stagedFiles[previousKey];
-    stagedFiles[key] = {
-      provider: "openclaw",
-      inode: accepted.inode,
-      offset: accepted.result.endOffset,
-      usageFingerprint: accepted.usageFingerprint,
-      updatedAt: new Date().toISOString(),
-      usageEvents: accepted.usageEvents,
-      // Sticky: once a transcript has yielded real per-event usage, the
-      // sessions.json totals fallback must defer to it to avoid double
-      // counting the same tokens twice (see applyOpenclawTotalsFallback).
-      //
-      // The usageEvents check is what makes this work for EXISTING installs:
-      // cursors written before this flag existed carry no `hasRealUsage`, and a
-      // steady-state sync of an unchanged transcript aggregates 0 new events —
-      // so keying off eventsAggregated alone would leave the flag false forever
-      // and let the fallback keep double counting for exactly the users who
-      // already have OpenClaw history.
-      hasRealUsage:
-        Boolean(prev?.hasRealUsage) ||
-        accepted.result.eventsAggregated > 0 ||
-        Object.keys(accepted.usageEvents || {}).length > 0,
-    };
-    cursorKeys.set(key, key);
-
-    filesProcessed += 1;
-    eventsAggregated += accepted.result.eventsAggregated;
-
-    if (cb) {
-      cb({
-        index: idx + 1,
-        total: totalFiles,
-        filePath,
-        filesProcessed,
-        eventsAggregated,
-        bucketsQueued: touchedBuckets.size,
-      });
-    }
-  }
-
-  const bucketsQueued = await enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets });
-  const projectBucketsQueued = projectEnabled
-    ? await enqueueTouchedProjectBuckets({ projectQueuePath, projectState, projectTouchedBuckets })
-    : 0;
-  cursors.files = stagedFiles;
-  hourlyState.updatedAt = new Date().toISOString();
-  cursors.hourly = hourlyState;
-  if (projectState) {
-    projectState.updatedAt = new Date().toISOString();
-    cursors.projectHourly = projectState;
-  }
-
-  return { filesProcessed, eventsAggregated, bucketsQueued, projectBucketsQueued };
-}
-
-function openclawCursorKey(filePath) {
-  if (typeof filePath !== "string") return "";
-  const normalized = filePath.replace(/\\/g, "/");
-  const isWindowsPath =
-    /^[a-zA-Z]:\//.test(normalized) || normalized.startsWith("//");
-  return isWindowsPath ? normalized.toLowerCase() : filePath;
-}
-
-function sameOpenclawFileGeneration(left, right) {
-  if (!left || !right || !left.isFile?.() || !right.isFile?.()) return false;
-  const leftInode = Number(left.ino || 0);
-  const rightInode = Number(right.ino || 0);
-  if (leftInode > 0 && rightInode > 0) {
-    if (leftInode !== rightInode || Number(left.dev || 0) !== Number(right.dev || 0)) {
-      return false;
-    }
-  }
-  return (
-    Number(left.size || 0) === Number(right.size || 0) &&
-    Number(left.mtimeMs || 0) === Number(right.mtimeMs || 0) &&
-    Number(left.ctimeMs || 0) === Number(right.ctimeMs || 0)
-  );
-}
-
-async function openclawOffsetEndsAtLineBoundary(fileHandle, offset) {
-  const byteOffset = Math.max(0, Number(offset) || 0);
-  if (byteOffset === 0) return true;
-  const buffer = Buffer.allocUnsafe(1);
-  const { bytesRead } = await fileHandle.read(buffer, 0, 1, byteOffset - 1);
-  return bytesRead === 1 && (buffer[0] === 0x0a || buffer[0] === 0x0d);
-}
-
-function sameOpenclawUsageFingerprint(left, right) {
-  return (
-    left?.version === 1 &&
-    right?.version === 1 &&
-    left.eventCount === right.eventCount &&
-    left.digest === right.digest
-  );
-}
-
-function mergeOpenclawAttemptBuckets(
-  hourlyState,
-  touchedBuckets,
-  attemptHourly,
-  attemptTouched,
-) {
-  for (const key of attemptTouched) {
-    const parsed = parseBucketKey(key);
-    const attemptBucket = attemptHourly.buckets[key];
-    if (!parsed || !attemptBucket) continue;
-    const bucket = getHourlyBucket(
-      hourlyState,
-      parsed.source,
-      parsed.model,
-      parsed.hourStart,
-    );
-    addTotals(bucket.totals, attemptBucket.totals);
-    touchedBuckets.add(key);
-  }
-}
-
-async function parseOpenclawSessionFile({
-  filePath,
-  fileHandle,
-  startOffset,
-  endOffsetLimit,
-  previousUsageEvents,
-  appendOnly,
-  aggregateAfterMs,
-  usageFingerprintState,
-  collectOnly = false,
-  hourlyState,
-  touchedBuckets,
-  source,
-  projectState,
-  projectTouchedBuckets,
-}) {
-  const st = fileHandle ? await fileHandle.stat() : await fs.stat(filePath);
-  const endOffset =
-    Number.isFinite(endOffsetLimit) && endOffsetLimit >= 0
-      ? Math.min(st.size, endOffsetLimit)
-      : st.size;
-  const priorCounts =
-    previousUsageEvents && typeof previousUsageEvents === "object"
-      ? previousUsageEvents
-      : {};
-  let fingerprintEventCount =
-    Number.isInteger(usageFingerprintState?.eventCount) &&
-    usageFingerprintState.eventCount >= 0
-      ? usageFingerprintState.eventCount
-      : 0;
-  const fingerprintHash =
-    typeof usageFingerprintState?.hash?.copy === "function"
-      ? usageFingerprintState.hash.copy()
-      : crypto.createHash("sha256");
-  if (startOffset >= endOffset) {
-    return {
-      endOffset,
-      eventsAggregated: 0,
-      usageEvents: { ...priorCounts },
-      usageFingerprint: {
-        version: 1,
-        eventCount: fingerprintEventCount,
-        digest: fingerprintHash.copy().digest("hex"),
-      },
-      usageFingerprintState: {
-        eventCount: fingerprintEventCount,
-        hash: fingerprintHash,
-      },
-    };
-  }
-
-  const stream = fssync.createReadStream(filePath, {
-    fd: fileHandle?.fd,
-    autoClose: !fileHandle,
-    encoding: "utf8",
-    start: startOffset,
-    end: endOffset - 1,
-  });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-
-  let eventsAggregated = 0;
-  const scanCounts = appendOnly ? { ...priorCounts } : {};
-  const usageEvents = { ...priorCounts };
-  for await (const line of rl) {
-    if (!line) continue;
-    // Fast-path filter: OpenClaw assistant messages include message.usage.totalTokens.
-    if (!line.includes('"usage"') || !line.includes("totalTokens")) continue;
-
-    let obj;
-    try {
-      obj = JSON.parse(line);
-    } catch (_e) {
-      continue;
-    }
-
-    if (obj?.type !== "message") continue;
-    const msg = obj?.message;
-    if (!msg || typeof msg !== "object") continue;
-
-    const usage = normalizeOpenclawUsage(msg.usage);
-    if (!usage) continue;
-
-    const tokenTimestamp = typeof obj?.timestamp === "string" ? obj.timestamp : null;
-    if (!tokenTimestamp) continue;
-
-    const model = normalizeModelInput(msg.model) || DEFAULT_MODEL;
-    const eventIdentity = openclawUsageEventIdentity(obj, msg, usage, model);
-    fingerprintHash.update(
-      `${JSON.stringify(
-        openclawUsageFingerprintMetadata(
-          obj,
-          msg,
-          usage,
-          model,
-          eventIdentity.key,
-        ),
-      )}\n`,
-    );
-    fingerprintEventCount += 1;
-
-    // OpenClaw wraps Codex, so it follows the same OpenAI convention where
-    // `input` INCLUDES cached reads. Normalize by subtracting cached from
-    // input so `input_tokens` is pure non-cached (matches CLAUDE.md spec
-    // and prevents downstream double-counting at the cache_read rate on top
-    // of the full input rate — ~6–7x cost inflation on cache-heavy sessions).
-    const openclawRawInput = Number(usage.input || 0);
-    const openclawCached = Number(usage.cacheRead || 0);
-    const openclawCacheWrite = Number(usage.cacheWrite || 0);
-    const openclawOutput = Number(usage.output || 0);
-    const openclawInput = Math.max(0, openclawRawInput - openclawCached);
-    const delta = {
-      input_tokens: openclawInput,
-      cached_input_tokens: openclawCached,
-      cache_creation_input_tokens: openclawCacheWrite,
-      output_tokens: openclawOutput,
-      reasoning_output_tokens: 0,
-      total_tokens: openclawInput + openclawCached + openclawCacheWrite + openclawOutput,
-      conversation_count: 1,
-    };
-
-    if (isAllZeroUsage(delta)) continue;
-
-    const bucketStart = toUtcHalfHourStart(tokenTimestamp);
-    if (!bucketStart) continue;
-
-    const priorCount = Number(priorCounts[eventIdentity.key] || 0);
-    const nextCount = Number(scanCounts[eventIdentity.key] || 0) + 1;
-    scanCounts[eventIdentity.key] = nextCount;
-    usageEvents[eventIdentity.key] = eventIdentity.unique
-      ? 1
-      : Math.max(Number(usageEvents[eventIdentity.key] || 0), nextCount);
-    if (
-      eventIdentity.unique
-        ? priorCount > 0 || nextCount > 1
-        : nextCount <= priorCount
-    ) {
-      continue;
-    }
-
-    if (
-      aggregateAfterMs != null &&
-      Date.parse(tokenTimestamp) <= aggregateAfterMs
-    ) {
-      continue;
-    }
-
-    if (!collectOnly) {
-      const bucket = getHourlyBucket(hourlyState, source, model, bucketStart);
-      addTotals(bucket.totals, delta);
-      touchedBuckets.add(bucketKey(source, model, bucketStart));
-    }
-
-    // Project-level OpenClaw attribution is not supported yet (no stable cwd info).
-    // If OpenClaw later records cwd per event, we can mirror rollout's project logic.
-    if (!collectOnly) eventsAggregated += 1;
-  }
-
-  rl.close();
-  if (!fileHandle) stream.close?.();
-  return {
-    endOffset,
-    eventsAggregated,
-    usageEvents,
-    usageFingerprint: {
-      version: 1,
-      eventCount: fingerprintEventCount,
-      digest: fingerprintHash.copy().digest("hex"),
-    },
-    usageFingerprintState: {
-      eventCount: fingerprintEventCount,
-      hash: fingerprintHash,
-    },
-  };
-}
-
-function normalizeOpenclawUsage(usage) {
-  if (!usage || typeof usage !== "object") return null;
-  const normalized = {};
-  for (const field of [
-    "input",
-    "cacheRead",
-    "cacheWrite",
-    "output",
-    "totalTokens",
-  ]) {
-    const rawValue = usage[field];
-    if (rawValue === undefined) {
-      normalized[field] = 0;
-      continue;
-    }
-    if (
-      typeof rawValue !== "number" ||
-      !Number.isSafeInteger(rawValue) ||
-      rawValue < 0
-    ) {
-      return null;
-    }
-    normalized[field] = rawValue;
-  }
-  return normalized;
-}
-
-function openclawUsageFingerprintMetadata(
-  obj,
-  msg,
-  usage,
-  model,
-  identityKey,
-) {
-  return {
-    identityKey,
-    timestamp: typeof obj?.timestamp === "string" ? obj.timestamp : null,
-    messageTimestamp:
-      typeof msg?.timestamp === "number" || typeof msg?.timestamp === "string"
-        ? msg.timestamp
-        : null,
-    responseId: typeof msg?.responseId === "string" ? msg.responseId : null,
-    model,
-    provider: typeof msg?.provider === "string" ? msg.provider : null,
-    api: typeof msg?.api === "string" ? msg.api : null,
-    input: Number(usage?.input || 0),
-    cacheRead: Number(usage?.cacheRead || 0),
-    cacheWrite: Number(usage?.cacheWrite || 0),
-    output: Number(usage?.output || 0),
-    totalTokens: Number(usage?.totalTokens || 0),
-  };
-}
-
-function openclawUsageEventIdentity(obj, msg, usage, model) {
-  const stableId =
-    typeof obj?.id === "string" && obj.id.trim() ? obj.id.trim() : null;
-  if (stableId) {
-    return {
-      key: `id:${crypto.createHash("sha256").update(stableId).digest("hex")}`,
-      unique: true,
-    };
-  }
-
-  const metadata = {
-    timestamp: typeof obj?.timestamp === "string" ? obj.timestamp : null,
-    messageTimestamp: typeof msg?.timestamp === "number" || typeof msg?.timestamp === "string"
-      ? msg.timestamp
-      : null,
-    responseId: typeof msg?.responseId === "string" ? msg.responseId : null,
-    model,
-    provider: typeof msg?.provider === "string" ? msg.provider : null,
-    api: typeof msg?.api === "string" ? msg.api : null,
-    input: Number(usage?.input || 0),
-    cacheRead: Number(usage?.cacheRead || 0),
-    cacheWrite: Number(usage?.cacheWrite || 0),
-    output: Number(usage?.output || 0),
-    totalTokens: Number(usage?.totalTokens || 0),
-  };
-  return {
-    key: `meta:${crypto.createHash("sha256").update(JSON.stringify(metadata)).digest("hex")}`,
-    unique: false,
-  };
-}
-
-/**
- * Extract the session UUID from a Codex rollout file path
- * (`rollout-<datetime>-<uuid>.jsonl`). Used as the stable per-session scope for
- * event dedup: it survives both an inode-changing rewrite (Codex-Manager
- * atomically rewrites session files to patch the provider on account switch,
- * issue #187) and a sessions/ -> archived_sessions/ move. Returns null when the
- * name has no UUID, in which case the caller falls back to the full path.
- */
 function codexSessionIdFromPath(filePath) {
   if (typeof filePath !== "string") return null;
   const m = filePath.match(
@@ -2622,155 +1843,6 @@ async function parseGeminiFile({
   };
 }
 
-async function parseOpencodeMessageFile({
-  filePath,
-  messageIndex,
-  fingerprintIndex,
-  fallbackTotals,
-  fallbackMessageKey,
-  hourlyState,
-  touchedBuckets,
-  source,
-  projectState,
-  projectTouchedBuckets,
-  projectRef,
-  projectKey,
-}) {
-  const fallbackKey =
-    typeof fallbackMessageKey === "string" && fallbackMessageKey.trim()
-      ? fallbackMessageKey.trim()
-      : null;
-  const legacyTotals = fallbackTotals && typeof fallbackTotals === "object" ? fallbackTotals : null;
-  const fallbackEntry = messageIndex && fallbackKey ? messageIndex[fallbackKey] : null;
-  const fallbackLastTotals =
-    fallbackEntry && typeof fallbackEntry.lastTotals === "object"
-      ? fallbackEntry.lastTotals
-      : legacyTotals;
-
-  const raw = await fs.readFile(filePath, "utf8").catch(() => "");
-  if (!raw.trim()) {
-    return {
-      messageKey: fallbackKey,
-      lastTotals: fallbackLastTotals,
-      eventsAggregated: 0,
-      shouldUpdate: false,
-    };
-  }
-
-  let msg;
-  try {
-    msg = JSON.parse(raw);
-  } catch (_e) {
-    return {
-      messageKey: fallbackKey,
-      lastTotals: fallbackLastTotals,
-      eventsAggregated: 0,
-      shouldUpdate: false,
-    };
-  }
-
-  const messageKey = deriveOpencodeMessageKey(msg, filePath);
-  const prev = messageIndex && messageKey ? messageIndex[messageKey] : null;
-  const indexTotals = prev && typeof prev.lastTotals === "object" ? prev.lastTotals : null;
-  const fallbackMatch = !fallbackKey || fallbackKey === messageKey;
-  const lastTotals = indexTotals || (fallbackMatch ? fallbackLastTotals : null);
-
-  const currentTotals = normalizeOpencodeTokens(msg?.tokens);
-  if (!currentTotals) {
-    return { messageKey, lastTotals, eventsAggregated: 0, shouldUpdate: false };
-  }
-
-  // `Session.fork` re-materialises the parent's prefix under new message ids in
-  // a new session — count it once (issue #426, see deriveOpencodeMessageFingerprint).
-  const fingerprint = deriveOpencodeMessageFingerprint({ msg, totals: currentTotals, source });
-  if (isOpencodeForkCopy(fingerprintIndex, fingerprint, messageKey)) {
-    if (lastTotals && prev?.dedupedForkCopy !== true) {
-      repairCountedOpencodeForkCopy({
-        msg,
-        totals: lastTotals,
-        source,
-        hourlyState,
-        touchedBuckets,
-        projectState,
-        projectTouchedBuckets,
-        projectRef,
-        projectKey,
-      });
-    }
-    return {
-      messageKey,
-      lastTotals: currentTotals,
-      fingerprint,
-      dedupedForkCopy: true,
-      eventsAggregated: 0,
-      shouldUpdate: prev?.dedupedForkCopy !== true || !lastTotals,
-    };
-  }
-
-  // A formerly deduped copy can become a genuinely distinct in-place update.
-  // Its prior totals were removed from the buckets, so re-add the full current
-  // snapshot instead of only the delta from the suppressed value.
-  const effectiveLastTotals = prev?.dedupedForkCopy === true ? null : lastTotals;
-  const delta = diffGeminiTotals(currentTotals, effectiveLastTotals);
-  if (!delta || isAllZeroUsage(delta)) {
-    return {
-      messageKey,
-      lastTotals: currentTotals,
-      fingerprint,
-      dedupedForkCopy: false,
-      eventsAggregated: 0,
-      shouldUpdate: true,
-    };
-  }
-  delta.conversation_count = 1;
-
-  const timestampMs = coerceEpochMs(msg?.time?.completed) || coerceEpochMs(msg?.time?.created);
-  if (!timestampMs) {
-    return {
-      messageKey,
-      lastTotals,
-      eventsAggregated: 0,
-      shouldUpdate: Boolean(lastTotals),
-    };
-  }
-
-  const tsIso = new Date(timestampMs).toISOString();
-  const bucketStart = toUtcHalfHourStart(tsIso);
-  if (!bucketStart) {
-    return {
-      messageKey,
-      lastTotals,
-      eventsAggregated: 0,
-      shouldUpdate: Boolean(lastTotals),
-    };
-  }
-
-  const { modelId: fileModelId } = normalizeOpencodeModelFields(msg);
-  const model = fileModelId || DEFAULT_MODEL;
-  const bucket = getHourlyBucket(hourlyState, source, model, bucketStart);
-  addTotals(bucket.totals, delta);
-  touchedBuckets.add(bucketKey(source, model, bucketStart));
-  if (projectKey && projectState && projectTouchedBuckets) {
-    const projectBucket = getProjectBucket(
-      projectState,
-      projectKey,
-      source,
-      bucketStart,
-      projectRef,
-    );
-    addTotals(projectBucket.totals, delta);
-    projectTouchedBuckets.add(projectBucketKey(projectKey, source, bucketStart));
-  }
-  return {
-    messageKey,
-    lastTotals: currentTotals,
-    fingerprint,
-    dedupedForkCopy: false,
-    eventsAggregated: 1,
-    shouldUpdate: true,
-  };
-}
-
 async function enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets }) {
   if (!touchedBuckets || touchedBuckets.size === 0) return 0;
 
@@ -3297,7 +2369,7 @@ function normalizeProjectState(raw) {
   };
 }
 
-function normalizeOpencodeState(raw) {
+function normalizeAgentDbState(raw) {
   const state = raw && typeof raw === "object" ? raw : {};
   const messages = state.messages && typeof state.messages === "object" ? state.messages : {};
   return {
@@ -3307,7 +2379,7 @@ function normalizeOpencodeState(raw) {
   };
 }
 
-function normalizeQoderState(raw) {
+function normalizeClaudeScienceState(raw) {
   const state = raw && typeof raw === "object" ? raw : {};
   const messages = state.messages && typeof state.messages === "object" ? state.messages : {};
   return {
@@ -3321,17 +2393,17 @@ function normalizeMessageKeyPart(value) {
   return value.trim();
 }
 
-function deriveOpencodeMessageKey(msg, fallback) {
+function deriveAgentDbMessageKey(msg, fallback) {
   const sessionId = normalizeMessageKeyPart(msg?.sessionID || msg?.sessionId || msg?.session_id);
   const messageId = normalizeMessageKeyPart(msg?.id || msg?.messageID || msg?.messageId);
   if (sessionId && messageId) return `${sessionId}|${messageId}`;
   return fallback;
 }
 
-// ── OpenCode fork-copy dedup (issue #426) ──────────────────────────────────
+// ── Compatible agent fork-copy dedup ────────────────────────────────────────
 //
 // `Session.fork` copies every parent message up to the fork point into a BRAND
-// NEW session. Verified against the shipped opencode binary: the copy is
+// NEW session. Compatible clients copy the payload while replacing identifiers:
 // `{ ...parentMessage.info, sessionID: newSession.id, id: newMessageId }` — so
 // `time.created`, `time.completed`, `modelID`, `providerID` and the entire
 // `tokens` payload survive verbatim and only the two identity fields change.
@@ -3349,18 +2421,18 @@ function deriveOpencodeMessageKey(msg, fallback) {
 // of that we only ever drop a match that lives in a DIFFERENT session, since
 // forking always mints a new one — two turns inside one session are never
 // treated as copies of each other.
-function deriveOpencodeMessageFingerprint({ msg, totals, source }) {
+function deriveAgentDbMessageFingerprint({ msg, totals, source }) {
   if (!totals || isAllZeroUsage(totals)) return null;
   const created = coerceEpochMs(msg?.time?.created) || 0;
   const completed = coerceEpochMs(msg?.time?.completed) || 0;
   if (!created && !completed) return null;
   // v1 keeps flat modelID/providerID strings; v2 nests them in
-  // `model: { id, providerID }` — normalize both (see normalizeOpencodeModelFields).
-  const { modelId, providerId } = normalizeOpencodeModelFields(msg);
+  // `model: { id, providerID }` — normalize both (see normalizeAgentDbModelFields).
+  const { modelId, providerId } = normalizeAgentDbModelFields(msg);
   const model = modelId || DEFAULT_MODEL;
   const provider = providerId;
   const raw = [
-    normalizeSourceInput(source) || "opencode",
+    normalizeSourceInput(source) || "agent-db",
     created,
     completed,
     totals.input_tokens,
@@ -3372,7 +2444,7 @@ function deriveOpencodeMessageFingerprint({ msg, totals, source }) {
     provider,
   ].join(" ");
   // Hashed rather than stored raw: the fingerprint is persisted per message in
-  // cursors.json, and heavy OpenCode users carry tens of thousands of entries.
+  // cursors.json, and long-running clients can carry tens of thousands of entries.
   return crypto.createHash("sha256").update(raw).digest("base64url").slice(0, 22);
 }
 
@@ -3380,7 +2452,7 @@ function deriveOpencodeMessageFingerprint({ msg, totals, source }) {
 // Rebuilt per parse run. Pre-#426 entries are fingerprinted as they are read;
 // the first claims ownership and later cross-session matches are retracted from
 // persisted buckets once. Tombstoned copies never claim ownership themselves.
-function buildOpencodeFingerprintIndex(messageIndex, wantedFingerprints = null) {
+function buildAgentDbFingerprintIndex(messageIndex, wantedFingerprints = null) {
   const byFingerprint = new Map();
   if (!messageIndex || typeof messageIndex !== "object") return byFingerprint;
   for (const key in messageIndex) {
@@ -3398,7 +2470,7 @@ function buildOpencodeFingerprintIndex(messageIndex, wantedFingerprints = null) 
   return byFingerprint;
 }
 
-function opencodeMessageKeySession(messageKey) {
+function agentDbMessageKeySession(messageKey) {
   if (typeof messageKey !== "string") return null;
   const idx = messageKey.indexOf("|");
   return idx > 0 ? messageKey.slice(0, idx) : null;
@@ -3408,17 +2480,17 @@ function opencodeMessageKeySession(messageKey) {
 // same fingerprint — i.e. this row is a fork copy. Keys without a resolvable
 // session (the JSON reader's file-path fallback) never dedup: unproven identity
 // must not delete usage.
-function isOpencodeForkCopy(fingerprintIndex, fingerprint, messageKey) {
+function isAgentDbForkCopy(fingerprintIndex, fingerprint, messageKey) {
   if (!fingerprint || !fingerprintIndex) return false;
   const owner = fingerprintIndex.get(fingerprint);
   if (!owner || owner === messageKey) return false;
-  const ownerSession = opencodeMessageKeySession(owner);
-  const session = opencodeMessageKeySession(messageKey);
+  const ownerSession = agentDbMessageKeySession(owner);
+  const session = agentDbMessageKeySession(messageKey);
   if (!ownerSession || !session) return false;
   return ownerSession !== session;
 }
 
-function normalizeOpencodeAttribution(raw) {
+function normalizeAgentDbAttribution(raw) {
   if (typeof raw === "string") {
     const [bucketStart = "", model = "", projectKey = "", projectRef = ""] = raw.split("\t");
     if (!bucketStart || !model) return null;
@@ -3441,8 +2513,8 @@ function normalizeOpencodeAttribution(raw) {
   };
 }
 
-function encodeOpencodeAttribution(raw) {
-  const attribution = normalizeOpencodeAttribution(raw);
+function encodeAgentDbAttribution(raw) {
+  const attribution = normalizeAgentDbAttribution(raw);
   if (!attribution) return null;
   return [
     attribution.bucketStart,
@@ -3452,9 +2524,9 @@ function encodeOpencodeAttribution(raw) {
   ].join("\t");
 }
 
-function sameOpencodeAttribution(a, b) {
-  const left = normalizeOpencodeAttribution(a);
-  const right = normalizeOpencodeAttribution(b);
+function sameAgentDbAttribution(a, b) {
+  const left = normalizeAgentDbAttribution(a);
+  const right = normalizeAgentDbAttribution(b);
   if (!left || !right) return left === right;
   return (
     left.bucketStart === right.bucketStart &&
@@ -3469,7 +2541,7 @@ function sameOpencodeAttribution(a, b) {
 // cursor untouched. A falsy `fingerprint` means "unknown" and preserves whatever
 // the entry already carried; a new one releases the old claim so a stale
 // mid-stream snapshot cannot shadow an unrelated message later.
-function recordOpencodeMessage({
+function recordAgentDbMessage({
   messageIndex,
   fingerprintIndex,
   messageKey,
@@ -3483,13 +2555,13 @@ function recordOpencodeMessage({
   const prevTotals = prev && typeof prev.lastTotals === "object" ? prev.lastTotals : null;
   const prevFingerprint = prev && typeof prev.fingerprint === "string" ? prev.fingerprint : null;
   const nextFingerprint = fingerprint || prevFingerprint;
-  const prevAttribution = normalizeOpencodeAttribution(prev?.attribution);
-  const nextAttribution = normalizeOpencodeAttribution(attribution) || prevAttribution;
+  const prevAttribution = normalizeAgentDbAttribution(prev?.attribution);
+  const nextAttribution = normalizeAgentDbAttribution(attribution) || prevAttribution;
   const prevDeduped = prev?.dedupedForkCopy === true;
   if (
     sameGeminiTotals(totals, prevTotals) &&
     prevFingerprint === nextFingerprint &&
-    sameOpencodeAttribution(prevAttribution, nextAttribution) &&
+    sameAgentDbAttribution(prevAttribution, nextAttribution) &&
     prevDeduped === Boolean(dedupedForkCopy)
   ) return;
 
@@ -3500,7 +2572,7 @@ function recordOpencodeMessage({
   }
   const entry = { lastTotals: totals, updatedAt: new Date().toISOString() };
   if (nextFingerprint) entry.fingerprint = nextFingerprint;
-  if (nextAttribution) entry.attribution = encodeOpencodeAttribution(nextAttribution);
+  if (nextAttribution) entry.attribution = encodeAgentDbAttribution(nextAttribution);
   if (dedupedForkCopy) entry.dedupedForkCopy = true;
   messageIndex[messageKey] = entry;
   if (
@@ -3513,7 +2585,7 @@ function recordOpencodeMessage({
   }
 }
 
-function subtractCountedOpencodeMessage({
+function subtractCountedAgentDbMessage({
   attribution,
   totals,
   source,
@@ -3522,7 +2594,7 @@ function subtractCountedOpencodeMessage({
   projectState,
   projectTouchedBuckets,
 }) {
-  const countedAt = normalizeOpencodeAttribution(attribution);
+  const countedAt = normalizeAgentDbAttribution(attribution);
   if (!countedAt) return false;
   const counted = { ...totals, conversation_count: 1 };
   const bucket = getHourlyBucket(
@@ -3549,7 +2621,7 @@ function subtractCountedOpencodeMessage({
   return true;
 }
 
-function repairCountedOpencodeForkCopy({
+function repairCountedAgentDbForkCopy({
   msg,
   attribution,
   totals,
@@ -3561,13 +2633,13 @@ function repairCountedOpencodeForkCopy({
   projectRef,
   projectKey,
 }) {
-  let countedAt = normalizeOpencodeAttribution(attribution);
+  let countedAt = normalizeAgentDbAttribution(attribution);
   if (!countedAt) {
     const timestampMs = coerceEpochMs(msg?.time?.completed) || coerceEpochMs(msg?.time?.created);
     if (!timestampMs) return false;
     const bucketStart = toUtcHalfHourStart(new Date(timestampMs).toISOString());
     if (!bucketStart) return false;
-    const { modelId: repairModelId } = normalizeOpencodeModelFields(msg);
+    const { modelId: repairModelId } = normalizeAgentDbModelFields(msg);
     countedAt = {
       bucketStart,
       model: repairModelId || DEFAULT_MODEL,
@@ -3575,7 +2647,7 @@ function repairCountedOpencodeForkCopy({
       projectRef,
     };
   }
-  return subtractCountedOpencodeMessage({
+  return subtractCountedAgentDbMessage({
     attribution: countedAt,
     totals,
     source,
@@ -3811,13 +2883,12 @@ function normalizeModelInput(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// OpenCode v1 stores the model as flat strings on every assistant message
-// (`modelID`, `providerID`), while OpenCode v2 (the `opencode2` beta, which
-// moved messages into the `session_message` table) nests them inside a single
+// Compatible schema v1 stores the model as flat strings on every assistant
+// message (`modelID`, `providerID`), while schema v2 nests them inside a single
 // object: `model: { id, providerID, variant }`. Some forks also wrote a plain
 // string into `model`. Resolve both shapes to { modelId, providerId } so
 // bucket keys and fork fingerprints stay identical across versions.
-function normalizeOpencodeModelFields(msg) {
+function normalizeAgentDbModelFields(msg) {
   const directModel =
     normalizeModelInput(msg?.modelID) ||
     normalizeModelInput(typeof msg?.model === "string" ? msg.model : null) ||
@@ -4271,7 +3342,7 @@ function normalizeGeminiTokens(tokens) {
   };
 }
 
-function normalizeOpencodeTokens(tokens) {
+function normalizeAgentDbTokens(tokens) {
   if (!tokens || typeof tokens !== "object") return null;
   const input = toNonNegativeInt(tokens.input);
   const output = toNonNegativeInt(tokens.output);
@@ -4331,11 +3402,11 @@ function diffGeminiTotals(current, previous) {
   return isAllZeroUsage(delta) ? null : delta;
 }
 
-// OpenCode rows are authoritative snapshots of one message and can be
+// Database rows are authoritative snapshots of one message and can be
 // corrected downward or move tokens between cache/output columns. Signed
 // deltas replace the prior contribution instead of treating a correction as a
 // fresh cumulative reset. Gemini keeps its provider-specific reset behavior.
-function diffOpencodeTotals(current, previous) {
+function diffAgentDbTotals(current, previous) {
   if (!current || typeof current !== "object") return null;
   if (!previous || typeof previous !== "object") return current;
   if (sameGeminiTotals(current, previous)) return null;
@@ -4506,23 +3577,10 @@ async function walkClaudeProjects(dir, out) {
   }
 }
 
-async function walkOpencodeMessages(dir, out) {
-  const entries = await safeReadDir(dir);
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await walkOpencodeMessages(fullPath, out);
-      continue;
-    }
-    if (entry.isFile() && entry.name.startsWith("msg_") && entry.name.endsWith(".json"))
-      out.push(fullPath);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// OpenCode SQLite DB reader
+// Compatible coding-agent SQLite DB reader
 //
-// Four real database shapes exist in the wild (see PR #501 / opencode2):
+// Four database shapes exist across supported compatible clients:
 //   A  pure v1:        `message`(data) + `session_message`(empty) [+ `session`]
 //   B  beta-17887:     `session_message`(data) + `session_v2`
 //   C  upstream v2:    `session_message`(data) + `session`
@@ -4535,9 +3593,9 @@ async function walkOpencodeMessages(dir, out) {
 // both "is there v2 data?" and "which session table exists?" in one round-trip.
 // ---------------------------------------------------------------------------
 
-const OPENCODE_DB_CURSOR_VERSION = 1;
+const AGENT_DB_CURSOR_VERSION = 1;
 
-function normalizeOpencodeDbWatermark(raw) {
+function normalizeAgentDbWatermark(raw) {
   if (!raw || typeof raw !== "object") return null;
   const maxRowId = Math.max(0, Math.floor(Number(raw.maxRowId) || 0));
   const maxUpdatedAt = Math.max(0, Math.floor(Number(raw.maxUpdatedAt) || 0));
@@ -4545,7 +3603,7 @@ function normalizeOpencodeDbWatermark(raw) {
   return maxRowId || maxUpdatedAt ? { maxRowId, maxUpdatedAt, anchor } : null;
 }
 
-function opencodeDbIdentity(dbPath) {
+function agentDbIdentity(dbPath) {
   try {
     const stat = fssync.statSync(dbPath);
     const resolved = path.resolve(dbPath);
@@ -4559,7 +3617,7 @@ function opencodeDbIdentity(dbPath) {
   }
 }
 
-function sameOpencodeDbIdentity(a, b) {
+function sameAgentDbIdentity(a, b) {
   return Boolean(
     a &&
     b &&
@@ -4569,7 +3627,7 @@ function sameOpencodeDbIdentity(a, b) {
   );
 }
 
-function opencodeDbRowAnchor(row) {
+function agentDbRowAnchor(row) {
   if (!row || typeof row !== "object") return null;
   const rowId = Math.max(0, Math.floor(Number(row.row_id) || 0));
   const id = typeof row.id === "string" ? row.id : "";
@@ -4578,8 +3636,8 @@ function opencodeDbRowAnchor(row) {
   return crypto.createHash("sha256").update(`${rowId}\0${id}\0${created}`).digest("base64url");
 }
 
-function opencodeDbIncrementalPredicate(alias, watermark) {
-  const cursor = normalizeOpencodeDbWatermark(watermark);
+function agentDbIncrementalPredicate(alias, watermark) {
+  const cursor = normalizeAgentDbWatermark(watermark);
   if (!cursor) return "";
   const clauses = [];
   if (cursor.maxRowId) clauses.push(`${alias}rowid > ${cursor.maxRowId}`);
@@ -4593,7 +3651,7 @@ function buildV1Sql(watermark = null) {
   return (
     `SELECT rowid AS row_id, id, session_id, time_updated, data FROM message ` +
     `WHERE json_extract(data, '$.role') = 'assistant'` +
-    `${opencodeDbIncrementalPredicate("", watermark)} ORDER BY time_created ASC`
+    `${agentDbIncrementalPredicate("", watermark)} ORDER BY time_created ASC`
   );
 }
 
@@ -4613,7 +3671,7 @@ function buildV2Sql(sessionTable, watermark = null) {
     `${directorySelect}sm.data AS data ` +
     `FROM session_message sm ${joinClause}` +
     `WHERE sm.type = 'assistant'` +
-    `${opencodeDbIncrementalPredicate("sm.", watermark)} ORDER BY sm.time_created ASC`
+    `${agentDbIncrementalPredicate("sm.", watermark)} ORDER BY sm.time_created ASC`
   );
 }
 
@@ -4621,14 +3679,14 @@ function buildV2Sql(sessionTable, watermark = null) {
 // sessionTable (which session table exists, session_v2 preferred over session
 // via DESC). Returns null when the probe itself fails — callers treat that as
 // v1-only, matching the pre-existing silent-degradation contract.
-function detectOpencodeMessageLayout(dbPath, sqliteOptions = {}) {
+function detectAgentDbMessageLayout(dbPath, sqliteOptions = {}) {
   let rows;
   try {
     rows = readSqliteJsonRows(
       dbPath,
       `SELECT (SELECT 1 FROM session_message LIMIT 1) AS hasRows,
               (SELECT name FROM sqlite_master WHERE name IN ('session','session_v2') ORDER BY name DESC LIMIT 1) AS sessionTable`,
-      { label: "OpenCode", timeout: 10_000, maxBuffer: 1024 * 1024, ...sqliteOptions },
+      { label: "Agent SQLite database", timeout: 10_000, maxBuffer: 1024 * 1024, ...sqliteOptions },
     );
   } catch (_e) {
     return null;
@@ -4646,17 +3704,17 @@ function detectOpencodeMessageLayout(dbPath, sqliteOptions = {}) {
 // Shared provider resolver: v1 rows carry a top-level providerID, v2 rows nest
 // it under model.providerID. Used by the mimo/zcode discriminators so they work
 // against both generations without duplicating the resolution logic.
-function opencodeMessageProvider(data) {
+function agentDbMessageProvider(data) {
   return data?.providerID || data?.model?.providerID || "";
 }
 
-function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqliteOptions = {}) {
+function readAgentDbMessagesIncremental(dbPath, previousCursor = null, sqliteOptions = {}) {
   if (!dbPath || !fssync.existsSync(dbPath)) return { messages: [], cursor: null };
 
-  const identity = opencodeDbIdentity(dbPath);
+  const identity = agentDbIdentity(dbPath);
   const canResume =
-    previousCursor?.version === OPENCODE_DB_CURSOR_VERSION &&
-    sameOpencodeDbIdentity(previousCursor.identity, identity);
+    previousCursor?.version === AGENT_DB_CURSOR_VERSION &&
+    sameAgentDbIdentity(previousCursor.identity, identity);
 
   let snapshot = null;
   let effectiveDbPath = dbPath;
@@ -4674,7 +3732,7 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
   // D-state (transitional) union: both the legacy `message` table and the new
   // `session_message` table may carry rows. Cross-table duplicates are caught
   // by the existing cursor-key + #426 fingerprint dedup in
-  // parseOpencodeDbIncremental, so unioning here is safe — the downstream
+  // parseAgentDbIncremental, so unioning here is safe — the downstream
   // parser collapses identical sessionID|messageID pairs before bucketing.
   const appendRows = (rows, isV2, out) => {
     for (const row of rows) {
@@ -4710,7 +3768,7 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
   const readGeneration = (sql) => {
     try {
       const rows = readSqliteJsonRows(effectiveDbPath, sql, {
-        label: "OpenCode",
+        label: "Agent SQLite database",
         maxBuffer: 50 * 1024 * 1024,
         timeout: 30_000,
         ...sqliteOptions,
@@ -4733,12 +3791,12 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
     const rows = readGeneration(
       `SELECT rowid AS row_id, id, time_created FROM ${table} WHERE rowid = ${rowId}`,
     );
-    return rows ? opencodeDbRowAnchor(rows[0]) : null;
+    return rows ? agentDbRowAnchor(rows[0]) : null;
   };
 
   const readCursorGeneration = ({ table, isV2, sql }) => {
     const previous = canResume
-      ? normalizeOpencodeDbWatermark(previousCursor?.[isV2 ? "v2" : "v1"])
+      ? normalizeAgentDbWatermark(previousCursor?.[isV2 ? "v2" : "v1"])
       : null;
     let forceReplay = false;
     let lastRows = [];
@@ -4795,10 +3853,10 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
     // baseline every database carries or degrades to), v2 runs only when the
     // probe confirms session_message has rows — this avoids firing a JOIN
     // against a non-existent session table on type-A databases.
-    const probe = detectOpencodeMessageLayout(effectiveDbPath, sqliteOptions);
+    const probe = detectAgentDbMessageLayout(effectiveDbPath, sqliteOptions);
     const out = [];
     const nextCursor = {
-      version: OPENCODE_DB_CURSOR_VERSION,
+      version: AGENT_DB_CURSOR_VERSION,
       identity,
       v1: null,
       v2: null,
@@ -4835,8 +3893,8 @@ function readOpencodeDbMessagesIncremental(dbPath, previousCursor = null, sqlite
   }
 }
 
-function readOpencodeDbMessages(dbPath, sqliteOptions = {}) {
-  return readOpencodeDbMessagesIncremental(dbPath, null, sqliteOptions).messages;
+function readAgentDbMessages(dbPath, sqliteOptions = {}) {
+  return readAgentDbMessagesIncremental(dbPath, null, sqliteOptions).messages;
 }
 
 // mimocode mirrors the user's Claude Code + claude-mem history into its own
@@ -4857,7 +3915,7 @@ function readOpencodeDbMessages(dbPath, sqliteOptions = {}) {
 // subsumes it.
 function isMimoNativeMessage(data) {
   if (!data) return false;
-  const provider = String(opencodeMessageProvider(data)).toLowerCase();
+  const provider = String(agentDbMessageProvider(data)).toLowerCase();
   return provider === "mimo" || provider === "xiaomi";
 }
 
@@ -4865,11 +3923,11 @@ function isMimoNativeMessage(data) {
 // mirrored Claude/claude-mem rows. See isMimoNativeMessage for why.
 function readMimoDbMessages(dbPath, sqliteOptions = {}) {
   if (!dbPath || !fssync.existsSync(dbPath)) return [];
-  const all = readOpencodeDbMessages(dbPath, sqliteOptions);
+  const all = readAgentDbMessages(dbPath, sqliteOptions);
   return all.filter((m) => isMimoNativeMessage(m.data));
 }
 
-// ZCode is Z.ai's (Zhipu) coding agent — another OpenCode-fork that stores
+// ZCode is Z.ai's (Zhipu) coding agent and stores
 // assistant messages in the identical `message` table schema
 // (~/.zcode/cli/db/db.sqlite). Its own agent runs GLM models through Z.ai /
 // BigModel endpoints (providerID "builtin:zai-start-plan",
@@ -4891,7 +3949,7 @@ function readMimoDbMessages(dbPath, sqliteOptions = {}) {
 // re-count it. Mirrors the Mimo discipline.
 function isZcodeNativeMessage(data) {
   if (!data) return false;
-  const provider = String(opencodeMessageProvider(data)).toLowerCase();
+  const provider = String(agentDbMessageProvider(data)).toLowerCase();
   if (!provider) return false;
   return !(
     provider.includes("anthropic") ||
@@ -5048,7 +4106,7 @@ function readZcodeNativeUsageMessages(dbPath, sqliteOptions = {}) {
     // ZCode's persisted input/output columns are inclusive parents:
     // cache read/write are subsets of input, and reasoning is a subset of
     // output. TokenTracker stores those five columns disjointly, so split the
-    // subsets here before entering the shared OpenCode parser. This preserves
+    // subsets here before entering the shared compatible-schema parser. This preserves
     // sum(input + cache read + cache write + output + reasoning) without
     // billing either subset twice.
     const rawInput = toNonNegativeInt(row?.input_tokens);
@@ -5089,11 +4147,11 @@ function readZcodeDbMessages(dbPath, sqliteOptions = {}) {
   if (!dbPath || !fssync.existsSync(dbPath)) return [];
   const nativeMessages = readZcodeNativeUsageMessages(dbPath, sqliteOptions);
   if (nativeMessages !== null) return nativeMessages;
-  const all = readOpencodeDbMessages(dbPath, sqliteOptions);
+  const all = readAgentDbMessages(dbPath, sqliteOptions);
   return all.filter((m) => isZcodeNativeMessage(m.data));
 }
 
-async function parseOpencodeDbIncremental({
+async function parseAgentDbIncremental({
   dbMessages,
   dbPath,
   dbCursor,
@@ -5118,23 +4176,23 @@ async function parseOpencodeDbIncremental({
   const projectTouchedBuckets = projectEnabled ? new Set() : null;
   const projectMetaCache = projectEnabled ? new Map() : null;
   const publicRepoCache = projectEnabled ? new Map() : null;
-  const cursorNamespace = typeof cursorKey === "string" && cursorKey.length > 0 ? cursorKey : "opencode";
-  const opencodeState = normalizeOpencodeState(cursors?.[cursorNamespace]);
-  const messageIndex = opencodeState.messages;
+  const cursorNamespace = typeof cursorKey === "string" && cursorKey.length > 0 ? cursorKey : "agentDb";
+  const agentDbState = normalizeAgentDbState(cursors?.[cursorNamespace]);
+  const messageIndex = agentDbState.messages;
   const touchedBuckets = new Set();
-  const defaultSource = normalizeSourceInput(source) || "opencode";
+  const defaultSource = normalizeSourceInput(source) || "agent-db";
   const candidateFingerprints = new Set();
   for (const entry of messages) {
-    const totals = normalizeOpencodeTokens(entry?.data?.tokens);
+    const totals = normalizeAgentDbTokens(entry?.data?.tokens);
     const fingerprint = totals
-      ? deriveOpencodeMessageFingerprint({ msg: entry.data, totals, source: defaultSource })
+      ? deriveAgentDbMessageFingerprint({ msg: entry.data, totals, source: defaultSource })
       : null;
     if (fingerprint) candidateFingerprints.add(fingerprint);
   }
   // A hook-triggered sync normally carries one changed row. Restrict the
   // historical fingerprint map to fingerprints that can actually match this
   // batch instead of duplicating the whole long-lived message index in memory.
-  const fingerprintIndex = buildOpencodeFingerprintIndex(messageIndex, candidateFingerprints);
+  const fingerprintIndex = buildAgentDbFingerprintIndex(messageIndex, candidateFingerprints);
 
   for (let idx = 0; idx < messages.length; idx++) {
     const entry = messages[idx];
@@ -5145,7 +4203,7 @@ async function parseOpencodeDbIncremental({
     const msgForKey = { ...msg };
     if (entry.id && !msgForKey.id) msgForKey.id = entry.id;
     if (entry.sessionID && !msgForKey.sessionID) msgForKey.sessionID = entry.sessionID;
-    const messageKey = deriveOpencodeMessageKey(msgForKey, null);
+    const messageKey = deriveAgentDbMessageKey(msgForKey, null);
     if (!messageKey) {
       messagesProcessed += 1;
       continue;
@@ -5155,7 +4213,7 @@ async function parseOpencodeDbIncremental({
     const prev = messageIndex[messageKey];
     const lastTotals = prev && typeof prev.lastTotals === "object" ? prev.lastTotals : null;
 
-    const currentTotals = normalizeOpencodeTokens(msg?.tokens);
+    const currentTotals = normalizeAgentDbTokens(msg?.tokens);
     if (!currentTotals) {
       messagesProcessed += 1;
       continue;
@@ -5164,12 +4222,12 @@ async function parseOpencodeDbIncremental({
     // A fork copy of an already-counted turn contributes nothing. Existing
     // pre-#426 cursor entries were already added to hourly/project buckets;
     // retract those once, then persist a tombstone so a later sync is a no-op.
-    const fingerprint = deriveOpencodeMessageFingerprint({
+    const fingerprint = deriveAgentDbMessageFingerprint({
       msg,
       totals: currentTotals,
       source: defaultSource,
     });
-    if (isOpencodeForkCopy(fingerprintIndex, fingerprint, messageKey)) {
+    if (isAgentDbForkCopy(fingerprintIndex, fingerprint, messageKey)) {
       let projectContext = null;
       if (lastTotals && prev?.dedupedForkCopy !== true && projectEnabled) {
         projectContext = await resolveProjectContextForDb({
@@ -5182,7 +4240,7 @@ async function parseOpencodeDbIncremental({
         });
       }
       if (lastTotals && prev?.dedupedForkCopy !== true) {
-        repairCountedOpencodeForkCopy({
+        repairCountedAgentDbForkCopy({
           msg,
           attribution: prev?.attribution,
           totals: lastTotals,
@@ -5195,7 +4253,7 @@ async function parseOpencodeDbIncremental({
           projectKey: projectContext?.projectKey || null,
         });
       }
-      recordOpencodeMessage({
+      recordAgentDbMessage({
         messageIndex,
         fingerprintIndex,
         messageKey,
@@ -5208,7 +4266,7 @@ async function parseOpencodeDbIncremental({
     }
 
     const effectiveLastTotals = prev?.dedupedForkCopy === true ? null : lastTotals;
-    const delta = diffOpencodeTotals(currentTotals, effectiveLastTotals);
+    const delta = diffAgentDbTotals(currentTotals, effectiveLastTotals);
     const timestampMs = coerceEpochMs(msg?.time?.completed) || coerceEpochMs(msg?.time?.created);
     if (!timestampMs) {
       messagesProcessed += 1;
@@ -5222,7 +4280,7 @@ async function parseOpencodeDbIncremental({
       continue;
     }
 
-    const { modelId: dbModelId } = normalizeOpencodeModelFields(msg);
+    const { modelId: dbModelId } = normalizeAgentDbModelFields(msg);
     const model = dbModelId || DEFAULT_MODEL;
     const projectContext = projectEnabled
       ? await resolveProjectContextForDb({
@@ -5242,18 +4300,18 @@ async function parseOpencodeDbIncremental({
     };
 
     const previousAttribution = effectiveLastTotals
-      ? normalizeOpencodeAttribution(prev?.attribution)
+      ? normalizeAgentDbAttribution(prev?.attribution)
       : null;
     const moved = Boolean(
       effectiveLastTotals &&
       previousAttribution &&
-      !sameOpencodeAttribution(previousAttribution, attribution),
+      !sameAgentDbAttribution(previousAttribution, attribution),
     );
     if ((!delta || isAllZeroUsage(delta)) && !moved) {
       // Refresh the index even without a delta: normalization may have changed,
       // and pre-#426 entries need their fingerprint backfilled. Preserve an
       // existing contribution location without bloating every legacy cursor.
-      recordOpencodeMessage({
+      recordAgentDbMessage({
         messageIndex,
         fingerprintIndex,
         messageKey,
@@ -5276,7 +4334,7 @@ async function parseOpencodeDbIncremental({
     }
 
     if (moved) {
-      subtractCountedOpencodeMessage({
+      subtractCountedAgentDbMessage({
         attribution: previousAttribution,
         totals: effectiveLastTotals,
         source: defaultSource,
@@ -5307,7 +4365,7 @@ async function parseOpencodeDbIncremental({
       );
     }
 
-    recordOpencodeMessage({
+    recordAgentDbMessage({
       messageIndex,
       fingerprintIndex,
       messageKey,
@@ -5336,385 +4394,14 @@ async function parseOpencodeDbIncremental({
     : 0;
   hourlyState.updatedAt = new Date().toISOString();
   cursors.hourly = hourlyState;
-  if (dbCursor && typeof dbCursor === "object") opencodeState.dbCursor = dbCursor;
-  opencodeState.updatedAt = new Date().toISOString();
-  cursors[cursorNamespace] = opencodeState;
+  if (dbCursor && typeof dbCursor === "object") agentDbState.dbCursor = dbCursor;
+  agentDbState.updatedAt = new Date().toISOString();
+  cursors[cursorNamespace] = agentDbState;
   if (projectState) {
     projectState.updatedAt = new Date().toISOString();
     cursors.projectHourly = projectState;
   }
 
-  return { messagesProcessed, eventsAggregated, bucketsQueued, projectBucketsQueued };
-}
-
-const QODER_USAGE_SQL = `
-SELECT
-  cm.rowid AS row_id,
-  cm.id,
-  cm.session_id,
-  cm.request_id,
-  cm.token_info,
-  cm.model_info,
-  cm.gmt_create,
-  cr.extra AS record_extra,
-  cs.preferred_model_info,
-  cs.project_uri,
-  cs.project_name
-FROM chat_message AS cm
-LEFT JOIN chat_record AS cr ON cr.request_id = cm.request_id
-LEFT JOIN chat_session AS cs ON cs.session_id = cm.session_id
-WHERE cm.role = 'assistant'
-  AND cm.token_info IS NOT NULL
-  AND trim(cm.token_info) NOT IN ('', '{}')
-ORDER BY cm.gmt_create, cm.rowid
-`;
-
-function resolveQoderDbPath({
-  home = os.homedir(),
-  env = process.env,
-  platform = process.platform,
-  appDir = "Qoder",
-  envPrefix = "QODER",
-} = {}) {
-  const dbPathKey = `${envPrefix}_DB_PATH`;
-  const homeKey = `${envPrefix}_HOME`;
-  if (typeof env[dbPathKey] === "string" && env[dbPathKey].trim()) {
-    return path.resolve(env[dbPathKey].trim());
-  }
-  let root;
-  if (typeof env[homeKey] === "string" && env[homeKey].trim()) {
-    root = path.resolve(env[homeKey].trim());
-  } else if (platform === "darwin") {
-    root = path.join(home, "Library", "Application Support", appDir);
-  } else if (platform === "win32") {
-    root = path.join(
-      env.APPDATA || path.join(home, "AppData", "Roaming"),
-      appDir,
-    );
-  } else {
-    root = path.join(home, ".config", appDir);
-  }
-  return path.join(root, "SharedClientCache", "cache", "db", "local.db");
-}
-
-function resolveQoderDbPaths({
-  home = os.homedir(),
-  env = process.env,
-  platform = process.platform,
-  appDir = "Qoder",
-  envPrefix = "QODER",
-  deps = {},
-} = {}) {
-  const dbPathKey = `${envPrefix}_DB_PATH`;
-  const homeKey = `${envPrefix}_HOME`;
-  const nativeValue = resolveQoderDbPath({ home, env, platform, appDir, envPrefix });
-  if (platform !== "win32" || env[dbPathKey] || env[homeKey]) {
-    return { native: nativeValue, wsl: null };
-  }
-  const existsSync = deps.existsSync || fssync.existsSync;
-  const native = wsl.shouldProbeNative(env) && existsSync(nativeValue) ? nativeValue : null;
-  const discoverWslHome = deps.discoverWslHome || wsl.discoverWslHome;
-  const wslRoot = wsl.shouldProbeWsl(env)
-    ? discoverWslHome(`.config/${appDir}`, { ...deps, env })
-    : null;
-  const wslValue = wslRoot
-    ? path.join(wslRoot, "SharedClientCache", "cache", "db", "local.db")
-    : null;
-  const wslDb = wslValue && existsSync(wslValue) ? wslValue : null;
-  return wsl.resolveAllWin32Paths({
-    nativeValue: native,
-    wslValue: wslDb,
-    env,
-    platform: "win32",
-  });
-}
-
-// Qoder CN keeps its own data directory (Application Support/QoderCN on macOS,
-// AppData/Roaming/QoderCN on Windows, .config/QoderCN on Linux), so it needs
-// its own path resolution. The token schema is identical to the international
-// edition — the same QODER_USAGE_SQL and parser are reused with a distinct
-// source/cursor namespace to avoid rowid collisions between the two DBs. CN
-// honors its own env overrides (QODER_CN_DB_PATH / QODER_CN_HOME) so that
-// QODER_HOME/QODER_DB_PATH, which point at the international install, never
-// redirect the CN resolver onto the same database (that would double-count).
-function resolveQoderCnDbPaths({
-  home = os.homedir(),
-  env = process.env,
-  platform = process.platform,
-  deps = {},
-} = {}) {
-  return resolveQoderDbPaths({ home, env, platform, appDir: "QoderCN", envPrefix: "QODER_CN", deps });
-}
-
-async function readQoderDbMessages(dbPath, sqliteOptions = {}) {
-  if (!dbPath || !fssync.existsSync(dbPath)) return [];
-  return readSqliteJsonRowsAsync(dbPath, QODER_USAGE_SQL, {
-    label: "Qoder",
-    ...sqliteOptions,
-  });
-}
-
-function parseJsonObject(value) {
-  if (!value) return null;
-  if (value && typeof value === "object" && !Buffer.isBuffer(value)) return value;
-  try {
-    const parsed = JSON.parse(String(value));
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (_error) {
-    return null;
-  }
-}
-
-function normalizeQoderTokens(tokenInfo) {
-  const tokens = parseJsonObject(tokenInfo);
-  if (!tokens) return null;
-  const prompt = Number(tokens.prompt_tokens);
-  const cached = Number(tokens.cached_tokens || 0);
-  const completion = Number(tokens.completion_tokens);
-  if (
-    !Number.isFinite(prompt) ||
-    !Number.isFinite(cached) ||
-    !Number.isFinite(completion) ||
-    prompt < 0 ||
-    cached < 0 ||
-    completion < 0
-  ) {
-    return null;
-  }
-  // Qoder's prompt_tokens already includes cached_tokens. Keep cached input in
-  // its own column and report only the remainder as ordinary input, otherwise
-  // cached context is counted twice in dashboards and cost calculations.
-  const input = Math.max(0, Math.trunc(prompt) - Math.trunc(cached));
-  const cachedInput = Math.min(Math.trunc(prompt), Math.trunc(cached));
-  const output = Math.trunc(completion);
-  return {
-    input_tokens: input,
-    cached_input_tokens: cachedInput,
-    cache_creation_input_tokens: 0,
-    output_tokens: output,
-    reasoning_output_tokens: 0,
-    total_tokens: Math.trunc(prompt) + output,
-    billable_total_tokens: Math.trunc(prompt) + output,
-  };
-}
-
-function qoderModelFromRow(row) {
-  const direct = parseJsonObject(row?.model_info);
-  const recordExtra = parseJsonObject(row?.record_extra);
-  const preferred = parseJsonObject(row?.preferred_model_info);
-  return (
-    normalizeModelInput(direct?.model_key || direct?.modelKey) ||
-    normalizeModelInput(recordExtra?.modelConfig?.key || recordExtra?.model_config?.key) ||
-    normalizeModelInput(
-      preferred?.model_key ||
-      preferred?.modelKey ||
-      preferred?.preferred_model ||
-      preferred?.preferredModel,
-    ) ||
-    "qoder-agent"
-  );
-}
-
-function qoderMessageKey(row) {
-  const id = normalizeMessageKeyPart(row?.id);
-  const sessionId = normalizeMessageKeyPart(row?.session_id);
-  if (sessionId && id) return `${sessionId}|${id}`;
-  if (id) return id;
-  const rowId = row?.row_id;
-  return rowId === null || rowId === undefined ? null : `row:${rowId}`;
-}
-
-function qoderProjectPath(row) {
-  const raw = typeof row?.project_uri === "string" ? row.project_uri.trim() : "";
-  if (!raw) return null;
-  if (!raw.startsWith("file://")) return raw;
-  try {
-    return decodeURIComponent(new URL(raw).pathname);
-  } catch (_error) {
-    return null;
-  }
-}
-
-async function parseQoderDbIncremental({
-  dbMessages,
-  dbPath,
-  cursors,
-  queuePath,
-  projectQueuePath,
-  onProgress,
-  publicRepoResolver,
-  sourceKey = "qoder",
-  cursorKey = "qoder",
-} = {}) {
-  await ensureDir(path.dirname(queuePath));
-  const rows = Array.isArray(dbMessages) ? dbMessages : [];
-  const hourlyState = normalizeHourlyState(cursors?.hourly);
-  const qoderState = normalizeQoderState(cursors?.[cursorKey]);
-  const touchedBuckets = new Set();
-  const projectEnabled = typeof projectQueuePath === "string" && projectQueuePath.length > 0;
-  const projectState = projectEnabled ? normalizeProjectState(cursors?.projectHourly) : null;
-  const projectTouchedBuckets = projectEnabled ? new Set() : null;
-  const projectMetaCache = projectEnabled ? new Map() : null;
-  const publicRepoCache = projectEnabled ? new Map() : null;
-  const requestOwners = new Map();
-  for (const row of rows) {
-    const messageKey = qoderMessageKey(row);
-    if (
-      !messageKey ||
-      !normalizeQoderTokens(row?.token_info) ||
-      !coerceEpochMs(row?.gmt_create)
-    ) {
-      continue;
-    }
-    const requestKey =
-      normalizeMessageKeyPart(row?.request_id) ||
-      normalizeMessageKeyPart(row?.session_id) ||
-      messageKey;
-    if (!requestOwners.has(requestKey)) requestOwners.set(requestKey, messageKey);
-  }
-  const cb = typeof onProgress === "function" ? onProgress : null;
-  let messagesProcessed = 0;
-  let eventsAggregated = 0;
-
-  for (let index = 0; index < rows.length; index++) {
-    const row = rows[index];
-    const messageKey = qoderMessageKey(row);
-    const currentBase = normalizeQoderTokens(row?.token_info);
-    const timestampMs = coerceEpochMs(row?.gmt_create);
-    const bucketStart = timestampMs
-      ? toUtcHalfHourStart(new Date(timestampMs).toISOString())
-      : null;
-    if (!messageKey || !currentBase || !bucketStart) {
-      messagesProcessed += 1;
-      continue;
-    }
-
-    const requestKey =
-      normalizeMessageKeyPart(row?.request_id) ||
-      normalizeMessageKeyPart(row?.session_id) ||
-      messageKey;
-    const previous = qoderState.messages[messageKey];
-    // Recompute request ownership from the complete ordered DB snapshot on
-    // every pass. Qoder can attach token_info to an earlier assistant row only
-    // after a later row was already counted; retaining the old per-message
-    // owner in that case inflates one request to two conversations.
-    const conversationCount = requestOwners.get(requestKey) === messageKey ? 1 : 0;
-
-    const currentTotals = {
-      ...currentBase,
-      conversation_count: conversationCount,
-    };
-    const model = qoderModelFromRow(row);
-    let projectKey = null;
-    let projectRef = null;
-    if (projectEnabled) {
-      const projectPath = qoderProjectPath(row);
-      if (projectPath) {
-        const context = await resolveProjectContextForPath({
-          startDir: wsl.mapWslCwdToUnc(projectPath, dbPath),
-          projectMetaCache,
-          publicRepoCache,
-          publicRepoResolver,
-          projectState,
-        });
-        projectKey = context?.projectKey || null;
-        projectRef = context?.projectRef || null;
-      }
-    }
-
-    const previousTotals =
-      previous?.totals && typeof previous.totals === "object" ? previous.totals : null;
-    const unchanged =
-      previousTotals &&
-      totalsKey(previousTotals) === totalsKey(currentTotals) &&
-      previous.bucketStart === bucketStart &&
-      previous.model === model &&
-      (previous.projectKey || null) === projectKey;
-    if (!unchanged) {
-      if (previousTotals && previous.bucketStart && previous.model) {
-        const oldBucket = getHourlyBucket(
-          hourlyState,
-          sourceKey,
-          previous.model,
-          previous.bucketStart,
-        );
-        subtractTotals(oldBucket.totals, previousTotals);
-        touchedBuckets.add(bucketKey(sourceKey, previous.model, previous.bucketStart));
-        if (projectEnabled && previous.projectKey) {
-          const oldProjectBucket = getProjectBucket(
-            projectState,
-            previous.projectKey,
-            sourceKey,
-            previous.bucketStart,
-            previous.projectRef || null,
-          );
-          subtractTotals(oldProjectBucket.totals, previousTotals);
-          projectTouchedBuckets.add(
-            projectBucketKey(previous.projectKey, sourceKey, previous.bucketStart),
-          );
-        }
-      }
-
-      const bucket = getHourlyBucket(hourlyState, sourceKey, model, bucketStart);
-      addTotals(bucket.totals, currentTotals);
-      touchedBuckets.add(bucketKey(sourceKey, model, bucketStart));
-      if (projectEnabled && projectKey) {
-        const projectBucket = getProjectBucket(
-          projectState,
-          projectKey,
-          sourceKey,
-          bucketStart,
-          projectRef,
-        );
-        addTotals(projectBucket.totals, currentTotals);
-        projectTouchedBuckets.add(projectBucketKey(projectKey, sourceKey, bucketStart));
-      }
-      qoderState.messages[messageKey] = {
-        totals: currentTotals,
-        conversationCount,
-        requestKey,
-        bucketStart,
-        model,
-        projectKey,
-        projectRef,
-        updatedAt: new Date().toISOString(),
-      };
-      eventsAggregated += 1;
-    }
-
-    messagesProcessed += 1;
-    if (cb) {
-      cb({
-        index: index + 1,
-        total: rows.length,
-        messagesProcessed,
-        eventsAggregated,
-        bucketsQueued: touchedBuckets.size,
-      });
-    }
-  }
-
-  const bucketsQueued = await enqueueTouchedBuckets({
-    queuePath,
-    hourlyState,
-    touchedBuckets,
-  });
-  const projectBucketsQueued = projectEnabled
-    ? await enqueueTouchedProjectBuckets({
-        projectQueuePath,
-        projectState,
-        projectTouchedBuckets,
-      })
-    : 0;
-  const updatedAt = new Date().toISOString();
-  hourlyState.updatedAt = updatedAt;
-  qoderState.updatedAt = updatedAt;
-  cursors.hourly = hourlyState;
-  cursors[cursorKey] = qoderState;
-  if (projectState) {
-    projectState.updatedAt = updatedAt;
-    cursors.projectHourly = projectState;
-  }
   return { messagesProcessed, eventsAggregated, bucketsQueued, projectBucketsQueued };
 }
 
@@ -5974,8 +4661,8 @@ function parseIsoTimestampMs(value) {
   return Number.isFinite(ms) && ms > 0 ? ms : 0;
 }
 
-// Idempotent, subtract-on-change aggregation keyed by frame id (mirrors the
-// Qoder DB parser): frames are re-read in full on every sync, and a frame whose
+// Idempotent, subtract-on-change aggregation keyed by frame id: frames are
+// re-read in full on every sync, and a frame whose
 // counters grew between syncs has its previous contribution removed from its old
 // bucket before the new totals are added, so repeated syncs never inflate.
 async function parseClaudeScienceIncremental({
@@ -5987,7 +4674,7 @@ async function parseClaudeScienceIncremental({
   await ensureDir(path.dirname(queuePath));
   const rows = Array.isArray(dbRows) ? dbRows : [];
   const hourlyState = normalizeHourlyState(cursors?.hourly);
-  const state = normalizeQoderState(cursors?.claudeScience);
+  const state = normalizeClaudeScienceState(cursors?.claudeScience);
   const touchedBuckets = new Set();
   const cb = typeof onProgress === "function" ? onProgress : null;
   let recordsProcessed = 0;
@@ -6528,32 +5215,6 @@ async function parseKiroIncremental({ basePath, dbPath, jsonlPath, cursors, queu
   return { recordsProcessed: rows.length, eventsAggregated, bucketsQueued };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hermes Agent — SQLite-based (sessions table in ~/.hermes/state.db)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function resolveHermesPath(env = process.env, deps = {}) {
-  const override = env.TOKENTRACKER_HERMES_HOME;
-  if (typeof override === "string" && override.trim().length > 0) {
-    return override.trim();
-  }
-  const home = require("node:os").homedir();
-  const defaultPath = path.join(home, ".hermes");
-  if (process.platform === "win32") {
-    const localAppData = typeof env.LOCALAPPDATA === "string" ? env.LOCALAPPDATA.trim() : "";
-    const nativeValue = localAppData.length > 0 ? path.join(localAppData, "hermes") : null;
-    const paths = resolveInstallPaths({ nativeValue, wslDir: ".hermes" }, env, deps);
-    const picked = paths.native || paths.wsl;
-    if (picked) return picked;
-    const mode = wsl.getWslMode(env);
-    if (mode === "wsl-only" || mode === "native-only") return null;
-  }
-  return defaultPath;
-}
-
-// ── WSL auto-discovery (Windows host, tools inside a distro) ──────────────────
-// `wsl.exe -l -v` prints UTF-16LE; the per-distro `whoami` runs a Linux process
-// so its stdout is UTF-8. We capture buffers and decode per-call.
 function defaultRunWsl(args, { utf16 = false } = {}) {
   return wsl.defaultRunWsl(args, { utf16 });
 }
@@ -6571,50 +5232,9 @@ function probeWslDistros(deps = {}) {
   return wsl.probeWslDistros(deps);
 }
 
-// Probe each WSL distro for ~/.hermes via UNC. The Linux username rarely equals
-// %USERNAME%, so we ask the distro directly with `whoami` rather than guessing
-// (simonlpaige, #87).
-function discoverWslHermesHome(deps = {}) {
-  return wsl.discoverWslHome(".hermes", deps);
-}
-
 function pickWin32ProviderPath({ env = process.env, nativeValue, wslProviderDir, wslValue, deps = {} }) {
   const paths = resolveInstallPaths({ nativeValue, wslDir: wslProviderDir, wslValue }, env, deps);
   return paths.native || paths.wsl;
-}
-
-function resolveAllWin32ProviderPaths({ env = process.env, nativeValue, wslProviderDir, wslValue, deps = {} }) {
-  return resolveInstallPaths({ nativeValue, wslDir: wslProviderDir, wslValue }, env, deps);
-}
-
-function resolveHermesDbPath(env = process.env) {
-  const hermesPath = resolveHermesPath(env);
-  return hermesPath ? path.join(hermesPath, "state.db") : null;
-}
-
-function resolveAllHermesDBPaths({ hermesPath, dbPath } = {}) {
-  const hermesDir = hermesPath ?? (dbPath ? path.dirname(dbPath) : resolveHermesPath());
-  if (!hermesDir) return { default: null, profiles: {} };
-  const defaultDbPath = dbPath ?? path.join(hermesDir, "state.db");
-  const profilePaths = {};
-  try {
-    const profilesDir = path.join(hermesDir, "profiles");
-    const profiles = fssync.readdirSync(profilesDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const entry of profiles) {
-      const dbPath = path.join(profilesDir, entry.name, "state.db");
-      if (fssync.existsSync(dbPath)) {
-        profilePaths[entry.name] = dbPath;
-      }
-    }
-  } catch (_e) { }
-
-  return {
-    default: fssync.existsSync(defaultDbPath) ? defaultDbPath : null,
-    profiles: profilePaths,
-  }
 }
 
 function sqliteStringLiteral(value) {
@@ -6632,57 +5252,6 @@ function isUncPath(p) {
 function snapshotSqliteDb(dbPath) {
   return wsl.snapshotSqliteDb(dbPath);
 }
-
-function readHermesSessions(dbPath, lastCompletedEpoch, unfinishedSessionIds = [], sqliteOptions = {}) {
-  if (!dbPath || !fssync.existsSync(dbPath)) return [];
-  const since = Number.isFinite(lastCompletedEpoch) && lastCompletedEpoch > 0 ? lastCompletedEpoch : 0;
-  const forceIds = Array.isArray(unfinishedSessionIds)
-    ? [...new Set(unfinishedSessionIds.filter((id) => typeof id === "string" && id.length > 0))]
-    : [];
-  const forceIncludeSql = forceIds.length > 0
-    ? ` OR id IN (${forceIds.map(sqliteStringLiteral).join(",")})`
-    : "";
-  // Fetch sessions that started at/after the cursor, sessions that are still
-  // in-progress (ended_at IS NULL), OR sessions that were previously observed
-  // unfinished.  Hermes updates token counts in real-time, including a final
-  // delta when an active session later gets ended_at set.
-  const sql = `SELECT id, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count FROM sessions WHERE (started_at >= ${since} OR ended_at IS NULL${forceIncludeSql}) AND (input_tokens > 0 OR output_tokens > 0 OR cache_read_tokens > 0 OR cache_write_tokens > 0 OR reasoning_tokens > 0) ORDER BY started_at ASC`;
-
-  let snapshot = null;
-  let effectiveDbPath = dbPath;
-  if (isUncPath(dbPath)) {
-    try {
-      snapshot = snapshotSqliteDb(dbPath);
-      effectiveDbPath = snapshot.path;
-    } catch (_e) {
-      // Snapshot failed — fall through to a direct read so we don't regress
-      // the non-locked case (e.g. permissions, transient I/O).
-    }
-  }
-
-  try {
-    return readSqliteJsonRows(effectiveDbPath, sql, {
-      label: "Hermes",
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 15_000,
-      ...sqliteOptions,
-    });
-  } finally {
-    if (snapshot) snapshot.cleanup();
-  }
-}
-
-// ── Dual-install cursor ownership probes ────────────────────────────────────
-// When a flat (pre-namespaced) cursor migrates to per-install namespaces
-// (multiInstallParse "both" mode), the migration must know which install the
-// flat cursor was tracking: only then may the OTHER install's namespace start
-// empty so its full history backfills. Guessing wrong wipes dedup state
-// (snapshots / sessionTotals / threadTotals) for an already-counted install,
-// and every re-read session lands in the hourly buckets a second time.
-// These probes answer "does this install's DB contain the flat cursor's own
-// ids?" — sampled from the cursor's per-session dedup maps. Any failure or
-// missing evidence returns false so the caller falls back to seeding every
-// namespace (bounded backfill loss, never a double count).
 
 function sqliteDbContainsIds(dbPath, table, ids, sqliteOptions = {}) {
   if (!dbPath || !Array.isArray(ids) || ids.length === 0) return false;
@@ -6723,33 +5292,6 @@ function sampleRecentKeys(obj, limit = 16) {
 
 function gooseInstallOwnsCursor(dbPath, flatState, sqliteOptions) {
   return sqliteDbContainsIds(dbPath, "sessions", sampleRecentKeys(flatState?.sessionTotals), sqliteOptions);
-}
-
-function zedInstallOwnsCursor(dbPath, flatState, sqliteOptions) {
-  return sqliteDbContainsIds(dbPath, "threads", sampleRecentKeys(flatState?.threadTotals), sqliteOptions);
-}
-
-function hermesInstallOwnsCursor(hermesPath, flatState, sqliteOptions) {
-  const ids = new Set();
-  const collect = (state) => {
-    if (!state || typeof state !== "object") return;
-    for (const key of sampleRecentKeys(state.snapshots)) ids.add(key);
-    if (Array.isArray(state.unfinishedSessionIds)) {
-      for (const id of state.unfinishedSessionIds) {
-        if (typeof id === "string" && id.length > 0) ids.add(id);
-      }
-    }
-  };
-  collect(flatState);
-  if (flatState?.profiles && typeof flatState.profiles === "object") {
-    for (const profileState of Object.values(flatState.profiles)) collect(profileState);
-  }
-  const sample = [...ids].slice(-16);
-  if (sample.length === 0) return false;
-
-  const dbPaths = resolveAllHermesDBPaths({ hermesPath });
-  const allDbs = [dbPaths.default, ...Object.values(dbPaths.profiles)].filter(Boolean);
-  return allDbs.some((db) => sqliteDbContainsIds(db, "sessions", sample, sqliteOptions));
 }
 
 function kiroInstallOwnsCursor(dbPath, flatState, sqliteOptions) {
@@ -6819,194 +5361,6 @@ function kiroCliInstallOwnsCursor(dbPath, flatState, sqliteOptions) {
   const sample = sampleRecentKeys(sqliteKeyed);
   return kiroCliDbContainsRequestIds(dbPath, sample, sqliteOptions);
 }
-
-function hasLegacyHermesDefaultState(hermesState) {
-  return (
-    typeof hermesState.lastStartedAt === "number" ||
-    typeof hermesState.lastCompletedStartedAt === "number" ||
-    (hermesState.snapshots && typeof hermesState.snapshots === "object")
-  );
-}
-
-async function parseHermesIncremental({ hermesPath, dbPath, cursors, queuePath, onProgress, sqliteOptions } = {}) {
-  await ensureDir(path.dirname(queuePath));
-  const hermesState = cursors.hermes && typeof cursors.hermes === "object" ? cursors.hermes : {};
-
-  const dbPaths = resolveAllHermesDBPaths({ hermesPath, dbPath });
-  if (dbPaths.default === null && Object.keys(dbPaths.profiles).length === 0) {
-    // No state in any profile
-    return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  const hourlyState = normalizeHourlyState(cursors?.hourly);
-  const cb = typeof onProgress === "function" ? onProgress : null;
-  const updatedAt = new Date().toISOString();
-  let recordsProcessed = 0;
-  let eventsAggregated = 0;
-  const touchedBuckets = new Set();
-
-  function ingestProfile(dbPath, dbState) {
-    const trackedUnfinishedSessionIds = Array.isArray(dbState.unfinishedSessionIds)
-      ? dbState.unfinishedSessionIds
-      : [];
-    const rows = readHermesSessions(
-      dbPath,
-      dbState.lastCompletedStartedAt,
-      trackedUnfinishedSessionIds,
-      sqliteOptions,
-    );
-    recordsProcessed += rows.length;
-    if (rows.length === 0) {
-      dbState.updatedAt = updatedAt;
-      return;
-    }
-
-    // Per-session snapshot from the previous sync: { [sessionId]: { in, out, cacheRead, cacheWrite, reasoning } }
-    const prevSnapshots = (dbState.snapshots && typeof dbState.snapshots === "object")
-      ? dbState.snapshots : {};
-
-    // Only advance past sessions that have fully ended.  Active sessions
-    // (ended_at IS NULL) must be re-read every sync because Hermes updates
-    // their token counts in real-time after each turn.
-    const lastCompletedStartedAt =
-      typeof dbState.lastCompletedStartedAt === "number" ? dbState.lastCompletedStartedAt : 0;
-
-    let maxCompletedStartedAt = lastCompletedStartedAt;
-    let oldestUnfinishedStartedAt = Infinity;
-    const nextUnfinishedSessionIds = new Set();
-    const nextSnapshots = {};
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const inputTokens = toNonNegativeInt(row.input_tokens);
-      const outputTokens = toNonNegativeInt(row.output_tokens);
-      const cacheRead = toNonNegativeInt(row.cache_read_tokens);
-      const cacheWrite = toNonNegativeInt(row.cache_write_tokens);
-      const reasoning = toNonNegativeInt(row.reasoning_tokens);
-      const messageCount = toNonNegativeInt(row.message_count);
-      if (
-        inputTokens === 0 &&
-        outputTokens === 0 &&
-        cacheRead === 0 &&
-        cacheWrite === 0 &&
-        reasoning === 0
-      ) continue;
-
-      // Save current snapshot for next sync
-      nextSnapshots[row.id] = { in: inputTokens, out: outputTokens, cacheRead, cacheWrite, reasoning, message_count: messageCount };
-
-      const startedAt = Number(row.started_at);
-      const endedAt = row.ended_at == null ? null : Number(row.ended_at);
-      if (endedAt == null) {
-        if (row.id && Number.isFinite(startedAt)) {
-          nextUnfinishedSessionIds.add(row.id);
-          oldestUnfinishedStartedAt = Math.min(oldestUnfinishedStartedAt, startedAt);
-        }
-      } else if (Number.isFinite(startedAt) && startedAt > maxCompletedStartedAt) {
-        maxCompletedStartedAt = startedAt;
-      }
-
-      // Compute delta from previous snapshot (if any) so that we only count
-      // new usage since the last sync.  First time we see a session the
-      // previous snapshot is absent, so the full amount is the delta.
-      const prev = prevSnapshots[row.id];
-      let dInput = inputTokens;
-      let dOutput = outputTokens;
-      let dCacheRead = cacheRead;
-      let dCacheWrite = cacheWrite;
-      let dReasoning = reasoning;
-      let dMessageCount = messageCount;
-      if (prev) {
-        dInput = Math.max(0, inputTokens - (prev.in || 0));
-        dOutput = Math.max(0, outputTokens - (prev.out || 0));
-        dCacheRead = Math.max(0, cacheRead - (prev.cacheRead || 0));
-        dCacheWrite = Math.max(0, cacheWrite - (prev.cacheWrite || 0));
-        dReasoning = Math.max(0, reasoning - (prev.reasoning || 0));
-        dMessageCount = Math.max(0, messageCount - (prev.message_count || 0));
-      }
-      // Skip if delta is zero (session unchanged since last sync)
-      if (dInput === 0 && dOutput === 0 && dCacheRead === 0 && dCacheWrite === 0 && dReasoning === 0) continue;
-
-      // Prefer ended_at for bucket placement; fall back to started_at
-      const epochSec = endedAt ?? startedAt;
-      if (!epochSec || !Number.isFinite(epochSec)) continue;
-      const tsIso = new Date(epochSec * 1000).toISOString();
-      const bucketStart = toUtcHalfHourStart(tsIso);
-      if (!bucketStart) continue;
-
-      const model = normalizeModelInput(row.model) || "hermes-agent";
-
-      const delta = {
-        input_tokens: dInput,
-        cached_input_tokens: dCacheRead,
-        cache_creation_input_tokens: dCacheWrite,
-        output_tokens: dOutput,
-        reasoning_output_tokens: dReasoning,
-        total_tokens: dInput + dOutput + dCacheRead + dCacheWrite + dReasoning,
-        conversation_count: dMessageCount,
-      };
-
-      const bucket = getHourlyBucket(hourlyState, "hermes", model, bucketStart);
-      addTotals(bucket.totals, delta);
-      touchedBuckets.add(bucketKey("hermes", model, bucketStart));
-      eventsAggregated++;
-
-      if (cb) {
-        cb({
-          index: i + 1,
-          total: rows.length,
-          recordsProcessed: i + 1,
-          eventsAggregated,
-          bucketsQueued: touchedBuckets.size,
-        });
-      }
-    }
-
-    const nextLastCompletedStartedAt = Number.isFinite(oldestUnfinishedStartedAt)
-      ? Math.min(maxCompletedStartedAt, oldestUnfinishedStartedAt)
-      : maxCompletedStartedAt;
-
-    Object.assign(dbState, {
-      lastStartedAt: nextLastCompletedStartedAt,
-      lastCompletedStartedAt: nextLastCompletedStartedAt,
-      unfinishedSessionIds: Array.from(nextUnfinishedSessionIds),
-      snapshots: nextSnapshots,
-      updatedAt,
-    });
-  }
-
-  if (dbPaths.default) {
-    ingestProfile(dbPaths.default, hermesState);
-  }
-
-  hermesState.profiles = hermesState.profiles && typeof hermesState.profiles === "object" ? hermesState.profiles : {};
-
-  for (const [profileName, dbPath] of Object.entries(dbPaths.profiles)) {
-    const profileState = hermesState.profiles[profileName] && typeof hermesState.profiles[profileName] === "object"
-      ? hermesState.profiles[profileName]
-      : {};
-    hermesState.profiles[profileName] = profileState;
-    ingestProfile(dbPath, profileState);
-  }
-
-  const bucketsQueued = await enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets });
-  hourlyState.updatedAt = updatedAt;
-  cursors.hourly = hourlyState;
-  cursors.hermes = {
-    ...hermesState,
-    updatedAt, // Update the overall profile state timestamp even if the DB doesn't exist for the fast-path check
-  };
-
-  return {
-    recordsProcessed,
-    eventsAggregated,
-    bucketsQueued,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Kimi — passive JSONL reader (~/.kimi/sessions/**/wire.jsonl)
-// No hook installation needed; Kimi writes wire.jsonl automatically.
 
 function resolveKimiDefaultModel(env = process.env) {
   const fallback = "kimi-for-coding";
@@ -10771,396 +9125,6 @@ async function parseRoocodeIncremental({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Zed Agent (all model providers — hosted "zed.dev" and bring-your-own alike)
-//
-// Data: SQLite at
-//   macOS:    ~/Library/Application Support/Zed/threads/threads.db
-//   Linux:    $XDG_DATA_HOME/zed/threads/threads.db (defaults to ~/.local/share)
-//   Windows:  %LOCALAPPDATA%\Zed\threads\threads.db
-//
-// `threads` table stores one row per thread with a BLOB `data` column —
-// either raw JSON or zstd-compressed JSON (governed by `data_type`). Each
-// thread's JSON carries `cumulative_token_usage` and/or
-// `request_token_usage` (a map or array of per-request usages with
-// input_tokens / output_tokens / cache_read_input_tokens /
-// cache_creation_input_tokens).
-//
-// Threads grow over multiple turns — the row is rewritten with a larger
-// cumulative on every send, so naive dedup-by-id would freeze our count at
-// whatever the thread looked like the first time we saw it. We mirror the
-// antigravity cumulative-delta pattern: keep last-seen totals per thread in
-// `cursors.zed.threadTotals`, emit (current - previous) on each sync.
-//
-// Providers already reported by a dedicated parser are skipped to avoid
-// double-counting (see ZED_DOUBLE_COUNTED_PROVIDERS — empty today). Model names
-// are normalized for pricing in the matcher (normalizeZedModel), not here, so
-// the real Zed model name is preserved for display.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Providers whose usage is ALSO captured by a dedicated TokenTracker parser, so
-// counting them via the Zed thread store would double-count. Zed's native model
-// providers (zed.dev, copilot_chat, openai*, anthropic, google, ollama,
-// lmstudio, …) do NOT overlap: e.g. Zed's copilot_chat talks to the Copilot API
-// directly and never writes ~/.copilot/otel, which is what the Copilot parser
-// reads. The set is therefore empty today; it's the extension point if Zed ever
-// persists external-ACP-agent usage (Claude Code / Codex run inside Zed) into
-// threads.db with a recognizable provider id.
-const ZED_DOUBLE_COUNTED_PROVIDERS = new Set();
-const MAX_ZED_THREAD_JSON_BYTES = 32 * 1024 * 1024;
-
-function resolveZedDbPath(env = process.env) {
-  if (typeof env.TOKENTRACKER_ZED_DB === "string" && env.TOKENTRACKER_ZED_DB.trim()) {
-    return env.TOKENTRACKER_ZED_DB.trim();
-  }
-  const home = env.HOME || require("node:os").homedir();
-  if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "Zed", "threads", "threads.db");
-  }
-  if (process.platform === "win32") {
-    const local = env.LOCALAPPDATA || path.join(home, "AppData", "Local");
-    const native = path.join(local, "Zed", "threads", "threads.db");
-    const wslThreadsDir = wsl.shouldProbeWsl(env) ? wsl.discoverWslHome(".local/share/zed/threads", { env }) : null;
-    const wslDbPath = wslThreadsDir && fssync.existsSync(path.join(wslThreadsDir, "threads.db"))
-      ? path.join(wslThreadsDir, "threads.db") : null;
-    const paths = resolveInstallPaths({ nativeValue: native, wslValue: wslDbPath }, env);
-    const picked = paths.native || paths.wsl;
-    if (picked) return picked;
-    const mode = wsl.getWslMode(env);
-    return mode === "wsl-only" || mode === "native-only" ? null : native;
-  }
-  const xdg = env.XDG_DATA_HOME || path.join(home, ".local", "share");
-  return path.join(xdg, "zed", "threads", "threads.db");
-}
-
-// Decode a row's BLOB payload into UTF-8 JSON text. Zed marks zstd-compressed
-// blobs with data_type="zstd"; older / smaller threads use data_type="json"
-// and store the bytes verbatim. Node 24+ has native zstd; Node 20 needs the
-// @mongodb-js/zstd fallback. Cap decoded size to mirror tokscale's safety net.
-async function decodeZedThreadBlob({ dataType, data }) {
-  const type = (dataType || "").trim().toLowerCase();
-  if (type === "json") {
-    if (data.length > MAX_ZED_THREAD_JSON_BYTES) {
-      throw new Error(`json blob exceeds ${MAX_ZED_THREAD_JSON_BYTES} bytes`);
-    }
-    return data.toString("utf8");
-  }
-  if (type === "zstd") {
-    const zlib = require("node:zlib");
-    const out =
-      typeof zlib.zstdDecompressSync === "function"
-        ? zlib.zstdDecompressSync(data)
-        : Buffer.from(await require("@mongodb-js/zstd").decompress(data));
-    if (out.length > MAX_ZED_THREAD_JSON_BYTES) {
-      throw new Error(`decoded zstd blob exceeds ${MAX_ZED_THREAD_JSON_BYTES} bytes`);
-    }
-    return out.toString("utf8");
-  }
-  throw new Error(`unsupported data_type: ${dataType}`);
-}
-
-// Pull the 4-tuple (input/output/cache_read/cache_write) out of one Zed
-// TokenUsage shape. Zed stores integers but some historical rows used
-// strings — match tokscale's permissive coercion.
-function readZedUsage(value) {
-  if (!value || typeof value !== "object") return null;
-  const coerce = (v) => {
-    if (typeof v === "number") return Math.max(0, Math.floor(v));
-    if (typeof v === "string") {
-      const n = Number.parseInt(v, 10);
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    }
-    return 0;
-  };
-  return {
-    input: coerce(value.input_tokens),
-    output: coerce(value.output_tokens),
-    cache_read: coerce(value.cache_read_input_tokens),
-    cache_write: coerce(value.cache_creation_input_tokens),
-  };
-}
-
-function sumZedRequestUsage(value) {
-  const total = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
-  if (!value) return total;
-  const iter =
-    Array.isArray(value)
-      ? value
-      : typeof value === "object"
-      ? Object.values(value)
-      : [];
-  for (const entry of iter) {
-    const u = readZedUsage(entry);
-    if (!u) continue;
-    total.input += u.input;
-    total.output += u.output;
-    total.cache_read += u.cache_read;
-    total.cache_write += u.cache_write;
-  }
-  return total;
-}
-
-// Extract token totals from a parsed Zed thread object. Prefer summed
-// request_token_usage (per-turn breakdown) and fall back to
-// cumulative_token_usage when the per-turn map is empty.
-function extractZedTotals(thread) {
-  if (!thread || thread.imported === true) return null;
-  const model = thread.model;
-  if (!model || typeof model !== "object") return null;
-  const provider = typeof model.provider === "string" ? model.provider.trim() : "";
-  // Count usage for ALL providers — Zed-hosted (zed.dev) and bring-your-own
-  // (copilot_chat, openai-subscribed, anthropic, lmstudio, …) alike. Only skip
-  // providers whose usage a dedicated parser already reports (see
-  // ZED_DOUBLE_COUNTED_PROVIDERS).
-  if (provider && ZED_DOUBLE_COUNTED_PROVIDERS.has(provider.toLowerCase())) return null;
-  const modelId = typeof model.model === "string" ? model.model.trim() : "";
-  if (!modelId) return null;
-
-  const request = sumZedRequestUsage(thread.request_token_usage);
-  if (request.input + request.output + request.cache_read + request.cache_write > 0) {
-    return { totals: request, model: modelId };
-  }
-  const cumulative = readZedUsage(thread.cumulative_token_usage);
-  if (
-    cumulative &&
-    cumulative.input + cumulative.output + cumulative.cache_read + cumulative.cache_write > 0
-  ) {
-    return { totals: cumulative, model: modelId };
-  }
-  return null;
-}
-
-// Build a SELECT that only references columns we know exist — Zed has shipped
-// several `threads` schemas; older versions may omit created_at /
-// folder_paths. We dynamically detect via PRAGMA so the query never fails on
-// a missing column.
-function buildZedThreadsQuery(dbPath, cursorUpdatedAt, sqliteOptions = {}) {
-  const pragmaRows = readSqliteJsonRows(dbPath, "PRAGMA table_info(threads)", {
-    label: "Zed",
-    maxBuffer: 4 * 1024 * 1024,
-    timeout: 10_000,
-    ...sqliteOptions,
-  });
-  const columns = new Set(
-    pragmaRows
-      .map((row) => row?.name)
-      .filter(Boolean),
-  );
-  const optional = (col) => (columns.has(col) ? col : `NULL AS ${col}`);
-  // Incremental: only fetch threads updated after the last sync watermark.
-  // Without this we'd zstd-decode every thread on every sync (~250MB for a
-  // 5k-thread DB on every menu-bar tick). Empty cursor → full scan (first
-  // sync). updated_at is stored as ISO 8601 text, so lexical comparison ==
-  // chronological comparison.
-  const escaped = typeof cursorUpdatedAt === "string" && cursorUpdatedAt
-    ? cursorUpdatedAt.replace(/'/g, "''")
-    : null;
-  const where = escaped ? ` WHERE updated_at > '${escaped}'` : "";
-  return `SELECT id, updated_at, ${optional("created_at")}, data_type, hex(data) AS data_hex FROM threads${where}`;
-}
-
-function readZedThreadRowsFromSqlite(dbPath, cursorUpdatedAt, sqliteOptions = {}) {
-  const query = buildZedThreadsQuery(dbPath, cursorUpdatedAt, sqliteOptions);
-  return readSqliteJsonRows(dbPath, query, {
-    label: "Zed",
-    maxBuffer: 256 * 1024 * 1024,
-    timeout: 60_000,
-    ...sqliteOptions,
-  });
-}
-
-async function parseZedIncremental({
-  dbPath,
-  cursors,
-  queuePath,
-  onProgress,
-  env,
-  sqliteOptions,
-} = {}) {
-  await ensureDir(path.dirname(queuePath));
-  const resolvedDb = dbPath || resolveZedDbPath(env || process.env);
-  if (!resolvedDb) {
-    cursors.zed = { ...cursors.zed, updatedAt: new Date().toISOString() };
-    return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-  const zedState =
-    cursors.zed && typeof cursors.zed === "object" ? cursors.zed : {};
-  const threadTotals =
-    zedState.threadTotals && typeof zedState.threadTotals === "object"
-      ? { ...zedState.threadTotals }
-      : {};
-  const cursorUpdatedAt = typeof zedState.lastUpdatedAt === "string" ? zedState.lastUpdatedAt : null;
-  const cursorDbMtime = Number.isFinite(zedState.lastDbMtimeMs) ? zedState.lastDbMtimeMs : 0;
-
-  // mtime short-circuit: if the SQLite file hasn't been touched since the
-  // last sync there's nothing to read — skip the ~250MB copyFile + zstd
-  // round-trip entirely. We still re-stat on the next call, so a Zed write
-  // is picked up within one sync interval.
-  let currentMtime = 0;
-  try {
-    currentMtime = fssync.statSync(resolvedDb).mtimeMs;
-  } catch (e) {
-    if (e && e.code === "ENOENT") {
-      cursors.zed = { ...zedState, threadTotals, updatedAt: new Date().toISOString() };
-      return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    }
-    throw e;
-  }
-  if (currentMtime > 0 && currentMtime === cursorDbMtime) {
-    cursors.zed = { ...zedState, threadTotals, updatedAt: new Date().toISOString() };
-    return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  // Snapshot via the shared helper so we get WAL/SHM/journal sidecar copies
-  // too. Without sidecars, an active Zed write that's still in the WAL
-  // would be missed (the .db has older pages until checkpoint).
-  const snap = snapshotSqliteDb(resolvedDb);
-  let rows = [];
-  try {
-    rows = readZedThreadRowsFromSqlite(snap.path, cursorUpdatedAt, sqliteOptions);
-  } finally {
-    snap.cleanup();
-  }
-
-  if (rows.length === 0) {
-    cursors.zed = { ...zedState, threadTotals, updatedAt: new Date().toISOString() };
-    return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  const hourlyState = normalizeHourlyState(cursors?.hourly);
-  const touchedBuckets = new Set();
-  const cb = typeof onProgress === "function" ? onProgress : null;
-  let recordsProcessed = 0;
-  let eventsAggregated = 0;
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    recordsProcessed++;
-    if (!row || typeof row.id !== "string" || !row.data_hex) continue;
-
-    let blob;
-    try { blob = Buffer.from(row.data_hex, "hex"); } catch { continue; }
-
-    let jsonText;
-    try { jsonText = await decodeZedThreadBlob({ dataType: row.data_type, data: blob }); }
-    catch { continue; }
-
-    let thread;
-    try { thread = JSON.parse(jsonText); } catch { continue; }
-
-    const extracted = extractZedTotals(thread);
-    if (!extracted) continue;
-
-    const prev = threadTotals[row.id] || { input: 0, output: 0, cache_read: 0, cache_write: 0 };
-    const curr = extracted.totals;
-    const prevSum = prev.input + prev.output + prev.cache_read + prev.cache_write;
-    const currSum = curr.input + curr.output + curr.cache_read + curr.cache_write;
-    // Detect cumulative reset: a thread can be re-created with the same id
-    // but lower totals (rare — Zed may purge & rewrite on import/export).
-    // Naive `Math.max(0, curr - prev)` would clamp the delta to 0 and quietly
-    // update the cursor to the smaller `curr`, so the next sync sees growth
-    // from the reset and re-counts everything since. Treat reset as a
-    // fresh-start emit of `curr`.
-    const isReset = currSum > 0 && currSum < prevSum;
-    const delta = isReset
-      ? { ...curr }
-      : {
-          input: Math.max(0, curr.input - prev.input),
-          output: Math.max(0, curr.output - prev.output),
-          cache_read: Math.max(0, curr.cache_read - prev.cache_read),
-          cache_write: Math.max(0, curr.cache_write - prev.cache_write),
-        };
-    const totalDelta = delta.input + delta.output + delta.cache_read + delta.cache_write;
-    if (totalDelta <= 0) {
-      if (
-        curr.input !== prev.input ||
-        curr.output !== prev.output ||
-        curr.cache_read !== prev.cache_read ||
-        curr.cache_write !== prev.cache_write
-      ) {
-        threadTotals[row.id] = curr;
-      }
-      continue;
-    }
-
-    const tsIso =
-      (typeof row.updated_at === "string" && row.updated_at) ||
-      (typeof row.created_at === "string" && row.created_at) ||
-      (typeof thread.updated_at === "string" && thread.updated_at) ||
-      new Date().toISOString();
-    const bucketStart = toUtcHalfHourStart(tsIso);
-    if (!bucketStart) continue;
-
-    const bucketDelta = {
-      input_tokens: delta.input,
-      cached_input_tokens: delta.cache_read,
-      cache_creation_input_tokens: delta.cache_write,
-      output_tokens: delta.output,
-      reasoning_output_tokens: 0,
-      total_tokens: totalDelta,
-      conversation_count: 1,
-    };
-
-    const bucket = getHourlyBucket(hourlyState, "zed", extracted.model, bucketStart);
-    addTotals(bucket.totals, bucketDelta);
-    touchedBuckets.add(bucketKey("zed", extracted.model, bucketStart));
-    threadTotals[row.id] = curr;
-    eventsAggregated++;
-
-    if (cb) {
-      cb({
-        index: i + 1,
-        total: rows.length,
-        recordsProcessed,
-        eventsAggregated,
-        bucketsQueued: touchedBuckets.size,
-      });
-    }
-  }
-
-  // Compute nextCursor BEFORE the 10k cap. If we capped first, a low-volume
-  // zed.dev thread evicted in the cap step would no longer be in
-  // threadTotals, so its updated_at would not advance the cursor — and the
-  // next sync's WHERE filter would re-read & re-decode the same blob forever.
-  // We record everything we touched this run regardless of post-cap eviction.
-  let nextCursor = cursorUpdatedAt;
-  for (const r of rows) {
-    if (
-      typeof r.updated_at === "string" &&
-      threadTotals[r.id] !== undefined &&
-      (nextCursor == null || r.updated_at > nextCursor)
-    ) {
-      nextCursor = r.updated_at;
-    }
-  }
-
-  const entries = Object.entries(threadTotals);
-  if (entries.length > 10_000) {
-    entries.sort((a, b) => {
-      const ta = a[1].input + a[1].output + a[1].cache_read + a[1].cache_write;
-      const tb = b[1].input + b[1].output + b[1].cache_read + b[1].cache_write;
-      return tb - ta;
-    });
-    const capped = Object.fromEntries(entries.slice(0, 10_000));
-    for (const k of Object.keys(threadTotals)) delete threadTotals[k];
-    Object.assign(threadTotals, capped);
-  }
-
-  const bucketsQueued = await enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets });
-  const updatedAt = new Date().toISOString();
-  hourlyState.updatedAt = updatedAt;
-  cursors.hourly = hourlyState;
-  cursors.zed = {
-    ...zedState,
-    threadTotals,
-    lastUpdatedAt: nextCursor,
-    lastDbMtimeMs: currentMtime,
-    updatedAt,
-  };
-
-  return { recordsProcessed, eventsAggregated, bucketsQueued };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // AnythingLLM Desktop (Mintplex Labs)
 //
 // Data: SQLite at
@@ -11465,7 +9429,7 @@ async function parseAnythingllmIncremental({
 // Goose has no cache fields; if total > input+output, the excess is treated
 // as reasoning_output_tokens (same heuristic as tokscale).
 //
-// Session rows grow over time → same cumulative-delta pattern as Zed
+// Session rows grow over time, so usage is emitted as cumulative deltas
 // (cursors.goose.sessionTotals tracks last-seen per session).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -17414,7 +15378,7 @@ async function parseAntigravityFile({
       delta.input_tokens = inputDelta;
       delta.output_tokens = outputTokens;
       delta.reasoning_output_tokens = reasoningTokens;
-      // Match the mainstream convention (Codebuddy / Kilocode / OMP / Hermes):
+      // Match the mainstream convention used by the other local agents:
       // total_tokens = sum of every token column. No cache columns here.
       delta.total_tokens = inputDelta + outputTokens + reasoningTokens;
       delta.conversation_count = 1;
@@ -17852,7 +15816,7 @@ function normalizeTraeCnSession(row) {
   // `input_token` is cache-INCLUSIVE: verifying real rows against TRAE CN's
   // own credit billing, credits = fresh_input*p + cache_read*(p/4) + output*q
   // fits every row with zero residual only under this reading (same
-  // convention as Codex / Qoder). Peel the cache subsets off into their own
+  // convention as Codex). Peel the cache subsets off into their own
   // columns and report only the remainder as ordinary input, otherwise cached
   // context is double-counted in dashboards and cost calculations. cache_write
   // was 0 across all observed rows; it is treated as a further subset of the
@@ -18767,24 +16731,16 @@ module.exports = {
   filterColdCodexRolloutFiles,
   listClaudeProjectFiles,
   listGeminiSessionFiles,
-  listOpencodeMessageFiles,
-  readOpencodeDbMessages,
-  readOpencodeDbMessagesIncremental,
+  readAgentDbMessages,
+  readAgentDbMessagesIncremental,
   readMimoDbMessages,
   readZcodeDbMessages,
   hasZcodeNativeUsageSchema,
-  resolveQoderDbPath,
-  resolveQoderDbPaths,
-  resolveQoderCnDbPaths,
-  readQoderDbMessages,
   resolveKiroBasePath,
   resolveKiroDbPath,
   resolveKiroJsonlPath,
-  resolveHermesPath,
-  resolveHermesDbPath,
   parseWslListVerbose,
   probeWslDistros,
-  discoverWslHermesHome,
   resolveCopilotOtelPaths,
   normalizeCopilotDbPath,
   uniqueCopilotDbPaths,
@@ -18800,14 +16756,7 @@ module.exports = {
   parseRolloutIncremental,
   parseClaudeIncremental,
   parseGeminiIncremental,
-  parseOpencodeIncremental,
-  parseOpencodeDbIncremental,
-  parseQoderDbIncremental,
-  openclawCursorKey,
-  parseOpenclawIncremental,
-  resolveOpenclawHome,
-  resolveOpenclawHomes,
-  resolveOpenclawSessionFiles,
+  parseAgentDbIncremental,
   resolveClaudeScienceDbPath,
   resolveClaudeScienceDbPaths,
   buildClaudeScienceFramesQuery,
@@ -18815,10 +16764,7 @@ module.exports = {
   parseClaudeScienceIncremental,
   parseCursorApiIncremental,
   parseKiroIncremental,
-  parseHermesIncremental,
   gooseInstallOwnsCursor,
-  zedInstallOwnsCursor,
-  hermesInstallOwnsCursor,
   kiroInstallOwnsCursor,
   kiroCliInstallOwnsCursor,
   copilotOtelCursorHasLegacyCliUsage,
@@ -18860,12 +16806,6 @@ module.exports = {
   readRoocodeTaskModel,
   normalizeRoocodeModel,
   parseRoocodeIncremental,
-  resolveZedDbPath,
-  decodeZedThreadBlob,
-  extractZedTotals,
-  sumZedRequestUsage,
-  readZedUsage,
-  parseZedIncremental,
   resolveAnythingllmDbPath,
   parseAnythingllmTimestamp,
   readAnythingllmUsageRows,
@@ -18909,8 +16849,7 @@ module.exports = {
   parseReasonixIncremental,
   // Exposed for regression tests covering cache-token accounting.
   normalizeGeminiTokens,
-  normalizeOpencodeTokens,
-  normalizeQoderTokens,
+  normalizeAgentDbTokens,
   sameGeminiTotals,
   diffGeminiTotals,
   // Exposed so the queue-repair migration can mutate cursors state in the

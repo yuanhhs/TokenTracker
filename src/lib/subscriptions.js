@@ -4,8 +4,6 @@ const fs = require("node:fs");
 const cp = require("node:child_process");
 
 const { readJson } = require("./fs");
-const { resolveTrackerPaths } = require("./tracker-paths");
-const { probeOpenclawSessionPluginState } = require("./openclaw-session-plugin");
 
 const OPENAI_AUTH_CLAIM = "https://api.openai.com/auth";
 const MACOS_SECURITY_BIN = "/usr/bin/security";
@@ -112,12 +110,6 @@ function resolveCodexHome({ home, env }) {
   return explicit ? path.resolve(explicit) : path.join(home, ".codex");
 }
 
-function resolveOpencodeDataDir({ home, env }) {
-  const explicit = normalizeString(env?.XDG_DATA_HOME);
-  const base = explicit ? path.resolve(explicit) : path.join(home, ".local", "share");
-  return path.join(base, "opencode");
-}
-
 async function detectCodexChatgptSubscription({ home, env }) {
   const codexHome = resolveCodexHome({ home, env });
   const authPath = path.join(codexHome, "auth.json");
@@ -140,27 +132,6 @@ async function detectCodexChatgptSubscription({ home, env }) {
     activeStart: merged.activeStart,
     activeUntil: merged.activeUntil,
     lastChecked: merged.lastChecked,
-  };
-}
-
-async function detectOpencodeChatgptSubscription({ home, env }) {
-  const dataDir = resolveOpencodeDataDir({ home, env });
-  const authPath = path.join(dataDir, "auth.json");
-  const auth = await readJson(authPath);
-  if (!auth || typeof auth !== "object") return null;
-
-  const accessPayload = decodeJwtPayload(auth?.openai?.access);
-  const info = extractChatgptSubscriptionFromPayload(accessPayload);
-  if (!info || !isDisplayablePlanType(info.planType)) return null;
-
-  return {
-    tool: "opencode",
-    provider: "openai",
-    product: "chatgpt",
-    planType: info.planType,
-    activeStart: info.activeStart,
-    activeUntil: info.activeUntil,
-    lastChecked: info.lastChecked,
   };
 }
 
@@ -323,9 +294,6 @@ async function collectLocalSubscriptions({
   const codex = await detectCodexChatgptSubscription({ home, env });
   if (codex) out.push(codex);
 
-  const opencode = await detectOpencodeChatgptSubscription({ home, env });
-  if (opencode) out.push(opencode);
-
   if (probeKeychainDetails) {
     const claude = detectClaudeCodeSubscriptionDetails({ platform, securityRunner, home });
     if (claude) out.push(claude);
@@ -338,30 +306,8 @@ async function collectLocalSubscriptions({
     if (claude) out.push(claude);
   }
 
-  const openclaw = await detectOpenclawSessionIntegration({ home, env });
-  if (openclaw) out.push(openclaw);
-
   // Gemini: no stable local subscription/tier signal found yet.
   return out;
-}
-
-async function detectOpenclawSessionIntegration({ home, env }) {
-  const { trackerDir } = await resolveTrackerPaths({ home });
-  let state = null;
-  try {
-    state = await probeOpenclawSessionPluginState({ home, trackerDir, env });
-  } catch (_err) {
-    return null;
-  }
-
-  if (!state?.configured) return null;
-
-  return {
-    tool: "openclaw",
-    provider: "openclaw",
-    product: "session_plugin",
-    planType: "enabled",
-  };
 }
 
 function readClaudeCodeAccessToken({ platform = process.platform, securityRunner, home, fsReader } = {}) {

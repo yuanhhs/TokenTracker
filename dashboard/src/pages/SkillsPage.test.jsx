@@ -89,6 +89,45 @@ describe("SkillsPage", () => {
     });
   });
 
+  it("shows Official as the first tab and moves official installed skills there", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getInstalledSkills).mockResolvedValue({
+      targets: [{ id: "claude", label: "Claude" }],
+      skills: [
+        {
+          id: "official-skill",
+          name: "Official Skill",
+          directory: "official-skill",
+          repoOwner: "anthropics",
+          repoName: "skills",
+          targets: ["claude"],
+          managed: true,
+        },
+        {
+          id: "local-skill",
+          name: "Local Skill",
+          directory: "local-skill",
+          targets: ["claude"],
+          managed: true,
+        },
+      ],
+    });
+
+    render(<SkillsPage />);
+
+    const officialTab = screen.getByRole("button", { name: copy("skills.tab.official") });
+    const myTab = screen.getByRole("button", { name: copy("skills.tab.my") });
+    expect(officialTab.parentElement?.firstElementChild).toBe(officialTab);
+    expect(await screen.findByText("Local Skill")).toBeInTheDocument();
+    expect(screen.queryByText("Official Skill")).not.toBeInTheDocument();
+
+    await user.click(officialTab);
+
+    expect(await screen.findByText("Official Skill")).toBeInTheDocument();
+    expect(screen.queryByText("Local Skill")).not.toBeInTheDocument();
+    expect(myTab).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("filters the My tab list client-side by search query", async () => {
     const user = userEvent.setup();
     render(<SkillsPage />);
@@ -155,6 +194,7 @@ describe("SkillsPage", () => {
 
     render(<SkillsPage />);
 
+    await user.click(screen.getByRole("button", { name: copy("skills.tab.official") }));
     expect(await screen.findByText("ZCode Diagnostics")).toBeInTheDocument();
     expect(screen.getByText(copy("skills.inventory.plugin"))).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", {
@@ -164,6 +204,10 @@ describe("SkillsPage", () => {
     await user.click(screen.getByRole("button", {
       name: copy("skills.row.open_details", { name: "ZCode Diagnostics" }),
     }));
+    const dialog = await screen.findByRole("dialog", { name: "ZCode Diagnostics" });
+    expect(dialog).toHaveAttribute("data-skill-detail-modal", "1");
+    expect(dialog.parentElement).toHaveAttribute("data-skill-detail-viewport", "1");
+    expect(dialog.parentElement).toHaveClass("items-center", "justify-center");
     expect(await screen.findByText(copy("skills.inventory.read_only_managed"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: copy("skills.detail.remove_button") })).not.toBeInTheDocument();
   });
@@ -191,6 +235,27 @@ describe("SkillsPage", () => {
     expect(alpha).toBeChecked();
     expect(beta).not.toBeChecked();
     expect(screen.getByText(copy("skills.select.count", { count: 1 }))).toBeInTheDocument();
+  });
+
+  it("fully removes the skill detail portal after closing", async () => {
+    const user = userEvent.setup();
+    render(<SkillsPage />);
+
+    await user.click(await screen.findByRole("button", {
+      name: copy("skills.row.open_details", { name: "Alpha Skill" }),
+    }));
+    expect(await screen.findByRole("dialog", { name: "Alpha Skill" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: copy("skills.detail.close") }));
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-skill-detail-viewport="1"]')).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", {
+      name: copy("skills.row.open_details", { name: "Beta Skill" }),
+    }));
+    expect(await screen.findByRole("dialog", { name: "Beta Skill" })).toBeInTheDocument();
   });
 
   it("does not mark an unrelated browse skill installed when only the nested local leaf matches", async () => {

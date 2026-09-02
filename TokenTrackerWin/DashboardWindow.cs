@@ -61,6 +61,9 @@ internal sealed class DashboardWindow : Window
     /// <summary>Raised (on the UI thread) when the dashboard's theme localStorage changes.</summary>
     public event Action? ThemeChanged;
 
+    public event Action? NativeSettingsRequested;
+    public event Action<string, JsonElement>? NativeSettingChanged;
+    public event Action<string>? NativeActionRequested;
     public event Action<string, string>? NotificationRequested;
     public event Action<DashboardWindow>? ReleasedForIdle;
 
@@ -299,7 +302,24 @@ internal sealed class DashboardWindow : Window
                 {
                     using var doc = JsonDocument.Parse(msg);
                     if (!doc.RootElement.TryGetProperty("type", out var t)) return;
-                    if (t.GetString() == "nativeSetting"
+                    if (t.GetString() == "getSettings")
+                    {
+                        NativeSettingsRequested?.Invoke();
+                    }
+                    else if (t.GetString() == "setSetting"
+                             && doc.RootElement.TryGetProperty("key", out var nativeKey)
+                             && doc.RootElement.TryGetProperty("value", out var nativeValue)
+                             && nativeKey.GetString() is { } settingKey)
+                    {
+                        NativeSettingChanged?.Invoke(settingKey, nativeValue.Clone());
+                    }
+                    else if (t.GetString() == "action"
+                             && doc.RootElement.TryGetProperty("name", out var nativeAction)
+                             && nativeAction.GetString() is { } actionName)
+                    {
+                        NativeActionRequested?.Invoke(actionName);
+                    }
+                    else if (t.GetString() == "nativeSetting"
                              && doc.RootElement.TryGetProperty("key", out var k)
                              && doc.RootElement.TryGetProperty("value", out var v))
                     {
@@ -398,6 +418,45 @@ internal sealed class DashboardWindow : Window
         _pendingPathAndQuery = pathAndQuery;
         if (!_coreReady || _server.Status != ServerManager.ServerStatus.Running) return;
         _webView.CoreWebView2.Navigate(_server.BaseUrl + pathAndQuery);
+    }
+
+    public void PushNativeSettings(
+        bool dynamicIslandEnabled,
+        bool dynamicIslandAutoCollapse,
+        bool dynamicIslandShowLimits,
+        bool dynamicIslandCompactMode,
+        string dynamicIslandLimitDisplayMode,
+        IReadOnlyList<string> dynamicIslandMetrics,
+        bool desktopWidgetsAlwaysOnTop,
+        IReadOnlyList<DesktopWidgetSettings.WidgetItem> desktopWidgets)
+    {
+        if (!_coreReady) return;
+        var json = JsonSerializer.Serialize(new
+        {
+            dynamicIslandSupported = true,
+            dynamicIslandEnabled,
+            dynamicIslandAutoCollapse,
+            dynamicIslandShowLimits,
+            dynamicIslandCompactMode,
+            dynamicIslandLimitDisplayMode,
+            dynamicIslandMetrics,
+            desktopWidgetsSupported = true,
+            desktopWidgetsAlwaysOnTop,
+            desktopWidgets = desktopWidgets.Select(widget => new
+            {
+                id = widget.Id,
+                enabled = widget.Enabled,
+                size = widget.Size,
+                supportedSizes = widget.SupportedSizes,
+            }),
+            nativePlatform = "windows",
+        });
+        try
+        {
+            _ = _webView.CoreWebView2.ExecuteScriptAsync(
+                $"window.dispatchEvent(new CustomEvent('native:settings', {{detail:{json}}}));");
+        }
+        catch { /* page is navigating */ }
     }
 
     /// <summary>
@@ -599,6 +658,13 @@ internal sealed class DashboardWindow : Window
     {
         ShowDashboard();
         NavigateWhenServerReady("/settings?app=1");
+    }
+
+    /// <summary>Open the Windows desktop-widget manager.</summary>
+    public void ShowWidgets()
+    {
+        ShowDashboard();
+        NavigateWhenServerReady("/widgets?app=1");
     }
 
     /// <summary>Diagnostics → %LOCALAPPDATA%\TokenTracker\windows-host.log (shared with ServerManager).</summary>

@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  normalizeOpencodeTokens,
+  normalizeAgentDbTokens,
   sameGeminiTotals,
   diffGeminiTotals,
 } = require("../src/lib/rollout.js");
@@ -10,10 +10,10 @@ const {
 // Per CLAUDE.md: cached_input_tokens = cache reads,
 // cache_creation_input_tokens = cache writes. Any normalizer or diff that
 // drops the cache_creation_input_tokens field silently under-reports cache
-// writes — the bug we just fixed for OpenCode / OpenClaw / Gemini.
+// writes — otherwise providers with explicit cache-write counters are under-reported.
 
-test("normalizeOpencodeTokens keeps cache.write separate from cache.read", () => {
-  const n = normalizeOpencodeTokens({
+test("normalizeAgentDbTokens keeps cache.write separate from cache.read", () => {
+  const n = normalizeAgentDbTokens({
     input: 100,
     output: 30,
     reasoning: 0,

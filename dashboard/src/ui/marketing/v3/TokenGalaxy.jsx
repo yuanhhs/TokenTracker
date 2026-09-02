@@ -107,7 +107,7 @@ function buildGeometry(anchors, counts) {
 
 /**
  * The hero's WebGL particle galaxy. Thousands of GPU-driven particles stream
- * from eight AI-provider nodes into a central vortex. `progressRef` (0..1,
+ * from the configured AI-provider nodes into a central vortex. `progressRef` (0..1,
  * written by the hero's ScrollTrigger) pushes the camera in and fades the
  * scene out; pointer parallax is handled internally. `mode="static"` renders
  * a WebGL-free fallback (CSS glow + fixed provider ring) for reduced-motion,

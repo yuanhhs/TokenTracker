@@ -18,7 +18,7 @@ test("edge: WSL probe failure in both mode falls back gracefully", (t) => {
     fs.writeFileSync(path.join(nativeDir, "state.db"), "fake db");
 
     const r = resolveInstallPaths(
-      { nativeValue: nativeDir, wslDir: ".hermes" },
+      { nativeValue: nativeDir, wslDir: ".agent" },
       { TOKENTRACKER_WSL_MODE: "both" },
       { runWsl: () => { throw new Error("wsl not found"); }, existsSync: (p) => p === nativeDir },
     );
@@ -59,12 +59,12 @@ test("edge: both mode with single native install produces same result as non-bot
 
 test("edge: ensureNamespacedCursors handles mixed native+wsl state", () => {
   const cursors = {
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 50, unfinishedSessionIds: ["a"], snapshots: {} },
       wsl: { lastCompletedStartedAt: 10, unfinishedSessionIds: ["b"], snapshots: {} },
     },
   };
-  const ns = ensureNamespacedCursors(cursors, "hermes");
+  const ns = ensureNamespacedCursors(cursors, "agent");
   assert.equal(ns.native.lastCompletedStartedAt, 50);
   assert.equal(ns.wsl.lastCompletedStartedAt, 10);
   assert.deepEqual(ns.native.unfinishedSessionIds, ["a"]);
@@ -76,12 +76,12 @@ test("edge: multiInstallParse handles WSL probe timeout graceful skip", async ()
   const r = await multiInstallParse({
     paths: { native: "/native", wsl: null },
     parserFn: async ({ cursors: c }) => {
-      c.hermes = { ok: true };
+      c.agent = { ok: true };
       return { recordsProcessed: 1 };
     },
-    providerName: "hermes",
+    providerName: "agent",
     cursors,
-    getParams: (path) => ({ hermesPath: path }),
+    getParams: (path) => ({ agentPath: path }),
   });
   assert.equal(r.recordsProcessed, 1);
 });

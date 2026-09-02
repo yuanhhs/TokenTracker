@@ -76,7 +76,6 @@ const PROVIDER_COLORS = {
   CODEX: "#3b82f6",     // blue-500
   DSH: "var(--community-deepseek)", // DeepSeek Harness brand blue
   CLAUDE: "#d97757",    // Anthropic Japonica orange-red
-  OPENCODE: "#f59e0b",  // amber-500
   GEMINI: "#2196f3",    // Google Gemini bright blue
   KIMI: "#a78bfa",      // violet-400
   "KILO-CLI": "#facc15",   // yellow-400 (Kilo brand yellow)

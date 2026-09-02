@@ -52,17 +52,17 @@ test("multiInstallParse dual paths merge when no prefer set (default)", async ()
   const r = await multiInstallParse({
     paths: { native: "/native", wsl: "/wsl" },
     parserFn: async ({ resolvedPath, cursors: c }) => {
-      addToBucket(c, "hermes|gpt-4|2026-01-01T00:00:00.000Z", 100, 50);
+      addToBucket(c, "agent|gpt-4|2026-01-01T00:00:00.000Z", 100, 50);
       return { recordsProcessed: 1, eventsAggregated: 1, bucketsQueued: 1 };
     },
-    providerName: "hermes",
+    providerName: "agent",
     cursors,
     getParams: (path) => ({ resolvedPath: path }),
   });
 
   assert.equal(r.recordsProcessed, 2);
   // Both installs contributed to the same bucket — merged without filtering
-  const bucket = cursors.hourly.buckets["hermes|gpt-4|2026-01-01T00:00:00.000Z"];
+  const bucket = cursors.hourly.buckets["agent|gpt-4|2026-01-01T00:00:00.000Z"];
   assert.ok(bucket);
   assert.equal(bucket.totals.input_tokens, 200, "both installs merged (100+100)");
   assert.equal(bucket.totals.output_tokens, 100, "both installs merged (50+50)");
@@ -74,16 +74,16 @@ test("multiInstallParse cursor isolation between installs", async () => {
   await multiInstallParse({
     paths: { native: "/a", wsl: "/b" },
     parserFn: async ({ resolvedPath, cursors: c }) => {
-      c.hermes = { startedAt: resolvedPath === "/a" ? 100 : 200 };
+      c.agent = { startedAt: resolvedPath === "/a" ? 100 : 200 };
       return { recordsProcessed: 1 };
     },
-    providerName: "hermes",
+    providerName: "agent",
     cursors,
     getParams: (path) => ({ resolvedPath: path }),
   });
 
-  assert.equal(cursors.hermes.native.startedAt, 100);
-  assert.equal(cursors.hermes.wsl.startedAt, 200);
+  assert.equal(cursors.agent.native.startedAt, 100);
+  assert.equal(cursors.agent.wsl.startedAt, 200);
 });
 
 test("multiInstallParse partial parse failure propagates error", async () => {
@@ -93,18 +93,18 @@ test("multiInstallParse partial parse failure propagates error", async () => {
     () => multiInstallParse({
       paths: { native: "/a", wsl: "/b" },
       parserFn: async ({ resolvedPath, cursors: c }) => {
-        if (resolvedPath === "/a") c.hermes = { done: true };
+        if (resolvedPath === "/a") c.agent = { done: true };
         if (resolvedPath === "/b") throw new Error("second install failed");
         return { recordsProcessed: 1 };
       },
-      providerName: "hermes",
+      providerName: "agent",
       cursors,
       getParams: (path) => ({ resolvedPath: path }),
     }),
     { message: "second install failed" },
   );
 
-  assert.deepEqual(cursors.hermes.native, { done: true }, "first install's cursor state should be preserved");
+  assert.deepEqual(cursors.agent.native, { done: true }, "first install's cursor state should be preserved");
 });
 
 test("multiInstallParse empty install produces correct partial result", async () => {
@@ -132,7 +132,7 @@ test("multiInstallParse empty install produces correct partial result", async ()
 test("multiInstallParse dual-to-single transition with namespaced cursor", async () => {
   const cursors = {
     hourly: { buckets: {} },
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 100, snapshots: { s1: { in: 50 } } },
       wsl: { lastCompletedStartedAt: 200, snapshots: { s2: { in: 25 } } },
     },
@@ -143,15 +143,15 @@ test("multiInstallParse dual-to-single transition with namespaced cursor", async
     paths: { native: "/native-only", wsl: null },
     parserFn: async ({ cursors: c }) => {
       // The cursor should have been flattened — verify the expected keys
-      const state = c.hermes;
+      const state = c.agent;
       assert.ok(state.lastCompletedStartedAt !== undefined,
         "single-path parse should see flat cursor, not namespace wrapper");
       assert.equal(state.native, undefined, "namespace keys should not exist in flat cursor");
       return { recordsProcessed: 1 };
     },
-    providerName: "hermes",
+    providerName: "agent",
     cursors,
-    getParams: (path) => ({ hermesPath: path }),
+    getParams: (path) => ({ agentPath: path }),
   });
 
   assert.equal(r.recordsProcessed, 1);

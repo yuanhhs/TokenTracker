@@ -1183,6 +1183,8 @@ export default defineConfig(({ mode }) => {
   const rollupInput = {
     main: path.resolve(ROOT_DIR, "index.html"),
     share: path.resolve(ROOT_DIR, "share.html"),
+    island: path.resolve(ROOT_DIR, "island.html"),
+    widget: path.resolve(ROOT_DIR, "widget.html"),
   };
 
   return {

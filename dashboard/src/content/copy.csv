@@ -263,6 +263,7 @@ dashboard.overview.layout.drag_handle,dashboard,DashboardPage,SortableCard,drag_
 dashboard.screenshot.twitter_text,dashboard,DashboardPage,ScreenshotShare,share_text,"{{total_tokens}} tokens on the record.\n{{model_name}} led with {{model_percent}}%.\n\nMy AI usage, unaudited →",,active
 
 nav.usage,shared,*,Sidebar,nav_usage,"Tokens",,active
+nav.widgets,shared,*,Sidebar,nav_widgets,"Desktop Widgets",,active
 nav.limits,shared,*,Sidebar,nav_limits,"Limits",,active
 nav.collapse,shared,*,Sidebar,nav_collapse,"Collapse sidebar",,active
 nav.expand,shared,*,Sidebar,nav_expand,"Expand sidebar",,active
@@ -283,6 +284,58 @@ nav.settings,shared,*,Sidebar,nav_settings,"Settings",,active
 settings.page.title,ui,SettingsPage,SettingsPage,title,"Settings",,active
 settings.page.subtitle,ui,SettingsPage,SettingsPage,subtitle,"Manage your account, appearance, and display preferences.",,active
 settings.section.appearance,ui,SettingsPage,SettingsPage,sec_appearance,"Appearance",,active
+settings.section.island,ui,SettingsPage,DynamicIslandSection,sec_island,"Dynamic Island",,active
+settings.island.preview.tokens,ui,SettingsPage,DynamicIslandSection,preview_tokens,"Tokens",,active
+settings.island.preview.tokens_value,ui,SettingsPage,DynamicIslandSection,preview_tokens_value,"128.4K",,active
+settings.island.preview.cost,ui,SettingsPage,DynamicIslandSection,preview_cost,"Spend",,active
+settings.island.preview.cost_value,ui,SettingsPage,DynamicIslandSection,preview_cost_value,"$1.24",,active
+settings.island.preview.limits,ui,SettingsPage,DynamicIslandSection,preview_limits,"Provider limits",,active
+settings.island.preview.provider,ui,SettingsPage,DynamicIslandSection,preview_provider,"Codex",,active
+settings.island.preview.limit_value,ui,SettingsPage,DynamicIslandSection,preview_limit_value,"68%",,active
+settings.island.preview.ring,ui,SettingsPage,DynamicIslandSection,preview_ring,"Quota ring",,active
+settings.island.general.title,ui,SettingsPage,DynamicIslandSection,general_title,"General",,active
+settings.island.enabled.label,ui,SettingsPage,DynamicIslandSection,enabled_label,"Dynamic Island",,active
+settings.island.enabled.hint,ui,SettingsPage,DynamicIslandSection,enabled_hint,"Keep today's tokens and spend at the top of your Windows desktop; hover for period totals and provider limits.",,active
+settings.island.enabled.aria,ui,SettingsPage,DynamicIslandSection,enabled_aria,"Toggle Dynamic Island",,active
+settings.island.compact.label,ui,SettingsPage,DynamicIslandSection,compact_label,"Compact quota ring",,active
+settings.island.compact.hint,ui,SettingsPage,DynamicIslandSection,compact_hint,"Replace the left metric with a compact ring for the selected provider quota.",,active
+settings.island.compact.aria,ui,SettingsPage,DynamicIslandSection,compact_aria,"Toggle compact quota ring",,active
+settings.island.show_limits.label,ui,SettingsPage,DynamicIslandSection,show_limits_label,"Show provider limits",,active
+settings.island.show_limits.hint,ui,SettingsPage,DynamicIslandSection,show_limits_hint,"Include configured provider quota bars when the island expands.",,active
+settings.island.show_limits.aria,ui,SettingsPage,DynamicIslandSection,show_limits_aria,"Toggle provider limits in Dynamic Island",,active
+settings.island.auto_collapse.label,ui,SettingsPage,DynamicIslandSection,auto_collapse_label,"Collapse automatically",,active
+settings.island.auto_collapse.hint,ui,SettingsPage,DynamicIslandSection,auto_collapse_hint,"Collapse the island after the pointer leaves it.",,active
+settings.island.auto_collapse.aria,ui,SettingsPage,DynamicIslandSection,auto_collapse_aria,"Toggle automatic Dynamic Island collapse",,active
+settings.island.metrics.title,ui,SettingsPage,DynamicIslandSection,metrics_title,"Displayed metrics",,active
+settings.island.metrics.primary,ui,SettingsPage,DynamicIslandSection,metrics_primary,"Left metric",,active
+settings.island.metrics.primary_hint,ui,SettingsPage,DynamicIslandSection,metrics_primary_hint,"Choose the value shown on the left side of the island.",,active
+settings.island.metrics.secondary,ui,SettingsPage,DynamicIslandSection,metrics_secondary,"Right metric",,active
+settings.island.metrics.secondary_hint,ui,SettingsPage,DynamicIslandSection,metrics_secondary_hint,"Choose the value shown on the right side, or hide this slot.",,active
+settings.island.metrics.limit_mode,ui,SettingsPage,DynamicIslandSection,metrics_limit_mode,"Quota percentage",,active
+settings.island.metrics.limit_mode_hint,ui,SettingsPage,DynamicIslandSection,metrics_limit_mode_hint,"Show provider quotas as used percentage or remaining percentage.",,active
+settings.island.metric.none,ui,SettingsPage,DynamicIslandSection,metric_none,"None",,active
+settings.island.metric.none_short,ui,SettingsPage,DynamicIslandSection,metric_none_short,"None",,active
+settings.island.metric.today_tokens,ui,SettingsPage,DynamicIslandSection,metric_today_tokens,"Today's tokens",,active
+settings.island.metric.tokens_short,ui,SettingsPage,DynamicIslandSection,metric_tokens_short,"Tokens",,active
+settings.island.metric.today_cost,ui,SettingsPage,DynamicIslandSection,metric_today_cost,"Today's spend",,active
+settings.island.metric.cost_short,ui,SettingsPage,DynamicIslandSection,metric_cost_short,"Spend",,active
+settings.island.metric.last_7d_tokens,ui,SettingsPage,DynamicIslandSection,metric_last_7d_tokens,"Last 7 days · tokens",,active
+settings.island.metric.seven_days_short,ui,SettingsPage,DynamicIslandSection,metric_seven_days_short,"7d tokens",,active
+settings.island.metric.last_7d_cost,ui,SettingsPage,DynamicIslandSection,metric_last_7d_cost,"Last 7 days · spend",,active
+settings.island.metric.seven_day_cost_short,ui,SettingsPage,DynamicIslandSection,metric_seven_day_cost_short,"7d spend",,active
+settings.island.metric.last_30d_tokens,ui,SettingsPage,DynamicIslandSection,metric_last_30d_tokens,"Last 30 days · tokens",,active
+settings.island.metric.thirty_days_short,ui,SettingsPage,DynamicIslandSection,metric_thirty_days_short,"30d tokens",,active
+settings.island.metric.last_30d_cost,ui,SettingsPage,DynamicIslandSection,metric_last_30d_cost,"Last 30 days · spend",,active
+settings.island.metric.thirty_day_cost_short,ui,SettingsPage,DynamicIslandSection,metric_thirty_day_cost_short,"30d spend",,active
+settings.island.metric.total_tokens,ui,SettingsPage,DynamicIslandSection,metric_total_tokens,"All-time tokens",,active
+settings.island.metric.total_short,ui,SettingsPage,DynamicIslandSection,metric_total_short,"All time",,active
+settings.island.metric.total_cost,ui,SettingsPage,DynamicIslandSection,metric_total_cost,"All-time spend",,active
+settings.island.metric.total_cost_short,ui,SettingsPage,DynamicIslandSection,metric_total_cost_short,"Total spend",,active
+settings.island.position.title,ui,SettingsPage,DynamicIslandSection,position_title,"Position & actions",,active
+settings.island.position.label,ui,SettingsPage,DynamicIslandSection,position_label,"Desktop placement",,active
+settings.island.position.hint,ui,SettingsPage,DynamicIslandSection,position_hint,"Show it now or return it to the top center of the primary display.",,active
+settings.island.position.reset,ui,SettingsPage,DynamicIslandSection,position_reset,"Reset position",,active
+settings.island.position.show,ui,SettingsPage,DynamicIslandSection,position_show,"Show now",,active
 settings.section.limits,ui,SettingsPage,SettingsPage,sec_limits,"Limits Display",,active
 settings.section.network,ui,SettingsPage,NetworkSection,sec_network,"Network",,active
 settings.network.mode.label,ui,SettingsPage,NetworkSection,mode_label,"Outbound proxy",,active
@@ -318,9 +371,6 @@ settings.network.save_error_unprotected,ui,SettingsPage,NetworkSection,save_erro
 settings.limits.providers,ui,SettingsPage,SettingsPage,limits_providers,"Providers",,active
 settings.limits.showSubscriptions,ui,SettingsPage,SettingsPage,show_subscriptions,"Show subscriptions in limits",,active
 settings.limits.showSubscriptionsHint,ui,SettingsPage,SettingsPage,show_subscriptions_hint,"Display your manual subscription renewal bars alongside the limits.",,active
-settings.labs.island_hide_menubar.label,ui,SettingsPage,LabsSection,island_hide_menubar_label,"Hide Menu Bar Item",,active
-settings.labs.island_hide_menubar.hint,ui,SettingsPage,LabsSection,island_hide_menubar_hint,"Hide top menu bar icon and use Dynamic Island exclusively.",,active
-settings.labs.island_hide_menubar.aria,ui,SettingsPage,LabsSection,island_hide_menubar_aria,"Toggle hide menu bar item",,active
 settings.labs.qpd.label,ui,SettingsPage,LabsSection,qpd_label,"Analyze PR cost-efficiency",,active
 settings.labs.qpd.hint,ui,SettingsPage,LabsSection,qpd_hint,"Analyze average delivery costs and effective Tokens per model from merged PRs and AI-attributed commits.",,active
 settings.labs.qpd.aria,ui,SettingsPage,LabsSection,qpd_aria,"Toggle PR cost-efficiency analysis",,active
@@ -542,11 +592,9 @@ limits.label.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live,"l
 limits.label.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached,"cached",,active
 limits.tooltip.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live_tooltip,"Real-time limits retrieved directly from the running Antigravity process.",,active
 limits.tooltip.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached_tooltip,"Cached limits. Run Antigravity IDE/CLI to refresh.",,active
-limits.tooltip.qoder_cached,ui,LimitsPage,UsageLimitsPanel,qoder_cached_tooltip,"Cached limits. Run Qoder to refresh.",,active
 limits.bar.sub_one_percent,ui,LimitsPage,UsageLimitsPanel,bar_sub_one_percent,"<1",,active
 limits.status.not_connected,ui,LimitsPage,UsageLimitsPanel,status_not_connected,"Not connected",,active
 limits.status.no_data,ui,LimitsPage,UsageLimitsPanel,status_no_data,"No live limit data returned",,active
-limits.opencodeGo.status.inactive,ui,LimitsPage,UsageLimitsPanel,opencode_go_status_inactive,"OpenCode Go subscription is inactive",,active
 limits.status.all_hidden,ui,LimitsPage,UsageLimitsPanel,status_all_hidden,"All limit providers are hidden. Open display settings to show them.",,active
 shared.time.now,shared,*,Shared,time_now,"now",,active
 shared.time.m_ago,shared,*,Shared,time_m_ago,"{{n}}m",,active
@@ -566,10 +614,67 @@ status.open_page,ui,ServiceStatusPage,StatusCard,open_page,"Open {{provider}} st
 status.refresh,ui,ServiceStatusPage,ServiceStatusPage,refresh,"Refresh",,active
 status.last_checked,ui,ServiceStatusPage,ServiceStatusPage,last_checked,"Checked at {{time}}",,active
 nav.skills,shared,*,Sidebar,nav_skills,Skills,,active
+nav.mcp,shared,*,Sidebar,nav_mcp,MCP,,active
 nav.sessions,shared,*,Sidebar,nav_sessions,Sessions,,active
 skills.page.title,ui,SkillsPage,SkillsPage,title,Skills,,active
+skills.tab.official,ui,SkillsPage,SkillsPage,tab_official,Official,,active
 skills.tab.my,ui,SkillsPage,SkillsPage,tab_my,My Skills,,active
 skills.tab.browse,ui,SkillsPage,SkillsPage,tab_browse,Browse,,active
+skills.mcp.title,ui,McpPage,McpPanel,title,MCP Servers,,active
+skills.mcp.subtitle,ui,McpPage,McpPanel,subtitle,"Read and manage MCP servers directly in each installed AI tool's configuration file.",,active
+skills.mcp.action.add,ui,McpPage,McpPanel,action_add,"Add server",,active
+skills.mcp.action.edit_aria,ui,McpPage,McpPanel,action_edit_aria,"Edit {{name}}",,active
+skills.mcp.action.delete_aria,ui,McpPage,McpPanel,action_delete_aria,"Delete {{name}}",,active
+skills.mcp.action.delete,ui,McpPage,McpPanel,action_delete,Delete,,active
+skills.mcp.target.enabled,ui,McpPage,McpPanel,target_enabled,"Present in {{agent}} configuration",,active
+skills.mcp.target.disabled,ui,McpPage,McpPanel,target_disabled,"Not present in {{agent}} configuration",,active
+skills.mcp.target.not_detected,ui,McpPage,McpPanel,target_not_detected,"App not detected",,active
+skills.mcp.search_aria,ui,McpPage,McpPanel,search_aria,"Search MCP servers",,active
+skills.mcp.search_placeholder,ui,McpPage,McpPanel,search_placeholder,"Search by name, ID, command, or URL",,active
+skills.mcp.empty.default,ui,McpPage,McpPanel,empty_default,"No MCP servers were found in the detected configuration files. Add one to get started.",,active
+skills.mcp.empty.search,ui,McpPage,McpPanel,empty_search,"No MCP servers match this search.",,active
+skills.mcp.error.load,ui,McpPage,McpPanel,error_load,"Failed to load MCP servers.",,active
+skills.mcp.error.operation,ui,McpPage,McpPanel,error_operation,"The MCP operation failed.",,active
+skills.mcp.error.preview,ui,McpPage,McpPanel,error_preview,"Failed to prepare the configuration review.",,active
+skills.mcp.toast.partial,ui,McpPage,McpPanel,toast_partial,"{{count}} configuration warning(s) need attention.",,active
+skills.mcp.toast.saved,ui,McpPage,McpPanel,toast_saved,"MCP configuration saved.",,active
+skills.mcp.toast.deleted,ui,McpPage,McpPanel,toast_deleted,"MCP server deleted.",,active
+skills.mcp.form.add_title,ui,McpPage,McpEditorModal,form_add_title,"Add MCP server",,active
+skills.mcp.form.edit_title,ui,McpPage,McpEditorModal,form_edit_title,"Edit MCP server",,active
+skills.mcp.form.description,ui,McpPage,McpEditorModal,form_description,"Choose the AI tools whose configuration files should contain this server.",,active
+skills.mcp.form.id,ui,McpPage,McpEditorModal,form_id,"Server ID",,active
+skills.mcp.form.transport,ui,McpPage,McpEditorModal,form_transport,Transport,,active
+skills.mcp.form.command,ui,McpPage,McpEditorModal,form_command,Command,,active
+skills.mcp.form.args,ui,McpPage,McpEditorModal,form_args,"Arguments (one per line)",,active
+skills.mcp.form.env,ui,McpPage,McpEditorModal,form_env,"Environment variables (JSON)",,active
+skills.mcp.form.url,ui,McpPage,McpEditorModal,form_url,URL,,active
+skills.mcp.form.headers,ui,McpPage,McpEditorModal,form_headers,"Headers (JSON)",,active
+skills.mcp.form.apps,ui,McpPage,McpEditorModal,form_apps,"Write to",,active
+skills.mcp.form.id_required,ui,McpPage,McpEditorModal,form_id_required,"Server ID is required.",,active
+skills.mcp.form.target_required,ui,McpPage,McpEditorModal,form_target_required,"Choose at least one detected AI tool.",,active
+skills.mcp.form.command_required,ui,McpPage,McpEditorModal,form_command_required,"Command is required for a stdio server.",,active
+skills.mcp.form.url_required,ui,McpPage,McpEditorModal,form_url_required,"URL is required for an HTTP or SSE server.",,active
+skills.mcp.form.object_required,ui,McpPage,McpEditorModal,form_object_required,"Enter a JSON object.",,active
+skills.mcp.form.string_values,ui,McpPage,McpEditorModal,form_string_values,"Every value must be a string.",,active
+skills.mcp.confirm.delete_title,ui,McpPage,McpPanel,confirm_delete_title,"Delete {{name}}?",,active
+skills.mcp.confirm.delete_description,ui,McpPage,McpPanel,confirm_delete_description,"This removes the server from every detected AI tool configuration file.",,active
+skills.mcp.review.title,ui,McpPage,McpReviewModal,review_title,"Review MCP configuration changes",,active
+skills.mcp.review.description,ui,McpPage,McpReviewModal,review_description,"Confirm before these changes are written directly to the live configuration files. Line numbers show the exact insertion and removal positions.",,active
+skills.mcp.review.added,ui,McpPage,McpReviewModal,review_added,Added,,active
+skills.mcp.review.removed,ui,McpPage,McpReviewModal,review_removed,Removed,,active
+skills.mcp.review.unchanged,ui,McpPage,McpReviewModal,review_unchanged,Unchanged,,active
+skills.mcp.review.expand,ui,McpPage,McpReviewModal,review_expand,"Show unchanged lines",,active
+skills.mcp.review.collapse,ui,McpPage,McpReviewModal,review_collapse,"Hide unchanged lines",,active
+skills.mcp.review.unchanged_count,ui,McpPage,McpReviewModal,review_unchanged_count,"{{count}} more lines",,active
+skills.mcp.review.file_expand,ui,McpPage,McpReviewModal,review_file_expand,"Show file changes",,active
+skills.mcp.review.file_collapse,ui,McpPage,McpReviewModal,review_file_collapse,"Hide file changes",,active
+skills.mcp.review.old_line,ui,McpPage,McpReviewModal,review_old_line,Old,,active
+skills.mcp.review.new_line,ui,McpPage,McpReviewModal,review_new_line,New,,active
+skills.mcp.review.content,ui,McpPage,McpReviewModal,review_content,Content,,active
+skills.mcp.review.warning_title,ui,McpPage,McpReviewModal,review_warning_title,"Some configuration files need attention",,active
+skills.mcp.review.no_changes,ui,McpPage,McpReviewModal,review_no_changes,"No configuration changes are required.",,active
+skills.mcp.review.confirm_write,ui,McpPage,McpReviewModal,review_confirm_write,"Confirm and write",,active
+skills.mcp.review.confirm_delete,ui,McpPage,McpReviewModal,review_confirm_delete,"Confirm deletion",,active
 skills.action.refresh,ui,SkillsPage,SkillsPage,action_refresh,Refresh,,active
 skills.action.install,ui,SkillsPage,SkillCard,action_install,Install,,active
 skills.action.choose_targets,ui,SkillsPage,SkillCard,action_choose_targets,"Choose targets",,active
@@ -621,8 +726,11 @@ skills.toast.removed,ui,SkillsPage,SkillsPage,toast_removed,"Removed {{name}}.",
 shared.action.undo,shared,*,Shared,action_undo,"Undo",,active
 shared.action.dismiss,shared,*,Shared,action_dismiss,"Dismiss",,active
 shared.action.cancel,shared,*,Shared,action_cancel,"Cancel",,active
+shared.action.close,shared,*,Shared,action_close,Close,,active
+shared.action.save,shared,*,Shared,action_save,Save,,active
 shared.action.apply,shared,*,Shared,action_apply,"Apply",,active
 skills.empty.my,ui,SkillsPage,SkillsPage,empty_my,"No skills yet. Open Discover to search and install.",,active
+skills.empty.official,ui,SkillsPage,SkillsPage,empty_official,"No official skills were detected on this device.",,active
 skills.empty.my_cta,ui,SkillsPage,SkillsPage,empty_my_cta,"Browse",,active
 skills.empty.browse,ui,SkillsPage,SkillsPage,empty_browse,"No skills found for this source.",,active
 skills.empty.search,ui,SkillsPage,SkillsPage,empty_search,"No results. Try a different query.",,active
@@ -894,27 +1002,7 @@ skills.usage.disclaimer,ui,SkillsPage,SkillDetailPanel,usage_disclaimer,"Counts 
 skills.inventory.plugin,ui,SkillsPage,InstalledSkillRow,inventory_plugin,"Plugin",,active
 skills.inventory.read_only_managed,ui,SkillsPage,SkillDetailPanel,inventory_read_only_managed,"This plugin skill is managed by its tool and cannot be changed or removed from Token Tracker.",,active
 skills.inventory.source,ui,SkillsPage,SkillDetailPanel,inventory_source,"Source: {{source}}",,active
-limits.provider.opencode_go,ui,LimitsPage,UsageLimitsPanel,provider_opencode_go,"OpenCode Go",,active
-limits.label.opencode_go_5h,ui,LimitsPage,UsageLimitsPanel,opencode_go_5h,"5h",,active
-limits.label.opencode_go_weekly,ui,LimitsPage,UsageLimitsPanel,opencode_go_weekly,"Weekly",,active
-limits.label.opencode_go_monthly,ui,LimitsPage,UsageLimitsPanel,opencode_go_monthly,"Monthly",,active
-limits.provider.qoder,ui,LimitsPage,UsageLimitsPanel,provider_qoder,"Qoder",,active
-limits.label.qoder_credits,ui,LimitsPage,UsageLimitsPanel,qoder_credits,"Credits",,active
-limits.label.qoder_ultimate,ui,LimitsPage,UsageLimitsPanel,qoder_ultimate,"Ultimate Free Calls",,active
-limits.provider.qoder_cn,ui,LimitsPage,UsageLimitsPanel,provider_qoder_cn,"Qoder CN",,active
-limits.label.qoder_cn_credits,ui,LimitsPage,UsageLimitsPanel,qoder_cn_credits,"Credits",,active
-limits.label.qoder_cn_ultimate,ui,LimitsPage,UsageLimitsPanel,qoder_cn_ultimate,"Ultimate Free Calls",,active
-limits.qoder_calls.detail,ui,LimitsPage,UsageLimitsPanel,qoder_calls_detail,"{{used}} / {{limit}} calls used · {{remaining}} left",,active
 limits.hover.expires_at,ui,LimitsPage,UsageLimitsPanel,hover_expires_at,"Expires {{time}}",,active
-limits.opencodeGo.setupHint.title,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_title,"Connect OpenCode Go",,active
-limits.opencodeGo.setupHint.subtitle,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_subtitle,"Reads your OpenCode Go usage from the official API (opencode.ai/zen/go/v1/usage).",,active
-limits.opencodeGo.setupHint.step1,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_step1,"Sign in at opencode.ai and subscribe to Go.",,active
-limits.opencodeGo.setupHint.cta,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_cta,"Open opencode.ai",,active
-limits.opencodeGo.setupHint.step2,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_step2,"Create and copy an API key in the console.",,active
-limits.opencodeGo.setupHint.step3,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_step3,"Run this command, paste your API key (input stays invisible), then restart TokenTracker:",,active
-limits.opencodeGo.setupHint.note_app,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_note_app,"macOS app: use the launchctl setenv line, then reopen the app.",,active
-limits.opencodeGo.setupHint.copy,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_copy,"Copy",,active
-limits.opencodeGo.setupHint.copied,ui,LimitsPage,UsageLimitsPanel,opencode_go_hint_copied,"Copied",,active
 settings.menubar.updates.checking,ui,SettingsPage,NativeAppFooter,updates_checking,"Checking...","正在检测...",active
 settings.menubar.updates.upToDate,ui,SettingsPage,NativeAppFooter,updates_uptodate,"You are up to date!","已是最新版本",active
 settings.menubar.updates.failed,ui,SettingsPage,NativeAppFooter,updates_failed,"Failed to check for updates. Please try again.","检查更新失败，请重试",active
@@ -1085,18 +1173,43 @@ subscriptions.form.provider_required,ui,LimitsPage,SubscriptionSettingsCard,form
 subscriptions.form.provider_taken,ui,LimitsPage,SubscriptionSettingsCard,form_provider_taken,"This tool already has a subscription. Edit the existing record instead.",,active
 subscriptions.form.provider_taken_suffix,ui,LimitsPage,SubscriptionSettingsCard,form_provider_taken_suffix,"(already subscribed)",,active
 limits.page.openSubscriptions,ui,LimitsPage,LimitsPage,open_subscriptions,"Subscriptions",,active
-limits.provider.ark_coding_plan,ui,LimitsPage,UsageLimitsPanel,provider_ark_coding_plan,"Ark Coding Plan",,active
-limits.label.ark_coding_plan_5h,ui,LimitsPage,UsageLimitsPanel,ark_coding_plan_5h,"5h",,active
-limits.label.ark_coding_plan_weekly,ui,LimitsPage,UsageLimitsPanel,ark_coding_plan_weekly,"Weekly",,active
-limits.label.ark_coding_plan_monthly,ui,LimitsPage,UsageLimitsPanel,ark_coding_plan_monthly,"Monthly",,active
-limits.codingPlan.setupHint.title,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_title,"Connect Ark Coding Plan",,active
-limits.codingPlan.setupHint.subtitle,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_subtitle,"Quota is read from the official Ark CLI (arkcli) on this machine.",,active
-limits.codingPlan.setupHint.step1,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_step1,"Install the Ark CLI from npm.",,active
-limits.codingPlan.setupHint.cta,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_cta,"View install guide",,active
-limits.codingPlan.setupHint.step2,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_step2,"Sign in with your Volcengine account (browser SSO recommended).",,active
-limits.codingPlan.setupHint.step2_remote,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_step2_remote,"Headless / remote terminals: arkcli auth login --no-browser",,active
-limits.codingPlan.setupHint.step3,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_step3,"Run these, then refresh this page:",,active
-limits.codingPlan.setupHint.note_app,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_note_app,"Refresh after signing in — no app restart needed.",,active
-limits.codingPlan.setupHint.copy,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_copy,"Copy",,active
-limits.codingPlan.setupHint.copied,ui,LimitsPage,UsageLimitsPanel,coding_plan_hint_copied,"Copied",,active
 dashboard.device_filter.aria,dashboard,DashboardPage,UsageOverview,select_aria,"Filter by device",,active
+widgets.page.title,widgets,WidgetsPage,Header,title,"Desktop Widgets",,active
+widgets.page.subtitle,widgets,WidgetsPage,Header,subtitle,"Keep usage, activity, models, and limits visible on your Windows desktop.",,active
+widgets.summary.name,widgets,WidgetsPage,WidgetCard,name,"Usage Summary",,active
+widgets.summary.description,widgets,WidgetsPage,WidgetCard,description,"Today and rolling usage with compact trend charts.",,active
+widgets.heatmap.name,widgets,WidgetsPage,WidgetCard,name,"Activity Heatmap",,active
+widgets.heatmap.description,widgets,WidgetsPage,WidgetCard,description,"A GitHub-style calendar of active and quiet days.",,active
+widgets.topModels.name,widgets,WidgetsPage,WidgetCard,name,"Top Models",,active
+widgets.topModels.description,widgets,WidgetsPage,WidgetCard,description,"Your most-used models ranked by token share.",,active
+widgets.limits.name,widgets,WidgetsPage,WidgetCard,name,"Usage Limits",,active
+widgets.limits.description,widgets,WidgetsPage,WidgetCard,description,"Live quota progress for your configured providers.",,active
+widgets.size.label,widgets,WidgetsPage,WidgetCard,size_label,"Size",,active
+widgets.size.small,widgets,WidgetsPage,WidgetCard,size_option,"Small",,active
+widgets.size.medium,widgets,WidgetsPage,WidgetCard,size_option,"Medium",,active
+widgets.size.large,widgets,WidgetsPage,WidgetCard,size_option,"Large",,active
+widgets.size.extra_large,widgets,WidgetsPage,WidgetCard,size_option,"Extra large",,active
+widgets.status.visible,widgets,WidgetsPage,WidgetCard,status,"Visible",,active
+widgets.status.hidden,widgets,WidgetsPage,WidgetCard,status,"Hidden",,active
+widgets.action.show,widgets,WidgetsPage,WidgetCard,action,"Show",,active
+widgets.action.hide,widgets,WidgetsPage,WidgetCard,action,"Hide",,active
+widgets.always_on_top.title,widgets,WidgetsPage,Toolbar,title,"Keep widgets on top",,active
+widgets.always_on_top.hint,widgets,WidgetsPage,Toolbar,hint,"Keep widget windows above normal apps. Turn this off for a quieter desktop layer.",,active
+widgets.reset_positions,widgets,WidgetsPage,Toolbar,action,"Reset positions",,active
+widgets.windows_native_only,widgets,WidgetsPage,Notice,message,"Desktop widgets are available in the Windows app.",,active
+widgets.preview.today,widgets,WidgetsPage,Preview,label,"Today",,active
+widgets.preview.seven_days,widgets,WidgetsPage,Preview,label,"7 days",,active
+widgets.preview.thirty_days,widgets,WidgetWindow,Summary,label,"30 days",,active
+widgets.preview.vs_yesterday,widgets,WidgetWindow,Summary,label,"vs yesterday",,active
+widgets.preview.heatmap_summary,widgets,WidgetsPage,Preview,summary,"tokens · {{days}} active days",,active
+widgets.preview.streak,widgets,WidgetWindow,Heatmap,streak,"{{days}} day streak",,active
+widgets.preview.reset_days,widgets,WidgetWindow,Limits,reset,"in {{days}}d",,active
+widgets.preview.reset_hours_minutes,widgets,WidgetWindow,Limits,reset,"in {{hours}}h {{minutes}}m",,active
+widgets.preview.no_data,widgets,WidgetWindow,EmptyState,message,"No usage data yet",,active
+widgets.preview.no_limits,widgets,WidgetWindow,EmptyState,message,"No configured provider limits",,active
+widgets.preview.offline,widgets,WidgetWindow,EmptyState,message,"Waiting for the local TokenTracker service",,active
+widgets.preview.loading,widgets,WidgetWindow,EmptyState,label,"Loading widget data",,active
+widgets.window.refresh,widgets,WidgetWindow,Toolbar,action,"Refresh",,active
+widgets.window.dashboard,widgets,WidgetWindow,Toolbar,action,"Open dashboard",,active
+widgets.window.settings,widgets,WidgetWindow,Toolbar,action,"Widget settings",,active
+widgets.window.hide,widgets,WidgetWindow,Toolbar,action,"Hide widget",,active

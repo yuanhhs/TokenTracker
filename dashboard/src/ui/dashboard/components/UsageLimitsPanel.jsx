@@ -78,15 +78,11 @@ function formatCreditAmount(
 function buildQuotaDetail(window) {
   if (!window || typeof window !== "object") return null;
   if (!(Number(window.limit_credits) > 0)) return null;
-  const formatOptions = { useGrouping: window.unit !== "calls" };
-  const used = formatCreditAmount(window.used_credits, formatOptions);
-  const limit = formatCreditAmount(window.limit_credits, formatOptions);
-  const remaining = formatCreditAmount(window.remaining_credits, formatOptions);
+  const used = formatCreditAmount(window.used_credits);
+  const limit = formatCreditAmount(window.limit_credits);
+  const remaining = formatCreditAmount(window.remaining_credits);
   if (!used || !limit || !remaining) return null;
-  const key = window.unit === "calls"
-    ? "limits.qoder_calls.detail"
-    : "limits.codex_credits.detail";
-  return copy(key, { used, limit, remaining });
+  return copy("limits.codex_credits.detail", { used, limit, remaining });
 }
 
 /** Pace + projection for one window spec, in the active display mode. */
@@ -351,7 +347,7 @@ function ToolGroup({ name, providerId, children, expandable = false, expanded = 
 }
 
 // Top-right auto-renew / stops-at-expiry badge. Distinct from the left-aligned
-// data-status badge so antigravity/qoder cache state and subscription state can
+// data-status badge so provider cache state and subscription state can
 // both show on the same row.
 // Icon-only state badge: shape and color carry the state (infinity = keeps
 // renewing, clock = ends at expiry), so the pill's text is no longer needed.
@@ -641,22 +637,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
   if (!data?.configured) {
     return renderUnlinkedProvider(
       id,
-      <>
-        <StatusLine>{copy("limits.status.not_connected")}</StatusLine>
-        {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
-        {id === "codingPlan" ? <ArkCodingPlanSetupHint /> : null}
-      </>,
-      expanded,
-      onToggle,
-      subscription,
-      now,
-      mode,
-    );
-  }
-  if (id === "opencodeGo" && data.subscription_status === "inactive") {
-    return renderUnlinkedProvider(
-      id,
-      <StatusLine>{copy("limits.opencodeGo.status.inactive")}</StatusLine>,
+      <StatusLine>{copy("limits.status.not_connected")}</StatusLine>,
       expanded,
       onToggle,
       subscription,
@@ -672,8 +653,6 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
         {id === "kiro"
           ? renderProviderExtra(PROVIDER_LIMIT_SPECS.kiro.extra, data)
           : null}
-        {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
-        {id === "codingPlan" ? <ArkCodingPlanSetupHint /> : null}
       </>,
       expanded,
       onToggle,
@@ -693,16 +672,6 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
     } else {
       badge = <StatusBadge label={copy("limits.label.antigravity_live")} tone="live" tooltip={copy("limits.tooltip.antigravity_live")} />;
     }
-  }
-  if ((id === "qoder" || id === "qoderCn" || id === "codingPlan") && data.cached) {
-    badge = (
-      <StatusBadge
-        label={copy("limits.label.antigravity_cached")}
-        age={ago(data.cached_at)}
-        tone="cached"
-        tooltip={copy("limits.tooltip.qoder_cached")}
-      />
-    );
   }
   // An expired sign-in means every live fetch fails the same way and the bars
   // silently freeze on the cached snapshot (issue 330) — more actionable than
@@ -771,157 +740,6 @@ function CopilotOtelHint({ defaultDir }) {
   );
 }
 
-function HintStep({ n, children }) {
-  return (
-    <li className="flex gap-2.5">
-      <span className="mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-oai-brand/15 text-[9px] font-semibold text-oai-brand">
-        {n}
-      </span>
-      <div className="min-w-0 flex-1 leading-snug">{children}</div>
-    </li>
-  );
-}
-
-function ExternalArrow() {
-  return (
-    <svg viewBox="0 0 12 12" aria-hidden="true" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4.5 2.75h4.75V7.5M9.25 2.75 3 9" />
-    </svg>
-  );
-}
-
-// OpenCode Go limits come from OpenCode's official authenticated usage API
-// (GET /zen/go/v1/usage, Bearer OPENCODE_GO_API_KEY) once the user subscribes.
-// The macOS/Windows apps have no settings field for it yet, so this inline
-// guide shows up wherever OpenCode Go is enabled but unconfigured (or errored):
-// sign in, create an API key in the console, paste it into a copyable command.
-// No credential ever passes through TokenTracker itself.
-function OpenCodeGoSetupHint() {
-  const [copied, setCopied] = useState(false);
-  const snippet = [
-    "read -r -s OPENCODE_GO_API_KEY",
-    "export OPENCODE_GO_API_KEY",
-    'launchctl setenv OPENCODE_GO_API_KEY "$OPENCODE_GO_API_KEY"',
-  ].join("\n");
-
-  const onCopy = async (e) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(snippet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch (_e) {
-      // Clipboard can be unavailable in embedded or restricted contexts.
-    }
-  };
-
-  return (
-    <div className="mt-1.5 rounded-lg border border-oai-gray-200 dark:border-oai-gray-700/60 bg-oai-gray-50/50 dark:bg-oai-gray-900/20 p-3 text-[11px] text-oai-gray-600 dark:text-oai-gray-300">
-      <div className="text-[12px] font-semibold text-oai-gray-800 dark:text-oai-gray-100">{copy("limits.opencodeGo.setupHint.title")}</div>
-      <div className="mt-0.5 leading-snug text-oai-gray-500 dark:text-oai-gray-400">{copy("limits.opencodeGo.setupHint.subtitle")}</div>
-
-      <ol className="mt-2.5 space-y-2.5">
-        <HintStep n="1">
-          <div>{copy("limits.opencodeGo.setupHint.step1")}</div>
-          <a
-            href="https://opencode.ai"
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1 inline-flex items-center gap-1 rounded-md bg-oai-brand/10 px-2 py-1 font-medium text-oai-brand hover:bg-oai-brand/15 transition-colors"
-          >
-            {copy("limits.opencodeGo.setupHint.cta")}
-            <ExternalArrow />
-          </a>
-        </HintStep>
-        <HintStep n="2">
-          <div>{copy("limits.opencodeGo.setupHint.step2")}</div>
-        </HintStep>
-        <HintStep n="3">
-          <div className="flex items-center gap-2">
-            <span>{copy("limits.opencodeGo.setupHint.step3")}</span>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="shrink-0 rounded-md border border-oai-gray-300 dark:border-oai-gray-700 px-2 py-0.5 text-[10.5px] text-oai-gray-700 dark:text-oai-gray-200 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 transition-colors"
-            >
-              {copied ? copy("limits.opencodeGo.setupHint.copied") : copy("limits.opencodeGo.setupHint.copy")}
-            </button>
-          </div>
-          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">{snippet}</pre>
-          <div className="mt-1 text-[10px] text-oai-gray-400 dark:text-oai-gray-500">{copy("limits.opencodeGo.setupHint.note_app")}</div>
-        </HintStep>
-      </ol>
-    </div>
-  );
-}
-
-// Ark Coding Plan (火山方舟) quota comes from the official Ark CLI (arkcli)
-// running on this machine — there is no public quota endpoint, so the CLI is
-// feature-detected at fetch time. When it is missing (or not signed in) the
-// provider reports `configured: false` and this inline guide shows how to
-// enable it, mirroring the OpenCode Go flow.
-function ArkCodingPlanSetupHint() {
-  const [copied, setCopied] = useState(false);
-  const snippet = [
-    "npm install -g @volcengine/ark-cli",
-    "arkcli auth login volc-sso   # browser SSO (recommended)",
-    "arkcli auth status           # verify the session",
-  ].join("\n");
-
-  const onCopy = async (e) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(snippet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch (_e) {
-      // Clipboard can be unavailable in embedded or restricted contexts.
-    }
-  };
-
-  return (
-    <div className="mt-1.5 rounded-lg border border-oai-gray-200 dark:border-oai-gray-700/60 bg-oai-gray-50/50 dark:bg-oai-gray-900/20 p-3 text-[11px] text-oai-gray-600 dark:text-oai-gray-300">
-      <div className="text-[12px] font-semibold text-oai-gray-800 dark:text-oai-gray-100">{copy("limits.codingPlan.setupHint.title")}</div>
-      <div className="mt-0.5 leading-snug text-oai-gray-500 dark:text-oai-gray-400">{copy("limits.codingPlan.setupHint.subtitle")}</div>
-
-      <ol className="mt-2.5 space-y-2.5">
-        <HintStep n="1">
-          <div>{copy("limits.codingPlan.setupHint.step1")}</div>
-          <a
-            href="https://www.volcengine.com/docs/82379/2536875"
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1 inline-flex items-center gap-1 rounded-md bg-oai-brand/10 px-2 py-1 font-medium text-oai-brand hover:bg-oai-brand/15 transition-colors"
-          >
-            {copy("limits.codingPlan.setupHint.cta")}
-            <ExternalArrow />
-          </a>
-        </HintStep>
-        <HintStep n="2">
-          <div>{copy("limits.codingPlan.setupHint.step2")}</div>
-          <div className="mt-0.5 text-oai-gray-500 dark:text-oai-gray-400">{copy("limits.codingPlan.setupHint.step2_remote")}</div>
-        </HintStep>
-        <HintStep n="3">
-          <div className="flex items-center gap-2">
-            <span>{copy("limits.codingPlan.setupHint.step3")}</span>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="shrink-0 rounded-md border border-oai-gray-300 dark:border-oai-gray-700 px-2 py-0.5 text-[10.5px] text-oai-gray-700 dark:text-oai-gray-200 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 transition-colors"
-            >
-              {copied ? copy("limits.codingPlan.setupHint.copied") : copy("limits.codingPlan.setupHint.copy")}
-            </button>
-          </div>
-          <pre className="mt-1.5 overflow-x-auto rounded-md bg-oai-gray-100 dark:bg-oai-gray-900/60 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre">{snippet}</pre>
-          <div className="mt-1 text-[10px] text-oai-gray-400 dark:text-oai-gray-500">{copy("limits.codingPlan.setupHint.note_app")}</div>
-        </HintStep>
-      </ol>
-    </div>
-  );
-}
-
 /**
  * Width of the widest rendered row label, so every label column matches it.
  * Mirrors the macOS popover behavior: bars stay aligned without reserving
@@ -956,8 +774,8 @@ function useWidestLabelWidth(containerRef) {
   return labelWidth;
 }
 
-export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan, order, visibility, displayMode, subscriptions = [], showSubscriptions = true }) {
-  const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan };
+export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, order, visibility, displayMode, subscriptions = [], showSubscriptions = true }) {
+  const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode };
   const containerRef = useRef(null);
   const labelWidth = useWidestLabelWidth(containerRef);
   const [expandedId, setExpandedId] = useState(null);

@@ -15,30 +15,12 @@ describe("ProviderIcon", () => {
     expect(icon).toHaveClass("brightness-0", "dark:brightness-100", "shrink-0");
   });
 
-  it("renders Qoder from the Lobe Icons brand asset", () => {
-    const { container } = render(<ProviderIcon provider="qoder" size={20} />);
-    const icon = container.querySelector('img[src="/brand-logos/qoder.svg"]');
-
-    expect(icon).not.toBeNull();
-    expect(icon).toHaveClass("dark:invert");
-  });
-
   it("keeps the theme-aware placeholder for unknown providers", () => {
     const { container } = render(<ProviderIcon provider="unknown-provider" />);
     const placeholder = container.querySelector("svg");
 
     expect(placeholder).toHaveClass("text-oai-gray-400", "dark:text-oai-gray-500");
     expect(placeholder?.querySelector("circle")).not.toBeNull();
-  });
-
-  it("renders the MiniMax brand mark instead of the unknown-provider placeholder", () => {
-    const { container } = render(<ProviderIcon provider="MINIMAX" size={18} />);
-    const icon = container.querySelector("svg");
-
-    expect(icon).toHaveAttribute("width", "18");
-    expect(icon).toHaveAttribute("height", "18");
-    expect(icon?.querySelector("path")).not.toBeNull();
-    expect(icon?.querySelector("circle")).toBeNull();
   });
 
   it("renders the multi-color oh-my-pi brand logo", () => {
@@ -107,24 +89,15 @@ describe("ProviderIcon", () => {
   });
 });
 
-  it("renders the Qoder CN green-crescent mark from its own asset", () => {
-    const { container } = render(<ProviderIcon provider="qoder-cn" size={16} />);
-    const icon = container.querySelector('img[src="/brand-logos/qoder-cn.svg"]');
-
-    expect(icon).not.toBeNull();
-    expect(icon).toHaveAttribute("width", "16");
-    expect(icon).not.toHaveClass("dark:invert");
-  });
-
   it("renders the Pi mark for every routed pi-* source, listed or not", () => {
     // rollout.js mints `pi-<provider>` from an open-ended slug, so unlisted
-    // backends (pi-xai, pi-opencode-go) must resolve too. A backend with its
+    // backends (pi-xai, pi-custom) must resolve too. A backend with its
     // own brand mark (pi-dots) keeps it — see the Dots case above.
     for (const provider of [
       "pi-deepseek",
       "pi-openai-codex",
       "pi-xai",
-      "pi-opencode-go",
+      "pi-custom",
     ]) {
       const { container } = render(<ProviderIcon provider={provider} size={16} />);
       const icon = container.querySelector('img[src="/brand-logos/pi.svg"]');

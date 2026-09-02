@@ -8,8 +8,8 @@ const { sqliteOnlyCp: cp } = require("./helpers/sqlite-write");
 const { test } = require("node:test");
 
 const {
-  parseOpencodeDbIncremental,
-  readOpencodeDbMessages,
+  parseAgentDbIncremental,
+  readAgentDbMessages,
   parseKilocodeIncremental,
   normalizeKilocodeProviderToModel,
   resolveKilocodeRoots,
@@ -17,7 +17,7 @@ const {
 } = require("../src/lib/rollout");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Kilo CLI — kilo.ai @kilocode/plugin (OpenCode-fork SQLite)
+// Kilo CLI — compatible agent-message SQLite schema
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildKiloDb(dbPath, rows) {
@@ -38,7 +38,7 @@ function buildKiloDb(dbPath, rows) {
   }
 }
 
-test("Kilo CLI: parseOpencodeDbIncremental with cursorKey='kiloCli' isolates messages from OpenCode index", async () => {
+test("Kilo CLI: parseAgentDbIncremental isolates messages from another provider index", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-kilo-cli-"));
   try {
     const dbPath = path.join(tmp, "kilo.db");
@@ -90,16 +90,16 @@ test("Kilo CLI: parseOpencodeDbIncremental with cursorKey='kiloCli' isolates mes
       },
     ]);
 
-    const dbMessages = readOpencodeDbMessages(dbPath);
+    const dbMessages = readAgentDbMessages(dbPath);
     assert.equal(dbMessages.length, 2);
 
     const queuePath = path.join(tmp, "queue.jsonl");
     const cursors = { version: 1 };
 
-    // Pre-seed opencode cursor state with the SAME message ids to prove
+    // Pre-seed another provider's cursor state with the SAME message ids to prove
     // the kilo cursor namespace is isolated (without isolation, kilo
-    // would dedup against opencode and skip these rows).
-    cursors.opencode = {
+    // would dedup against the other provider and skip these rows).
+    cursors.otherAgent = {
       messages: {
         "sess_kilo_a|msg_kilo_001": {
           lastTotals: {
@@ -116,7 +116,7 @@ test("Kilo CLI: parseOpencodeDbIncremental with cursorKey='kiloCli' isolates mes
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await parseOpencodeDbIncremental({
+    const result = await parseAgentDbIncremental({
       dbMessages,
       cursors,
       queuePath,
@@ -125,20 +125,20 @@ test("Kilo CLI: parseOpencodeDbIncremental with cursorKey='kiloCli' isolates mes
     });
 
     // Both messages must be queued — kilo cursor index started empty,
-    // so the opencode pre-seed must NOT block dedup.
+    // so the other-provider pre-seed must NOT block dedup.
     assert.equal(result.eventsAggregated, 2);
     assert.ok(result.bucketsQueued > 0);
 
-    // Kilo state was persisted in cursors.kiloCli, not cursors.opencode.
+    // Kilo state was persisted in cursors.kiloCli, not cursors.otherAgent.
     assert.ok(cursors.kiloCli);
     assert.ok(cursors.kiloCli.messages["sess_kilo_a|msg_kilo_001"]);
     assert.ok(cursors.kiloCli.messages["sess_kilo_a|msg_kilo_002"]);
 
-    // Opencode cursor still has its pre-seeded entry intact.
-    assert.ok(cursors.opencode.messages["sess_kilo_a|msg_kilo_001"]);
+    // The other provider cursor still has its pre-seeded entry intact.
+    assert.ok(cursors.otherAgent.messages["sess_kilo_a|msg_kilo_001"]);
 
     // Re-running yields zero new events (now keys are in kilo index).
-    const result2 = await parseOpencodeDbIncremental({
+    const result2 = await parseAgentDbIncremental({
       dbMessages,
       cursors,
       queuePath,

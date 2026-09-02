@@ -2,11 +2,10 @@
 
 // Shared command runner for local-CLI limit providers.
 //
-// Extracted from usage-limits.js (which keeps a require of it) so
-// ark-coding-plan-limits.js and future providers don't have to copy it.
+// Extracted from usage-limits.js so local CLI integrations share one
+// hardened implementation instead of copying process-management logic.
 // This is a superset of both former copies: the original's `completeWhen`
-// early-settlement hook, plus the hardening that previously only lived in
-// the ark copy — an abort `signal` wired into the spawn lifecycle, a
+// early-settlement hook, plus an abort `signal` wired into the spawn lifecycle, a
 // `platform` override with `where.exe` discovery on native Windows, and a
 // byte-capped maxBuffer for piped spawn output.
 
@@ -260,7 +259,7 @@ function statBinaryInDirs(binary, searchDirs, platform = process.platform) {
  * null when the binary cannot be found. Callers should spawn the returned
  * path (not the bare name): a bare name goes through PATH search again —
  * and on Windows cmd.exe searches the current directory first, which would
- * let an `arkcli.bat` dropped in the server cwd hijack the spawn.
+ * let a same-named batch file dropped in the server cwd hijack the spawn.
  */
 async function resolveBinaryPath(binary, { commandRunner, home, platform = process.platform, signal, globalBinDirs } = {}) {
   let resolved = null;

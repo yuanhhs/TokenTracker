@@ -31,7 +31,6 @@ const {
   fetchCopilotLimits,
   describeCopilotOtelStatus,
 } = require("../src/lib/usage-limits");
-const { writeArkCodingPlanLimitsCache } = require("../src/lib/ark-coding-plan-limits");
 
 // Match a fetch URL by host (exact or subdomain) rather than substring, so the
 // filter can't be fooled by lookalike hosts — and so CodeQL's
@@ -2371,8 +2370,7 @@ describe("getUsageLimits", () => {
 
       // Claude is the only provider this test cares about; the rest of the
       // fetchImpl calls come from other providers that get scheduled in
-      // parallel (notably OpenCode Go when OPENCODE_GO_WORKSPACE_ID is set
-      // in the test env, e.g. the dev's local .env.local).
+      // parallel when additional providers are configured in the test env.
       const claudeCalls = urls.filter((u) => urlHostMatches(u, "anthropic.com"));
       assert.equal(claudeCalls.length, 1);
       assert.equal(result.claude.configured, true);
@@ -2479,8 +2477,7 @@ describe("getUsageLimits", () => {
         },
       });
 
-      // Other providers (e.g. OpenCode Go when OPENCODE_GO_WORKSPACE_ID is
-      // set in the test process env) may schedule their own fetchImpl calls
+      // Other configured providers may schedule their own fetchImpl calls
       // in parallel; pick the Kimi ones by URL so the assertions don't
       // depend on Promise.all slot order.
       const kimiCalls = calls.filter((c) => urlHostMatches(c.url, "kimi.com"));
@@ -3751,7 +3748,7 @@ describe("normalizePlanLabel", () => {
   });
 
   it("normalizes machine-readable separators in provider plan ids", () => {
-    assert.equal(normalizePlanLabel("personal_standard", "Qoder"), "Personal Standard");
+    assert.equal(normalizePlanLabel("personal_standard", "Example"), "Personal Standard");
   });
 
   it("returns null for a null tier", () => {
@@ -3861,60 +3858,6 @@ describe("getUsageLimits plan_label", () => {
       assert.equal(result.claude.configured, true);
       assert.equal(result.claude.error, null);
       assert.equal(result.claude.plan_label, null);
-    } finally {
-      resetUsageLimitsCache();
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
-  });
-});
-
-describe("getUsageLimits Ark timeout fallback", () => {
-  it("does not return an unverified Ark cache after timeout and forwards the requested platform", async () => {
-    resetUsageLimitsCache();
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-limits-ark-timeout-"));
-    try {
-      // Install-evidence dir: without ~/.arkcli the provider bails out
-      // before any probe, and the timeout path below never runs.
-      fs.mkdirSync(path.join(tmp, ".arkcli"), { recursive: true });
-      const nowMs = Date.now();
-      writeArkCodingPlanLimitsCache({
-        configured: true,
-        error: null,
-        plan_label: "Lite",
-        primary_window: {
-          used_percent: 42,
-          reset_at: new Date(nowMs + 3_600_000).toISOString(),
-          unit: "calls",
-        },
-      }, { home: tmp, nowMs });
-
-      const calls = [];
-      const result = await getUsageLimits({
-        home: tmp,
-        platform: "win32",
-        providerTimeoutMs: 20,
-        securityRunner() {
-          return { status: 1, stdout: "" };
-        },
-        commandRunner(command, args) {
-          calls.push({ command, args });
-          if (command === "where") {
-            return { status: 0, stdout: "C:\\Program Files\\arkcli.exe\n", stderr: "" };
-          }
-          // The provider spawns the resolved absolute path, never a bare
-          // "arkcli" — hang it so the outer provider timeout fires.
-          if (/arkcli(\.exe)?$/i.test(command)) return new Promise(() => {});
-          return { status: 1, stdout: "", stderr: "" };
-        },
-        fetchImpl() {
-          return new Promise(() => {});
-        },
-      });
-
-      assert.deepEqual(calls.find(({ command }) => command === "where")?.args, ["arkcli"]);
-      assert.equal(result.codingPlan.configured, true);
-      assert.equal(result.codingPlan.stale, undefined);
-      assert.match(result.codingPlan.error, /timed out/i);
     } finally {
       resetUsageLimitsCache();
       fs.rmSync(tmp, { recursive: true, force: true });

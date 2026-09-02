@@ -12,8 +12,8 @@ const wsl = require("../src/lib/wsl-probe");
 
 test("resolveInstallPaths returns single path on non-Windows", (t) => {
   mockPlatform(t, "linux");
-  const r = resolveInstallPaths({ nativeValue: "/home/user/.hermes", wslDir: ".hermes" }, {}, {});
-  assert.equal(r.native, "/home/user/.hermes");
+  const r = resolveInstallPaths({ nativeValue: "/home/user/.agent", wslDir: ".agent" }, {}, {});
+  assert.equal(r.native, "/home/user/.agent");
   assert.equal(r.wsl, null);
 });
 
@@ -276,22 +276,22 @@ test("resolveZcodeNativeDbPath does not fall back to APPDATA when ZCODE_HOME DB 
 
 test("ensureNamespacedCursors transparent for already-namespaced cursors", () => {
   const cursors = {
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 100 },
       wsl: { lastCompletedStartedAt: 0 },
     },
   };
-  const ns = ensureNamespacedCursors(cursors, "hermes");
-  assert.equal(ns, cursors.hermes);
+  const ns = ensureNamespacedCursors(cursors, "agent");
+  assert.equal(ns, cursors.agent);
   assert.equal(ns.native.lastCompletedStartedAt, 100);
   assert.equal(ns.wsl.lastCompletedStartedAt, 0);
 });
 
 test("ensureNamespacedCursors default seeds every namespace (no ownership evidence)", () => {
   const cursors = {
-    hermes: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["abc"] },
+    agent: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["abc"] },
   };
-  const ns = ensureNamespacedCursors(cursors, "hermes");
+  const ns = ensureNamespacedCursors(cursors, "agent");
   assert.equal(ns.native.lastCompletedStartedAt, 100, "native seeded with flat data");
   assert.deepEqual(ns.native.unfinishedSessionIds, ["abc"]);
   assert.equal(ns.wsl.lastCompletedStartedAt, 100, "wsl seeded with flat data");
@@ -299,14 +299,14 @@ test("ensureNamespacedCursors default seeds every namespace (no ownership eviden
   assert.notEqual(ns.native, ns.wsl, "namespaces are independent copies");
   ns.wsl.unfinishedSessionIds.push("wsl-only");
   assert.deepEqual(ns.native.unfinishedSessionIds, ["abc"], "deep copies do not alias");
-  assert.ok(ns === cursors.hermes, "cursors.hermes should be replaced with namespace object");
+  assert.ok(ns === cursors.agent, "cursors.agent should be replaced with namespace object");
 });
 
 test("ensureNamespacedCursors seeds only the proven active namespace", () => {
   const cursors = {
-    hermes: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["abc"] },
+    agent: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["abc"] },
   };
-  const ns = ensureNamespacedCursors(cursors, "hermes", ["wsl"]);
+  const ns = ensureNamespacedCursors(cursors, "agent", ["wsl"]);
   assert.equal(ns.native.lastCompletedStartedAt, undefined, "non-active namespace starts empty");
   assert.equal(ns.native.unfinishedSessionIds, undefined, "non-active namespace starts empty");
   assert.equal(ns.wsl.lastCompletedStartedAt, 100, "active namespace gets flat data");
@@ -315,16 +315,16 @@ test("ensureNamespacedCursors seeds only the proven active namespace", () => {
 
 test("ensureNamespacedCursors accepts a bare string activeKey", () => {
   const cursors = {
-    hermes: { lastCompletedStartedAt: 100 },
+    agent: { lastCompletedStartedAt: 100 },
   };
-  const ns = ensureNamespacedCursors(cursors, "hermes", "native");
+  const ns = ensureNamespacedCursors(cursors, "agent", "native");
   assert.equal(ns.native.lastCompletedStartedAt, 100);
   assert.equal(ns.wsl.lastCompletedStartedAt, undefined);
 });
 
 test("ensureNamespacedCursors handles empty provider state", () => {
   const cursors = {};
-  const ns = ensureNamespacedCursors(cursors, "hermes");
+  const ns = ensureNamespacedCursors(cursors, "agent");
   assert.deepEqual(ns.native, {});
   assert.deepEqual(ns.wsl, {});
 });
@@ -440,9 +440,9 @@ test("gemini/antigravity WSL path resolves on Windows both mode", (t) => {
   assert.equal(r.wsl, wslDir);
 });
 
-// ── Codex CLI & OpenCode path resolution (PR #261) ────────────────────────────
+// ── Codex CLI path resolution ─────────────────────────────────────────────────
 
-test("codex/opencode native paths default correctly", (t) => {
+test("codex native path defaults correctly", (t) => {
   mockPlatform(t, "linux");
   const home = "/home/user";
   const rCodex = resolveInstallPaths(
@@ -453,18 +453,11 @@ test("codex/opencode native paths default correctly", (t) => {
   assert.equal(rCodex.native, path.join(home, ".codex"));
   assert.equal(rCodex.wsl, null);
 
-  const rOpencode = resolveInstallPaths(
-    { nativeValue: path.join(home, ".local", "share", "opencode") },
-    {},
-    {},
-  );
-  assert.equal(rOpencode.native, path.join(home, ".local", "share", "opencode"));
-  assert.equal(rOpencode.wsl, null);
 });
 
-test("codex/opencode WSL paths resolve on Windows both mode", (t) => {
+test("codex WSL paths resolve on Windows both mode", (t) => {
   mockPlatform(t, "win32");
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ir-opencode-wsl-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ir-codex-wsl-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
   const nativeDir = path.join(tmpDir, "native");
   const wslDir = path.join(tmpDir, "wsl");
@@ -478,15 +471,4 @@ test("codex/opencode WSL paths resolve on Windows both mode", (t) => {
   );
   assert.equal(r.native, nativeDir);
   assert.equal(r.wsl, wslDir);
-});
-
-test("opencode paths union correctly combines storage and db paths", () => {
-  const storagePaths = { native: "/storage/native", wsl: null };
-  const dbPaths = { native: null, wsl: "/db/wsl" };
-  const opencodePaths = {
-    native: storagePaths.native || dbPaths.native,
-    wsl: storagePaths.wsl || dbPaths.wsl,
-  };
-  assert.equal(opencodePaths.native, "/storage/native");
-  assert.equal(opencodePaths.wsl, "/db/wsl");
 });

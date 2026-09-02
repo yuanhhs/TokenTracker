@@ -2,14 +2,12 @@
 // counts, and the GLSL that moves every particle on the GPU. Colors are
 // numeric (three.js) — the shared purple palette lives in palette.js.
 
-// Provider orbs orbit the WHOLE hero like satellites — four above, four
-// below, mirror-symmetric pairs — with the top-center and bottom-center kept
-// open so the headline and the live counter breathe. RING_SLOTS are
+// Provider orbs orbit the whole hero like satellites, with the top-center and
+// bottom-center kept open so the headline and the live counter breathe. RING_SLOTS are
 // hand-placed screen positions (viewport %, y down); index i pairs with
 // GALAXY_PROVIDERS[i].
 export const GALAXY_PROVIDERS = [
   "claude", // right upper flank
-  "opencode", // top-right
   "gemini", // top-left
   "copilot", // left upper flank
   "codex", // left, core level
@@ -20,7 +18,6 @@ export const GALAXY_PROVIDERS = [
 
 const RING_SLOTS = [
   { left: 88, top: 29 }, // claude
-  { left: 73, top: 9 }, // opencode
   { left: 27, top: 9 }, // gemini
   { left: 12, top: 29 }, // copilot
   { left: 9, top: 57 }, // codex
@@ -172,7 +169,7 @@ export const GALAXY_VERTEX = /* glsl */ `
   uniform float uYOffset;
   uniform float uIntro;
   uniform float uOrbit;
-  uniform vec3 uAnchors[8];
+  uniform vec3 uAnchors[${GALAXY_PROVIDERS.length}];
   uniform vec3 uColorA;
   uniform vec3 uColorB;
   uniform vec3 uColorC;

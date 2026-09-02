@@ -206,7 +206,7 @@ describe("/functions/tokentracker-skills auth + input", () => {
   });
 
   it("GET mode=skill_usage joins nested installed skills by leaf name", async () => {
-    writeLocalSkill(".hermes/skills", "apple/apple-notes", "---\nname: Apple Notes\ndescription: Nested\n---\n");
+    writeLocalSkill(".gemini/skills", "apple/apple-notes", "---\nname: Apple Notes\ndescription: Nested\n---\n");
     writeSkillUsageTranscript("apple-notes");
 
     const { status, body } = await call({ method: "GET", search: "?mode=skill_usage&force=1" });
@@ -220,7 +220,7 @@ describe("/functions/tokentracker-skills auth + input", () => {
   });
 
   it("GET mode=skill_usage does not join ambiguous nested leaf names", async () => {
-    writeLocalSkill(".hermes/skills", "alpha/shared-note", "---\ndescription: first\n---\n");
+    writeLocalSkill(".gemini/skills", "alpha/shared-note", "---\ndescription: first\n---\n");
     writeLocalSkill(".codex/skills", "beta/shared-note", "---\ndescription: second\n---\n");
     writeSkillUsageTranscript("shared-note");
 
@@ -239,7 +239,7 @@ describe("/functions/tokentracker-skills auth + input", () => {
   });
 
   it("GET mode=skill_usage still joins a unique skill name when leaf names are ambiguous", async () => {
-    writeLocalSkill(".hermes/skills", "alpha/name-leaf-collision", "---\nname: name-leaf-collision\n---\n");
+    writeLocalSkill(".gemini/skills", "alpha/name-leaf-collision", "---\nname: name-leaf-collision\n---\n");
     writeLocalSkill(".codex/skills", "beta/name-leaf-collision", "---\nname: Different Name\n---\n");
     writeSkillUsageTranscript("name-leaf-collision");
 

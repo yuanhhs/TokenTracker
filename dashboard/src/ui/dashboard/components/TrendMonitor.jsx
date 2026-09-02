@@ -101,7 +101,6 @@ const MODEL_PROVIDER_COLORS = {
   kimi: "#a78bfa",
   moonshot: "#a78bfa",
 
-  opencode: "#f59e0b",
   deepseek: "#f59e0b",
   
   droid: "#ef4444",

@@ -25,7 +25,7 @@ Location: `~/.tokentracker/tracker/outcomes.jsonl` (next to `queue.jsonl`, but
 
 ```jsonl
 {"timestamp":"2026-06-30T14:02:11Z","tool":"claude","model":"claude-opus-4-8","accepted":true,"task_type":"feature"}
-{"timestamp":"2026-06-30T14:40:55Z","tool":"opencode","model":"kimi-k2.7-code","accepted":true}
+{"timestamp":"2026-06-30T14:40:55Z","tool":"codex","model":"kimi-k2.7-code","accepted":true}
 {"timestamp":"2026-06-30T15:10:03Z","tool":"cursor","model":"gpt-5.5","accepted":false}
 ```
 

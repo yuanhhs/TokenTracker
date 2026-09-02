@@ -37,17 +37,7 @@ const {
   upsertGeminiHook,
   isGeminiHookConfigured,
 } = require("../lib/gemini-config");
-const {
-  resolveOpencodeConfigDir,
-  upsertOpencodePlugin,
-  isOpencodePluginInstalled,
-} = require("../lib/opencode-config");
 const { isCursorInstalled, extractCursorSessionToken } = require("../lib/cursor-config");
-const { removeOpenclawHookConfig, probeOpenclawHookState } = require("../lib/openclaw-hook");
-const {
-  installOpenclawSessionPlugin,
-  probeOpenclawSessionPluginState,
-} = require("../lib/openclaw-session-plugin");
 const {
   resolveGrokHome,
   resolveGrokHooksDir,
@@ -103,7 +93,7 @@ const DIVIDER = "----------------------------------------------";
 const DEFAULT_DASHBOARD_URL = "https://www.tokentracker.cc";
 
 // Single source of truth for the welcome screen's provider count + sample list.
-// test/discovery-metadata.test.js keeps this aligned with public 32-tool copy.
+// test/discovery-metadata.test.js keeps this aligned with the public provider copy.
 const SUPPORTED_PROVIDERS = [
   "Claude Code",
   "Codex CLI",
@@ -111,10 +101,7 @@ const SUPPORTED_PROVIDERS = [
   "Gemini CLI",
   "Antigravity",
   "Kiro",
-  "OpenCode",
-  "OpenClaw",
   "Every Code",
-  "Hermes Agent",
   "GitHub Copilot",
   "Kimi Code",
   "CodeBuddy",
@@ -129,12 +116,10 @@ const SUPPORTED_PROVIDERS = [
   "Kilo CLI",
   "Kilo Code",
   "Roo Code",
-  "Zed Agent",
   "Goose",
   "Droid",
   "Mimo",
   "ZCode",
-  "Qoder",
   "AnythingLLM Desktop",
   "Claude Science",
   "DeepSeek Harness",
@@ -475,15 +460,6 @@ async function repairRuntimeIntegrations({
     else integrations[key] = { changed: false, skippedReason: "config-missing" };
   }
 
-  if (await isDir(context.opencodeConfigDir)) {
-    await attempt("opencode", () => upsertOpencodePlugin({
-      configDir: context.opencodeConfigDir,
-      notifyPath,
-    }));
-  } else {
-    integrations.opencode = { changed: false, skippedReason: "config-missing" };
-  }
-
   return { notifyPath, integrations, warnings };
 }
 
@@ -512,8 +488,6 @@ function buildIntegrationTargets({ home, trackerDir, notifyPath }) {
   const geminiConfigDir = resolveGeminiConfigDir({ home, env: process.env });
   const geminiSettingsPath = resolveGeminiSettingsPath({ configDir: geminiConfigDir });
   const geminiHookCommand = buildGeminiHookCommand(notifyPath);
-  const opencodeConfigDir = resolveOpencodeConfigDir({ home, env: process.env });
-
   return {
     trackerDir,
     codexConfigPath,
@@ -534,7 +508,6 @@ function buildIntegrationTargets({ home, trackerDir, notifyPath }) {
     geminiConfigDir,
     geminiSettingsPath,
     geminiHookCommand,
-    opencodeConfigDir,
   };
 }
 
@@ -588,20 +561,6 @@ async function applyIntegrationSetup({
     summary.push({ label: "Gemini", status: "installed", detail: "Hooks installed" });
   } else {
     summary.push({ label: "Gemini", status: "skipped", detail: "Config not found" });
-  }
-
-  const opencodeResult = await upsertOpencodePlugin({
-    configDir: context.opencodeConfigDir,
-    notifyPath,
-  });
-  if (opencodeResult?.skippedReason === "config-missing") {
-    summary.push({ label: "Opencode Plugin", status: "skipped", detail: "Config not found" });
-  } else {
-    summary.push({
-      label: "Opencode Plugin",
-      status: opencodeResult?.changed ? "installed" : "set",
-      detail: "Plugin installed",
-    });
   }
 
   // Cursor (API-based, no hooks needed)
@@ -747,7 +706,7 @@ async function applyIntegrationSetup({
   }
 
   // Kilo CLI (kilo.ai @kilocode/plugin): passive reader — no hook installation
-  // needed. Reuses OpenCode-fork SQLite schema at ~/.local/share/kilo/kilo.db
+  // needed. Reads the compatible SQLite schema at ~/.local/share/kilo/kilo.db
   // (override via KILO_HOME).
   {
     const xdgDataHome = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
@@ -759,7 +718,7 @@ async function applyIntegrationSetup({
   }
 
   // Mimo (mimocode): passive reader — no hook installation needed. Reuses the
-  // OpenCode-fork SQLite schema at ~/.local/share/mimocode/mimocode.db
+  // compatible SQLite schema at ~/.local/share/mimocode/mimocode.db
   // (override via MIMO_HOME).
   {
     const xdgDataHome = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
@@ -823,63 +782,6 @@ async function applyIntegrationSetup({
     summary.push({ label: "WorkBuddy", status: "installed", detail: "Hooks installed" });
   } else {
     summary.push({ label: "WorkBuddy", status: "skipped", detail: "Config not found" });
-  }
-
-  const openclawBefore = await probeOpenclawSessionPluginState({
-    home,
-    trackerDir,
-    env: process.env,
-  });
-  const openclawInstall = await installOpenclawSessionPlugin({
-    home,
-    trackerDir,
-    packageName: "tokentracker-cli",
-    env: process.env,
-  });
-  if (openclawInstall?.skippedReason === "openclaw-cli-missing") {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: "OpenClaw CLI not found",
-    });
-  } else if (openclawInstall?.skippedReason === "openclaw-plugins-install-failed") {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: `Install failed${openclawInstall.error ? `: ${openclawInstall.error}` : ""}`,
-    });
-  } else if (openclawInstall?.skippedReason === "openclaw-config-unreadable") {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: openclawInstall.error
-        ? `OpenClaw config unreadable: ${openclawInstall.error}`
-        : "OpenClaw config unreadable",
-    });
-  } else if (openclawInstall?.configured) {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: openclawBefore?.configured ? "set" : "installed",
-      detail: openclawBefore?.configured
-        ? "Session plugin already linked"
-        : "Session plugin linked (restart OpenClaw gateway to activate)",
-    });
-  } else {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: "OpenClaw session plugin unavailable",
-    });
-  }
-
-  const legacyHookState = await probeOpenclawHookState({ home, trackerDir, env: process.env });
-  if (legacyHookState?.configured || legacyHookState?.linked || legacyHookState?.enabled) {
-    await removeOpenclawHookConfig({ home, trackerDir, env: process.env });
-    summary.push({
-      label: "OpenClaw Hook (legacy)",
-      status: "updated",
-      detail: "Removed legacy command hook (migrated to session plugin)",
-    });
   }
 
   const codeProbe = await probeFile(context.codeConfigPath);
@@ -978,61 +880,6 @@ async function previewIntegrations({ context }) {
     });
   } else {
     summary.push({ label: "Gemini", status: "skipped", detail: "Config not found" });
-  }
-
-  const opencodeDirExists = await isDir(context.opencodeConfigDir);
-  const installed = await isOpencodePluginInstalled({ configDir: context.opencodeConfigDir });
-  const opencodeDetail = installed
-    ? "Plugin already installed"
-    : opencodeDirExists
-      ? "Will install plugin"
-      : "Will create config and install plugin";
-  summary.push({
-    label: "Opencode Plugin",
-    status: "installed",
-    detail: opencodeDetail,
-  });
-
-  const openclawState = await probeOpenclawSessionPluginState({
-    home,
-    trackerDir: context.trackerDir,
-    env: process.env,
-  });
-  if (openclawState?.skippedReason === "openclaw-config-missing") {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: "OpenClaw config not found",
-    });
-  } else if (openclawState?.skippedReason === "openclaw-config-unreadable") {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: "skipped",
-      detail: openclawState.error
-        ? `OpenClaw config unreadable: ${openclawState.error}`
-        : "OpenClaw config unreadable",
-    });
-  } else {
-    summary.push({
-      label: "OpenClaw Session Plugin",
-      status: openclawState?.configured ? "set" : "installed",
-      detail: openclawState?.configured
-        ? "Session plugin already linked"
-        : "Will link session plugin (restart OpenClaw gateway to activate)",
-    });
-  }
-
-  const legacyHookState = await probeOpenclawHookState({
-    home,
-    trackerDir: context.trackerDir,
-    env: process.env,
-  });
-  if (legacyHookState?.configured || legacyHookState?.linked || legacyHookState?.enabled) {
-    summary.push({
-      label: "OpenClaw Hook (legacy)",
-      status: "updated",
-      detail: "Will remove legacy command hook during migration",
-    });
   }
 
   const codeProbe = await probeFile(context.codeConfigPath);
@@ -1250,7 +1097,7 @@ try {
   const originalPath =
     source === 'every-code'
       ? codeOriginalPath
-      : source === 'claude' || source === 'opencode' || source === 'gemini' || source === 'codebuddy' || source === 'workbuddy'
+      : source === 'claude' || source === 'gemini' || source === 'codebuddy' || source === 'workbuddy'
         ? null
         : codexOriginalPath;
   if (originalPath) {

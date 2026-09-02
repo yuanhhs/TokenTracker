@@ -23,19 +23,13 @@ const {
   filterColdCodexRolloutFiles,
   listClaudeProjectFiles,
   listGeminiSessionFiles,
-  listOpencodeMessageFiles,
-  readOpencodeDbMessages,
-  readOpencodeDbMessagesIncremental,
+  readAgentDbMessages,
   readMimoDbMessages,
   readZcodeDbMessages,
   hasZcodeNativeUsageSchema,
-  resolveQoderDbPaths,
-  resolveQoderCnDbPaths,
-  readQoderDbMessages,
   resolveKiroDbPath,
   resolveKiroJsonlPath,
   resolveKiroBasePath,
-  resolveHermesPath,
   resolveCopilotOtelPaths,
   normalizeCopilotDbPath,
   uniqueCopilotDbPaths,
@@ -46,22 +40,13 @@ const {
   parseRolloutIncremental,
   parseClaudeIncremental,
   parseGeminiIncremental,
-  parseOpencodeIncremental,
-  parseOpencodeDbIncremental,
-  parseQoderDbIncremental,
-  parseOpenclawIncremental,
-  resolveOpenclawSessionFiles,
-  resolveOpenclawHome,
-  openclawCursorKey,
+  parseAgentDbIncremental,
   resolveClaudeScienceDbPaths,
   readClaudeScienceFrames,
   parseClaudeScienceIncremental,
   parseCursorApiIncremental,
   parseKiroIncremental,
-  parseHermesIncremental,
   gooseInstallOwnsCursor,
-  zedInstallOwnsCursor,
-  hermesInstallOwnsCursor,
   kiroInstallOwnsCursor,
   kiroCliInstallOwnsCursor,
   copilotOtelCursorHasLegacyCliUsage,
@@ -101,8 +86,6 @@ const {
   parseKilocodeIncremental,
   resolveRoocodeTaskFiles,
   parseRoocodeIncremental,
-  resolveZedDbPath,
-  parseZedIncremental,
   resolveAnythingllmDbPath,
   parseAnythingllmIncremental,
   resolveGooseDbPath,
@@ -264,7 +247,6 @@ const AUTO_SYNC_SOURCES = new Set([
   "gemini",
   "goose",
   "grok",
-  "hermes",
   "kilo-cli",
   "kilocode",
   "kiro",
@@ -272,17 +254,12 @@ const AUTO_SYNC_SOURCES = new Set([
   "kimi-code",
   "mimo",
   "omp",
-  "opencode",
-  "openclaw",
   "pi",
-  "qoder",
-  "qoder-cn",
   "reasonix",
   "roocode",
   "trae-cn",
   "workbuddy",
   "zcode",
-  "zed",
 ]);
 const BACKGROUND_AUTO_SYNC_SOURCES = new Set([
   // Keep unscoped native 5-minute syncs bounded to dated local session trees.
@@ -458,10 +435,6 @@ async function cmdSync(argv, context = {}) {
   const { trackerDir } = await resolveTrackerPaths({ home });
 
   await ensureDir(trackerDir);
-  if (opts.fromOpenclaw) {
-    await writeOpenclawSignal(trackerDir);
-  }
-
   const lockPath = path.join(trackerDir, "sync.lock");
   const lock = await acquireSyncLock(lockPath, opts, lockWaitOptions);
   if (!lock) {
@@ -554,12 +527,6 @@ async function cmdSync(argv, context = {}) {
     const xdgDataHome = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
     const kiloHome = process.env.KILO_HOME || path.join(xdgDataHome, "kilo");
     const mimoHome = process.env.MIMO_HOME || path.join(xdgDataHome, "mimocode");
-
-    // OpenClaw session plugin integration: lifecycle hooks request an
-    // OpenClaw-only auto sync so unrelated providers do not get walked.
-    const openclawSignal = opts.fromOpenclaw
-      ? resolveOpenclawSignal({ env: process.env })
-      : null;
 
     const autoSourceScope = resolveAutoSourceScope(opts);
     // --background controls local scan breadth; --drain only controls upload
@@ -783,39 +750,6 @@ async function cmdSync(argv, context = {}) {
       codexCursorLoadRestarted = Boolean(loadResult?.restarted);
     }
 
-    // Plugin-triggered sync points at one specific session file; a normal full
-    // sync also passively scans every on-disk OpenClaw transcript so usage is
-    // captured even when the session plugin never fires (issue #264). The scan
-    // is gated to full syncs so a scoped `--from-openclaw` hook still only
-    // touches its own file and the 5-minute background tick stays cheap. The
-    // event-identity dedup makes the plugin and passive paths idempotent, so
-    // overlap on the same file is safe.
-    //
-    // Keyed by openclawCursorKey, not the raw path: that is the same identity
-    // the parser assigns cursors by, so a plugin-supplied path and a scanned
-    // path that differ only in Windows casing collapse to one entry instead of
-    // being parsed twice.
-    const openclawSessionFiles = new Map();
-    if (openclawSignal?.sessionFile) {
-      openclawSessionFiles.set(openclawCursorKey(openclawSignal.sessionFile), {
-        path: openclawSignal.sessionFile,
-        source: "openclaw",
-      });
-    }
-    if (isFullSourceScan && sourceAllowed("openclaw")) {
-      try {
-        for (const f of await resolveOpenclawSessionFiles(process.env)) {
-          const key = openclawCursorKey(f);
-          if (!openclawSessionFiles.has(key)) {
-            openclawSessionFiles.set(key, { path: f, source: "openclaw" });
-          }
-        }
-      } catch (err) {
-        warnProviderParseFailure("OpenClaw", err, opts);
-      }
-    }
-    const openclawFiles = Array.from(openclawSessionFiles.values());
-
     if (progress?.enabled) {
       progress.start(
         `Parsing ${renderBar(0)} 0/${formatNumber(rolloutFilesForParse.length)} files | buckets 0`,
@@ -881,40 +815,6 @@ async function cmdSync(argv, context = {}) {
         deferredSyncs: deferredCodexAuditSyncs,
       });
     }
-
-    let openclawResult = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("openclaw") && openclawFiles.length > 0) {
-      // Parses plugin-triggered and/or passively discovered session files.
-      try {
-        openclawResult = await parseOpenclawIncremental({
-          sessionFiles: openclawFiles,
-          cursors,
-          queuePath,
-          projectQueuePath,
-          source: "openclaw",
-        });
-      } catch (err) {
-        warnProviderParseFailure("OpenClaw", err, opts);
-      }
-    }
-
-    let openclawFallback = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("openclaw")) {
-      try {
-        openclawFallback = await applyOpenclawTotalsFallback({
-          trackerDir,
-          signal: openclawSignal,
-          cursors,
-          queuePath,
-          projectQueuePath,
-        });
-      } catch (err) {
-        warnProviderParseFailure("OpenClaw", err, opts);
-      }
-    }
-    openclawResult.filesProcessed += openclawFallback.filesProcessed;
-    openclawResult.eventsAggregated += openclawFallback.eventsAggregated;
-    openclawResult.bucketsQueued += openclawFallback.bucketsQueued;
 
     let claudeFiles = [];
     if (sourceAllowed("claude")) {
@@ -1073,188 +973,6 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    let opencodeResult = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("opencode")) {
-      const opencodeStorageNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
-      const wslOpencodeStorageDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
-        ? wsl.discoverWslHome(".local/share/opencode")
-        : null;
-      const storagePaths = resolveInstallPaths({
-        nativeValue: opencodeStorageNativeValue,
-        wslValue: wslOpencodeStorageDir,
-      });
-
-      const opencodeDbNativeValue = process.env.OPENCODE_HOME || path.join(xdgDataHome, "opencode");
-      const wslOpencodeDbDir = process.platform === "win32" && wsl.shouldProbeWsl(process.env)
-        ? wsl.discoverWslHome(".local/share/opencode")
-        : null;
-      const dbPaths = resolveInstallPaths({
-        nativeValue: opencodeDbNativeValue,
-        wslValue: wslOpencodeDbDir,
-      });
-
-      const parseOpencodeForInstall = async (options) => {
-        const { storageDir, dbDir, cursors } = options;
-        let filesResult = { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-        if (storageDir) {
-          const storagePath = path.join(storageDir, "storage");
-          const messageFiles = await listOpencodeMessageFiles(storagePath);
-          if (messageFiles.length > 0) {
-            filesResult = await parseOpencodeIncremental({
-              ...options,
-              messageFiles,
-            });
-          }
-        }
-
-        let dbResult = { messagesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-        if (dbDir) {
-          const dbPath = path.join(dbDir, "opencode.db");
-          const dbRead = readOpencodeDbMessagesIncremental(
-            dbPath,
-            cursors?.opencode?.dbCursor,
-          );
-          if (dbRead.messages.length > 0 || dbRead.cursor) {
-            dbResult = await parseOpencodeDbIncremental({
-              ...options,
-              dbMessages: dbRead.messages,
-              dbCursor: dbRead.cursor,
-              dbPath,
-            });
-          }
-        }
-
-        return {
-          recordsProcessed: filesResult.filesProcessed + dbResult.messagesProcessed,
-          eventsAggregated: filesResult.eventsAggregated + dbResult.eventsAggregated,
-          bucketsQueued: filesResult.bucketsQueued + dbResult.bucketsQueued,
-        };
-      };
-
-      const opencodePaths = {
-        native: storagePaths.native || dbPaths.native,
-        wsl: storagePaths.wsl || dbPaths.wsl,
-      };
-
-      const multiResult = await multiInstallParse({
-        paths: opencodePaths,
-        parserFn: parseOpencodeForInstall,
-        providerName: "opencode",
-        cursors,
-        queuePath,
-        projectQueuePath,
-        getParams: (p, key) => ({ storageDir: storagePaths[key], dbDir: dbPaths[key] }),
-        onProgress: (p) => {
-          if (!progress?.enabled) return;
-          const pct = p.total > 0 ? p.index / p.total : 1;
-          progress.update(
-            `Parsing Opencode (${p.install || "default"}) ${renderBar(pct)} ${formatNumber(
-              p.index,
-            )}/${formatNumber(p.total)} | buckets ${formatNumber(p.bucketsQueued)}`,
-          );
-        },
-        source: "opencode",
-      });
-
-      opencodeResult = {
-        filesProcessed: multiResult.recordsProcessed,
-        eventsAggregated: multiResult.eventsAggregated,
-        bucketsQueued: multiResult.bucketsQueued,
-      };
-    }
-
-    let qoderResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("qoder")) {
-      const qoderPaths = resolveQoderDbPaths({
-        home,
-        env: process.env,
-        platform: process.platform,
-      });
-      if (qoderPaths.native || qoderPaths.wsl) {
-        if (progress?.enabled) {
-          progress.start(`Parsing Qoder ${renderBar(0)} | buckets 0`);
-        }
-        try {
-          const result = await multiInstallParse({
-            paths: qoderPaths,
-            parserFn: async ({ dbPath, ...rest }) => {
-              const dbMessages = await readQoderDbMessages(dbPath);
-              const parsed = await parseQoderDbIncremental({ dbMessages, dbPath, ...rest });
-              return {
-                recordsProcessed: parsed.messagesProcessed || 0,
-                eventsAggregated: parsed.eventsAggregated || 0,
-                bucketsQueued: parsed.bucketsQueued || 0,
-              };
-            },
-            providerName: "qoder",
-            cursors,
-            queuePath,
-            projectQueuePath,
-            getParams: (dbPath) => ({ dbPath }),
-            onProgress: makeProviderProgress("Qoder"),
-          });
-          qoderResult = {
-            recordsProcessed: result.recordsProcessed || 0,
-            eventsAggregated: result.eventsAggregated || 0,
-            bucketsQueued: result.bucketsQueued || 0,
-          };
-        } catch (err) {
-          warnProviderParseFailure("Qoder", err, opts);
-        }
-      }
-    }
-
-    // ── Qoder CN (国内版) — same SharedClientCache/local.db schema, separate
-    // Application Support/QoderCN data directory. Tracked as its own source
-    // with its own cursor namespace: the two DBs each number rowids from 1, so
-    // a shared cursor would mis-dedup across installs.
-    let qoderCnResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("qoder-cn")) {
-      const qoderCnPaths = resolveQoderCnDbPaths({
-        home,
-        env: process.env,
-        platform: process.platform,
-      });
-      if (qoderCnPaths.native || qoderCnPaths.wsl) {
-        if (progress?.enabled) {
-          progress.start(`Parsing Qoder CN ${renderBar(0)} | buckets 0`);
-        }
-        try {
-          const result = await multiInstallParse({
-            paths: qoderCnPaths,
-            parserFn: async ({ dbPath, ...rest }) => {
-              const dbMessages = await readQoderDbMessages(dbPath, { label: "Qoder CN" });
-              const parsed = await parseQoderDbIncremental({
-                dbMessages,
-                dbPath,
-                sourceKey: "qoder-cn",
-                cursorKey: "qoder-cn",
-                ...rest,
-              });
-              return {
-                recordsProcessed: parsed.messagesProcessed || 0,
-                eventsAggregated: parsed.eventsAggregated || 0,
-                bucketsQueued: parsed.bucketsQueued || 0,
-              };
-            },
-            providerName: "qoder-cn",
-            cursors,
-            queuePath,
-            projectQueuePath,
-            getParams: (dbPath) => ({ dbPath }),
-            onProgress: makeProviderProgress("Qoder CN"),
-          });
-          qoderCnResult = {
-            recordsProcessed: result.recordsProcessed || 0,
-            eventsAggregated: result.eventsAggregated || 0,
-            bucketsQueued: result.bucketsQueued || 0,
-          };
-        } catch (err) {
-          warnProviderParseFailure("Qoder CN", err, opts);
-        }
-      }
-    }
-
     // ── Claude Science (Anthropic's local research workbench, issue #246) ──
     // Per-frame token usage lives on the `frames` table of operon-cli.db.
     // Passive, incremental, subtract-on-change. There can be more than one DB:
@@ -1294,13 +1012,13 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    async function parseOpencodeDbForInstall({ dbPath, readFn, source, cursorKey, ...rest }) {
+    async function parseAgentDbForInstall({ dbPath, readFn, source, cursorKey, ...rest }) {
       if (!dbPath || !fssync.existsSync(dbPath)) {
         return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
       }
       const dbMessages = readFn(dbPath);
       if (dbMessages.length === 0) return { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-      const result = await parseOpencodeDbIncremental({ dbMessages, dbPath, source, cursorKey, ...rest });
+      const result = await parseAgentDbIncremental({ dbMessages, dbPath, source, cursorKey, ...rest });
       return {
         recordsProcessed: result.messagesProcessed || 0,
         eventsAggregated: result.eventsAggregated || 0,
@@ -1308,7 +1026,7 @@ async function cmdSync(argv, context = {}) {
       };
     }
 
-    // ── Kilo CLI (kilo.ai @kilocode/plugin — OpenCode-fork SQLite) ──
+    // ── Kilo CLI (kilo.ai @kilocode/plugin — compatible SQLite schema) ──
     let kiloResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
     if (sourceAllowed("kilo-cli")) {
       const kiloNativeValue = process.platform === "win32" && typeof process.env.APPDATA === "string"
@@ -1322,15 +1040,15 @@ async function cmdSync(argv, context = {}) {
         if (progress?.enabled) progress.start(`Parsing Kilo CLI ${renderBar(0)} | buckets 0`);
         try {
           kiloResult = await multiInstallParse({
-            paths: kiloPaths, parserFn: parseOpencodeDbForInstall, providerName: "kiloCli",
-            cursors, getParams: (p) => ({ dbPath: p, readFn: readOpencodeDbMessages, source: "kilo-cli", cursorKey: "kiloCli" }),
+            paths: kiloPaths, parserFn: parseAgentDbForInstall, providerName: "kiloCli",
+            cursors, getParams: (p) => ({ dbPath: p, readFn: readAgentDbMessages, source: "kilo-cli", cursorKey: "kiloCli" }),
             queuePath, projectQueuePath, onProgress: makeProviderProgress("Kilo CLI"),
           });
         } catch (err) { warnProviderParseFailure("Kilo CLI", err, opts); }
       }
     }
 
-    // ── Mimo (mimocode — OpenCode-fork SQLite) ──
+    // ── Mimo (mimocode — compatible SQLite schema) ──
     // readMimoDbMessages filters out mirrored Claude Code rows to avoid
     // double-counting usage already counted as source=claude.
     let mimoResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
@@ -1346,7 +1064,7 @@ async function cmdSync(argv, context = {}) {
         if (progress?.enabled) progress.start(`Parsing Mimo ${renderBar(0)} | buckets 0`);
         try {
           mimoResult = await multiInstallParse({
-            paths: mimoPaths, parserFn: parseOpencodeDbForInstall, providerName: "mimo",
+            paths: mimoPaths, parserFn: parseAgentDbForInstall, providerName: "mimo",
             cursors, getParams: (p) => ({ dbPath: p, readFn: readMimoDbMessages, source: "mimo", cursorKey: "mimo" }),
             queuePath, projectQueuePath, onProgress: makeProviderProgress("Mimo"),
           });
@@ -1354,7 +1072,7 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    // ── ZCode (Z.ai's coding agent — OpenCode-fork SQLite) ──
+    // ── ZCode (Z.ai's coding agent — compatible SQLite schema) ──
     let zcodeResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
     if (sourceAllowed("zcode")) {
       const zcodeNativeValue = resolveZcodeNativeDbPath({ home });
@@ -1378,7 +1096,7 @@ async function cmdSync(argv, context = {}) {
             });
           }
           zcodeResult = await multiInstallParse({
-            paths: zcodePaths, parserFn: parseOpencodeDbForInstall, providerName: "zcode",
+            paths: zcodePaths, parserFn: parseAgentDbForInstall, providerName: "zcode",
             cursors, getParams: (p) => ({ dbPath: p, readFn: readZcodeDbMessages, source: "zcode", cursorKey: "zcode" }),
             queuePath, projectQueuePath, onProgress: makeProviderProgress("ZCode"),
           });
@@ -1538,39 +1256,6 @@ async function cmdSync(argv, context = {}) {
         });
       } catch (err) {
         warnProviderParseFailure("Droid", err, opts);
-      }
-    }
-
-    // ── Zed Agent (all providers; cumulative-delta over SQLite threads) ──
-    const zedDbPath = resolveZedDbPath(process.env);
-    let zedResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("zed")) {
-      const zedMode = wsl.getWslMode(process.env);
-      if (zedMode === "both" && process.platform === "win32") {
-        const home = os.homedir();
-        const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
-        const nativeDb = path.join(local, "Zed", "threads", "threads.db");
-        const wslThreadsDir = wsl.shouldProbeWsl(process.env) ? wsl.discoverWslHome(".local/share/zed/threads") : null;
-        const wslDb = wslThreadsDir ? path.join(wslThreadsDir, "threads.db") : null;
-        const zedPaths = resolveInstallPaths({ nativeValue: nativeDb, wslValue: wslDb });
-        if (zedPaths.native || zedPaths.wsl) {
-          if (progress?.enabled) progress.start(`Parsing Zed Agent ${renderBar(0)} 0 threads | buckets 0`);
-          try {
-            zedResult = await multiInstallParse({
-              paths: zedPaths, parserFn: parseZedIncremental, providerName: "zed",
-              cursors, getParams: (p) => ({ dbPath: p }), queuePath, onProgress: zedOnProgress,
-              detectInstall: zedInstallOwnsCursor,
-            });
-          } catch (err) { warnProviderParseFailure("Zed Agent", err, opts); }
-        }
-      } else if (zedDbPath && fssync.existsSync(zedDbPath)) {
-        if (progress?.enabled) progress.start(`Parsing Zed Agent ${renderBar(0)} 0 threads | buckets 0`);
-        ensureFlatCursor(cursors, "zed", process.env);
-        try {
-          zedResult = await parseZedIncremental({
-            dbPath: zedDbPath, cursors, queuePath, onProgress: zedOnProgress,
-          });
-        } catch (err) { warnProviderParseFailure("Zed Agent", err, opts); }
       }
     }
 
@@ -1778,77 +1463,11 @@ async function cmdSync(argv, context = {}) {
       }
     }
 
-    // ── Hermes Agent (SQLite-based) ──
-    let hermesResult = { recordsProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-    if (sourceAllowed("hermes")) {
-      const override = process.env.TOKENTRACKER_HERMES_HOME;
-      const overridePath = typeof override === "string" && override.trim().length > 0 ? override.trim() : null;
-      if (overridePath) {
-        if (fssync.existsSync(overridePath)) {
-          if (progress?.enabled) {
-            progress.start(`Parsing Hermes ${renderBar(0)} | buckets 0`);
-          }
-          ensureFlatCursor(cursors, "hermes", process.env);
-          try {
-            hermesResult = await parseHermesIncremental({
-              hermesPath: overridePath,
-              cursors,
-              queuePath,
-              onProgress: hermesOnProgress,
-            });
-          } catch (err) {
-            warnProviderParseFailure("Hermes", err, opts);
-          }
-        }
-      } else {
-        const home = os.homedir();
-        const defaultPath = path.join(home, ".hermes");
-        const nativeValue = process.platform === "win32" && typeof process.env.LOCALAPPDATA === "string"
-          ? path.join(process.env.LOCALAPPDATA.trim(), "hermes") : defaultPath;
-        const hermesPaths = resolveInstallPaths({ nativeValue, wslDir: ".hermes" });
-        if (hermesPaths.native || hermesPaths.wsl) {
-          if (progress?.enabled) {
-            progress.start(`Parsing Hermes ${renderBar(0)} | buckets 0`);
-          }
-          try {
-            hermesResult = await multiInstallParse({
-              paths: hermesPaths,
-              parserFn: parseHermesIncremental,
-              providerName: "hermes",
-              cursors,
-              getParams: (path) => ({ hermesPath: path }),
-              queuePath,
-              onProgress: hermesOnProgress,
-              detectInstall: hermesInstallOwnsCursor,
-            });
-          } catch (err) {
-            warnProviderParseFailure("Hermes", err, opts);
-          }
-        }
-      }
-    }
-
-    function hermesOnProgress(p) {
-      if (!progress?.enabled) return;
-      const pct = p.total > 0 ? p.index / p.total : 1;
-      progress.update(
-        `Parsing Hermes ${renderBar(pct)} ${formatNumber(p.index)}/${formatNumber(p.total)} sessions | buckets ${formatNumber(p.bucketsQueued)}`,
-      );
-    }
-
     function gooseOnProgress(p) {
       if (!progress?.enabled) return;
       const pct = p.total > 0 ? p.index / p.total : 1;
       progress.update(
         `Parsing Goose ${renderBar(pct)} ${formatNumber(p.index)}/${formatNumber(p.total)} sessions | buckets ${formatNumber(p.bucketsQueued)}`,
-      );
-    }
-
-    function zedOnProgress(p) {
-      if (!progress?.enabled) return;
-      const pct = p.total > 0 ? p.index / p.total : 1;
-      progress.update(
-        `Parsing Zed Agent ${renderBar(pct)} ${formatNumber(p.index)}/${formatNumber(p.total)} threads | buckets ${formatNumber(p.bucketsQueued)}`,
       );
     }
 
@@ -1867,7 +1486,7 @@ async function cmdSync(argv, context = {}) {
       const nativeCliPresent = fssync.existsSync(kiroCliDb) || kiroCliSessionFiles.length > 0;
 
       // Explicit overrides pin a single install — never mix them with WSL
-      // auto-discovery (mirrors the Hermes TOKENTRACKER_HERMES_HOME branch).
+      // auto-discovery while still allowing an explicit install override.
       const kiroCliOverride = Boolean(process.env.KIRO_CLI_DB_PATH || process.env.KIRO_HOME);
       let wslKiroCliEnv = null;
       let wslKiroCliMarker = null;
@@ -2658,19 +2277,14 @@ async function cmdSync(argv, context = {}) {
 
     const totalParsed =
       parseResult.filesProcessed +
-      openclawResult.filesProcessed +
       claudeResult.filesProcessed +
       geminiResult.filesProcessed +
       antigravityResult.filesProcessed +
-      opencodeResult.filesProcessed +
-      qoderResult.recordsProcessed +
-      qoderCnResult.recordsProcessed +
       claudeScienceResult.recordsProcessed +
       cursorResult.recordsProcessed +
       traeCnResult.recordsProcessed +
       kiroResult.recordsProcessed +
       kiroCliResult.recordsProcessed +
-      hermesResult.recordsProcessed +
       kimiResult.recordsProcessed +
       kimiCodeResult.recordsProcessed +
       codebuddyResult.recordsProcessed +
@@ -2688,25 +2302,19 @@ async function cmdSync(argv, context = {}) {
       zcodeResult.recordsProcessed +
       kilocodeResult.recordsProcessed +
       roocodeResult.recordsProcessed +
-      zedResult.recordsProcessed +
       gooseResult.recordsProcessed +
       dshResult.recordsProcessed +
       droidResult.recordsProcessed;
     const totalBuckets =
       parseResult.bucketsQueued +
-      openclawResult.bucketsQueued +
       claudeResult.bucketsQueued +
       geminiResult.bucketsQueued +
       antigravityResult.bucketsQueued +
-      opencodeResult.bucketsQueued +
-      qoderResult.bucketsQueued +
-      qoderCnResult.bucketsQueued +
       claudeScienceResult.bucketsQueued +
       cursorResult.bucketsQueued +
       traeCnResult.bucketsQueued +
       kiroResult.bucketsQueued +
       kiroCliResult.bucketsQueued +
-      hermesResult.bucketsQueued +
       kimiResult.bucketsQueued +
       kimiCodeResult.bucketsQueued +
       codebuddyResult.bucketsQueued +
@@ -2724,7 +2332,6 @@ async function cmdSync(argv, context = {}) {
       zcodeResult.bucketsQueued +
       kilocodeResult.bucketsQueued +
       roocodeResult.bucketsQueued +
-      zedResult.bucketsQueued +
       gooseResult.bucketsQueued +
       dshResult.bucketsQueued +
       droidResult.bucketsQueued;
@@ -2793,7 +2400,6 @@ function parseArgs(argv) {
     auto: false,
     fromNotify: false,
     fromRetry: false,
-    fromOpenclaw: false,
     source: null,
     waitForLock: false,
     background: false,
@@ -2805,7 +2411,6 @@ function parseArgs(argv) {
     if (a === "--auto") out.auto = true;
     else if (a === "--from-notify") out.fromNotify = true;
     else if (a === "--from-retry") out.fromRetry = true;
-    else if (a === "--from-openclaw") out.fromOpenclaw = true;
     else if (a === "--source") {
       out.source = normalizeSyncSource(argv[i + 1]);
       i += 1;
@@ -2822,7 +2427,6 @@ function parseArgs(argv) {
 
 function resolveAutoSourceScope(opts) {
   if (!opts?.auto) return null;
-  if (opts.fromOpenclaw) return "openclaw";
   if (opts.fromRetry) return normalizeSyncSource(opts.source);
   if (!opts.fromNotify) return null;
   return normalizeSyncSource(opts.source);
@@ -3038,195 +2642,6 @@ async function migrateLegacyDeepseekHarnessSource({ cursors, queuePath, queueSta
     retractedBuckets: legacyKeys.size,
   };
   return true;
-}
-
-function normalizeString(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-// Local "last OpenClaw-triggered sync" marker. Purely on-disk: `status` and
-// `doctor` read it back from the tracker dir to report trigger freshness.
-async function writeOpenclawSignal(trackerDir) {
-  const openclawSignalPath = path.join(trackerDir, "openclaw.signal");
-  try {
-    await fs.writeFile(openclawSignalPath, new Date().toISOString(), "utf8");
-  } catch (_e) {
-    // best-effort marker
-  }
-}
-
-function resolveOpenclawSignal({ env } = {}) {
-  if (!env) return null;
-
-  const agentId = normalizeString(env.TOKENTRACKER_OPENCLAW_AGENT_ID);
-  const sessionId = normalizeString(env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID);
-  if (!agentId || !sessionId) return null;
-
-  // Resolve the OpenClaw home identically to the passive scanner so the
-  // plugin-triggered file and passively discovered files share one path
-  // spelling — otherwise the same transcript could get two cursors and be
-  // counted twice (issue #264 review).
-  const openclawHome = resolveOpenclawHome(env);
-  const sessionFile = path.join(openclawHome, "agents", agentId, "sessions", `${sessionId}.jsonl`);
-
-  const prevTotals = {
-    totalTokens: normalizeNonNegativeInt(env.TOKENTRACKER_OPENCLAW_PREV_TOTAL_TOKENS),
-    inputTokens: normalizeNonNegativeInt(env.TOKENTRACKER_OPENCLAW_PREV_INPUT_TOKENS),
-    outputTokens: normalizeNonNegativeInt(env.TOKENTRACKER_OPENCLAW_PREV_OUTPUT_TOKENS),
-    model: normalizeString(env.TOKENTRACKER_OPENCLAW_PREV_MODEL),
-    updatedAt: normalizeIsoOrEpoch(env.TOKENTRACKER_OPENCLAW_PREV_UPDATED_AT),
-  };
-
-  return {
-    agentId,
-    sessionId,
-    sessionKey: normalizeString(env.TOKENTRACKER_OPENCLAW_SESSION_KEY),
-    openclawHome,
-    sessionFile,
-    prevTotals,
-  };
-}
-
-async function applyOpenclawTotalsFallback({
-  trackerDir,
-  signal,
-  cursors,
-  queuePath,
-  projectQueuePath,
-}) {
-  const totalTokens = Number(signal?.prevTotals?.totalTokens || 0);
-  if (!trackerDir || !signal || totalTokens <= 0) {
-    return { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  // The passive/plugin transcript parse is authoritative: if this session's
-  // transcript has ever yielded real per-event usage, synthesizing sessions.json
-  // totals on top would count the same tokens twice (issue #264 review). Defer
-  // to the real events and advance the fallback baseline so no stale delta lingers.
-  const transcriptCursor =
-    signal.sessionFile && cursors?.files
-      ? cursors.files[openclawCursorKey(signal.sessionFile)]
-      : null;
-  const transcriptHasRealUsage = Boolean(transcriptCursor?.hasRealUsage);
-
-  const sessionKey = `${signal.agentId}:${signal.sessionId}`;
-  const statePath = path.join(trackerDir, "openclaw.fallback.state.json");
-  const fallbackFilePath = path.join(trackerDir, "openclaw.fallback.jsonl");
-  const state = (await readJson(statePath)) || { version: 1, sessions: {} };
-  const sessions = state.sessions && typeof state.sessions === "object" ? state.sessions : {};
-  const prev =
-    sessions[sessionKey] && typeof sessions[sessionKey] === "object" ? sessions[sessionKey] : null;
-
-  if (transcriptHasRealUsage) {
-    sessions[sessionKey] = {
-      totalTokens: normalizeNonNegativeInt(signal?.prevTotals?.totalTokens) || 0,
-      inputTokens: normalizeNonNegativeInt(signal?.prevTotals?.inputTokens) || 0,
-      outputTokens: normalizeNonNegativeInt(signal?.prevTotals?.outputTokens) || 0,
-      model: normalizeString(signal?.prevTotals?.model) || "unknown",
-      updatedAt: normalizeIsoOrEpoch(signal?.prevTotals?.updatedAt) || new Date().toISOString(),
-      seenAt: new Date().toISOString(),
-      coveredByEvents: true,
-    };
-    state.version = 1;
-    state.sessions = sessions;
-    await writeJson(statePath, state);
-    return { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  const current = {
-    totalTokens: normalizeNonNegativeInt(signal?.prevTotals?.totalTokens) || 0,
-    inputTokens: normalizeNonNegativeInt(signal?.prevTotals?.inputTokens) || 0,
-    outputTokens: normalizeNonNegativeInt(signal?.prevTotals?.outputTokens) || 0,
-    model: normalizeString(signal?.prevTotals?.model) || "unknown",
-    updatedAt: normalizeIsoOrEpoch(signal?.prevTotals?.updatedAt) || new Date().toISOString(),
-    seenAt: new Date().toISOString(),
-  };
-
-  let deltaTotal = current.totalTokens;
-  let deltaInput = current.inputTokens;
-  let deltaOutput = current.outputTokens;
-  if (prev) {
-    deltaTotal = Math.max(
-      0,
-      current.totalTokens - (normalizeNonNegativeInt(prev.totalTokens) || 0),
-    );
-    deltaInput = Math.max(
-      0,
-      current.inputTokens - (normalizeNonNegativeInt(prev.inputTokens) || 0),
-    );
-    deltaOutput = Math.max(
-      0,
-      current.outputTokens - (normalizeNonNegativeInt(prev.outputTokens) || 0),
-    );
-  }
-
-  if (deltaTotal > 0 && deltaInput + deltaOutput === 0) {
-    deltaInput = deltaTotal;
-  }
-
-  sessions[sessionKey] = current;
-  state.version = 1;
-  state.sessions = sessions;
-
-  if (deltaTotal <= 0) {
-    await writeJson(statePath, state);
-    return { filesProcessed: 0, eventsAggregated: 0, bucketsQueued: 0 };
-  }
-
-  await ensureDir(path.dirname(fallbackFilePath));
-  const syntheticMessage = {
-    type: "message",
-    timestamp: current.updatedAt,
-    message: {
-      role: "assistant",
-      model: current.model,
-      usage: {
-        input: deltaInput,
-        output: deltaOutput,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: deltaTotal,
-      },
-    },
-  };
-  await fs.appendFile(fallbackFilePath, `${JSON.stringify(syntheticMessage)}\n`, "utf8");
-  await writeJson(statePath, state);
-
-  return parseOpenclawIncremental({
-    sessionFiles: [{ path: fallbackFilePath, source: "openclaw" }],
-    cursors,
-    queuePath,
-    projectQueuePath,
-    source: "openclaw",
-  });
-}
-
-function normalizeNonNegativeInt(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.floor(n);
-}
-
-function normalizeIsoOrEpoch(value) {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed.length > 0 && !Number.isNaN(Date.parse(trimmed))) return trimmed;
-    const numeric = Number(trimmed);
-    if (Number.isFinite(numeric) && numeric > 0) {
-      const ms = numeric < 1e12 ? Math.floor(numeric * 1000) : Math.floor(numeric);
-      const iso = new Date(ms).toISOString();
-      if (!Number.isNaN(Date.parse(iso))) return iso;
-    }
-  }
-
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  const ms = n < 1e12 ? Math.floor(n * 1000) : Math.floor(n);
-  const dt = new Date(ms);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.toISOString();
 }
 
 function normalizeGrokRepairSource(value) {

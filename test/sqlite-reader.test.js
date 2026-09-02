@@ -94,7 +94,7 @@ test("readSqliteJsonRows warns once when no sqlite reader works", () => {
   const dbPath = tempDbPath();
   let stderr = "";
   const options = {
-    label: "OpenCode",
+    label: "Agent DB",
     env: {},
     stderr: { write(chunk) { stderr += chunk; } },
     execFileSync() {
@@ -108,7 +108,7 @@ test("readSqliteJsonRows warns once when no sqlite reader works", () => {
   assert.deepEqual(readSqliteJsonRows(dbPath, "SELECT 1", options), []);
   assert.deepEqual(readSqliteJsonRows(dbPath, "SELECT 1", options), []);
 
-  const matches = stderr.match(/Cannot read OpenCode SQLite database/g) || [];
+  const matches = stderr.match(/Cannot read Agent DB SQLite database/g) || [];
   assert.equal(matches.length, 1);
   assert.match(stderr, /Install sqlite3 CLI/);
   assert.match(stderr, /Node\.js 22\+/);

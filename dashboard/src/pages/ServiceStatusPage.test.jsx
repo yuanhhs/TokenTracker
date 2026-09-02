@@ -14,23 +14,16 @@ function okResponse(body) {
 }
 
 const isGoogleFeed = (url) => String(url).includes("appsstatus");
-const isInstatusFeed = (url) => String(url).includes("summary.json");
 
-function instatusBody(status, activeIncidents = []) {
-  return { page: { status }, activeIncidents };
-}
-
-/** Route a fetch stub by feed shape: Google → incidents array, Instatus → summary, rest → Statuspage JSON. */
+/** Route a fetch stub by feed shape: Google → incidents array, rest → Statuspage JSON. */
 function stubFetch({
   google = [],
-  instatus = () => instatusBody("UP"),
   statuspage = () => statusBody("none", "All Systems Operational"),
 } = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url) => {
       if (isGoogleFeed(url)) return okResponse(google);
-      if (isInstatusFeed(url)) return okResponse(instatus(url));
       return okResponse(statuspage(url));
     }),
   );
@@ -84,30 +77,12 @@ describe("ServiceStatusPage", () => {
     expect(screen.getAllByText("Operational")).toHaveLength(STATUS_PROVIDERS.length - 1);
   });
 
-  it("maps Instatus HASISSUES summaries onto the matching card", async () => {
-    stubFetch({
-      instatus: (url) =>
-        String(url).includes("zed.dev")
-          ? instatusBody("HASISSUES", [{ name: "Collab server degraded", impact: "PARTIALOUTAGE" }])
-          : instatusBody("UP"),
-    });
-
-    render(<ServiceStatusPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Major incident")).toBeInTheDocument();
-    });
-    expect(screen.getByText("Collab server degraded")).toBeInTheDocument();
-    expect(screen.getAllByText("Operational")).toHaveLength(STATUS_PROVIDERS.length - 1);
-  });
-
   it("shows the unreachable state when a probe fails, without breaking others", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url) => {
         if (String(url).includes("githubstatus")) throw new Error("network down");
         if (isGoogleFeed(url)) return okResponse([]);
-        if (isInstatusFeed(url)) return okResponse(instatusBody("UP"));
         return okResponse(statusBody("none", "All Systems Operational"));
       }),
     );

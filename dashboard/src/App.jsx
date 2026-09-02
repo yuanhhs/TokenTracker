@@ -37,6 +37,10 @@ const SettingsPage = lazy(() =>
 const SkillsPage = lazy(() =>
   import("./pages/SkillsPage.jsx").then((m) => ({ default: m.SkillsPage })),
 );
+const McpPage = lazy(() => import("./pages/McpPage.jsx"));
+const WidgetsPage = lazy(() =>
+  import("./pages/WidgetsPage.jsx").then((module) => ({ default: module.WidgetsPage })),
+);
 const SessionsPage = lazy(() =>
   import("./pages/SessionsPage.jsx").then((m) => ({ default: m.SessionsPage })),
 );
@@ -48,6 +52,8 @@ const DASHBOARD_PATHS = new Set([
   "/limits",
   "/settings",
   "/skills",
+  "/mcp",
+  "/widgets",
   "/sessions",
   "/ip-check",
   "/service-status",
@@ -101,6 +107,8 @@ export default function App() {
   else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
   else if (normalizedPath === "/skills") PageComponent = SkillsPage;
+  else if (normalizedPath === "/mcp") PageComponent = McpPage;
+  else if (normalizedPath === "/widgets") PageComponent = WidgetsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
   else if (normalizedPath === "/ip-check") PageComponent = IpCheckPage;
   else if (normalizedPath === "/service-status") PageComponent = ServiceStatusPage;

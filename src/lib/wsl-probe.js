@@ -189,8 +189,8 @@ function wslUncRoot(p) {
 function mapWslCwdToUnc(cwd, transcriptPath) {
   if (typeof cwd !== "string" || !cwd.startsWith("/")) return cwd;
   // `new URL("file:///C:/dev/app").pathname` is "/C:/dev/app" — a leading
-  // slash, but a Windows path rather than a POSIX one. Qoder feeds exactly
-  // that shape in via `project_uri`; re-anchoring it would invent
+  // slash, but a Windows path rather than a POSIX one. Re-anchoring that
+  // shape would invent
   // `\\wsl$\Distro\C:\dev\app`.
   if (WINDOWS_DRIVE_PREFIX_RE.test(cwd)) return cwd;
   const root = wslUncRoot(transcriptPath);

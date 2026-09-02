@@ -7,15 +7,14 @@ import { ProviderIcon } from "../ui/dashboard/components/ProviderIcon.jsx";
 // `access-control-allow-origin: *`, verified per-host) — works identically on
 // the deployed web app and the local dashboard, no CLI backend required.
 //
-// Three probe kinds:
+// Two probe kinds:
 //   statuspage — Statuspage.io/incident.io `/api/v2/status.json` (default)
-//   instatus   — Instatus `/summary.json` (page.status UP/HASISSUES)
 //   google     — Google's incidents.json feed, filtered by service name
 //                (covers Gemini; Google products share one feed)
 //
 // Providers deliberately absent: Grok + DeepSeek front their status pages
-// with bot checks (browser fetch gets 403/HTML), and z.ai / Kiro / Qoder /
-// OpenCode expose no public status API at all. Only providers TokenTracker
+// with bot checks (browser fetch gets 403/HTML), while z.ai, Kiro, and several
+// others expose no public status API. Only providers TokenTracker
 // actually tracks belong here — this page explains "why is MY provider's
 // data red", it is not a general status aggregator.
 export const STATUS_PROVIDERS = [
@@ -64,21 +63,6 @@ export const STATUS_PROVIDERS = [
     apiUrl: "https://status.moonshot.cn/api/v2/status.json",
     pageUrl: "https://status.moonshot.cn",
   },
-  {
-    id: "minimax",
-    name: "MiniMax",
-    icon: "MINIMAX",
-    apiUrl: "https://status.minimaxi.com/api/v2/status.json",
-    pageUrl: "https://status.minimaxi.com",
-  },
-  {
-    id: "zed",
-    name: "Zed",
-    icon: "ZED",
-    kind: "instatus",
-    apiUrl: "https://status.zed.dev/summary.json",
-    pageUrl: "https://status.zed.dev",
-  },
 ];
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -112,31 +96,6 @@ const GOOGLE_SEVERITY_TO_INDICATOR = {
   high: "critical",
 };
 
-/** Instatus active-incident impact → Statuspage-style indicator. */
-const INSTATUS_IMPACT_TO_INDICATOR = {
-  MAJOROUTAGE: "critical",
-  PARTIALOUTAGE: "major",
-  DEGRADEDPERFORMANCE: "minor",
-};
-
-/** Instatus `/summary.json`: page.status is UP/HASISSUES; impacts rank the worst. */
-function parseInstatusSummary(body) {
-  const pageStatus = body?.page?.status;
-  if (typeof pageStatus !== "string") throw new Error("Unexpected payload");
-  if (pageStatus === "UP") return { indicator: "none", description: "", updatedAt: null };
-  const incidents = Array.isArray(body?.activeIncidents) ? body.activeIncidents : [];
-  const rank = { critical: 3, major: 2, minor: 1 };
-  let worst = null;
-  for (const incident of incidents) {
-    const indicator = INSTATUS_IMPACT_TO_INDICATOR[incident?.impact] || "minor";
-    if (!worst || rank[indicator] > rank[worst.indicator]) {
-      worst = { indicator, description: incident?.name || "", updatedAt: incident?.updated || null };
-    }
-  }
-  // HASISSUES with no incident detail still means "something is wrong".
-  return worst || { indicator: "minor", description: "", updatedAt: null };
-}
-
 /** Google feed: open incidents have no `end`; pick the most severe for the service. */
 function parseGoogleIncidents(body, serviceName) {
   if (!Array.isArray(body)) throw new Error("Unexpected payload");
@@ -166,9 +125,6 @@ async function probeStatus(provider) {
     const body = await res.json();
     if (provider.kind === "google") {
       return parseGoogleIncidents(body, provider.serviceName);
-    }
-    if (provider.kind === "instatus") {
-      return parseInstatusSummary(body);
     }
     const indicator = body?.status?.indicator;
     if (!VALID_INDICATORS.has(indicator)) throw new Error("Unexpected payload");

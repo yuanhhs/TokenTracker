@@ -9,7 +9,7 @@ const { multiInstallParse } = require("../src/lib/multi-install-parser");
 
 test("flat cursor migrates to active namespace only", () => {
   const cursors = {
-    hermes: {
+    agent: {
       lastCompletedStartedAt: 100,
       unfinishedSessionIds: ["s1", "s2"],
       snapshots: { s1: { in: 50, out: 25 } },
@@ -17,7 +17,7 @@ test("flat cursor migrates to active namespace only", () => {
     },
   };
 
-  const ns = ensureNamespacedCursors(cursors, "hermes", "wsl");
+  const ns = ensureNamespacedCursors(cursors, "agent", "wsl");
 
   assert.ok(ns.native, "native namespace exists (empty)");
   assert.ok(ns.wsl, "wsl namespace exists");
@@ -34,57 +34,57 @@ test("flat cursor migrates to active namespace only", () => {
 
 test("ensureFlatCursor merges namespaces with wsl-first default", () => {
   const cursors = {
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 50, snapshots: {} },
       wsl: { lastCompletedStartedAt: 100, snapshots: {} },
     },
   };
 
-  ensureFlatCursor(cursors, "hermes", { TOKENTRACKER_WSL_MODE: "wsl-first" });
+  ensureFlatCursor(cursors, "agent", { TOKENTRACKER_WSL_MODE: "wsl-first" });
 
-  assert.equal(cursors.hermes.native, undefined, "native key should be removed");
-  assert.equal(cursors.hermes.wsl, undefined, "wsl key should be removed");
-  assert.equal(cursors.hermes.lastCompletedStartedAt, 100, "wsl value should win in wsl-first mode");
+  assert.equal(cursors.agent.native, undefined, "native key should be removed");
+  assert.equal(cursors.agent.wsl, undefined, "wsl key should be removed");
+  assert.equal(cursors.agent.lastCompletedStartedAt, 100, "wsl value should win in wsl-first mode");
 });
 
 test("ensureFlatCursor respects native-first mode", () => {
   const cursors = {
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 50, snapshots: {} },
       wsl: { lastCompletedStartedAt: 100, snapshots: {} },
     },
   };
 
-  ensureFlatCursor(cursors, "hermes", { TOKENTRACKER_WSL_MODE: "native-first" });
+  ensureFlatCursor(cursors, "agent", { TOKENTRACKER_WSL_MODE: "native-first" });
 
-  assert.equal(cursors.hermes.lastCompletedStartedAt, 50, "native value should win in native-first mode");
+  assert.equal(cursors.agent.lastCompletedStartedAt, 50, "native value should win in native-first mode");
 });
 
 test("ensureFlatCursor no-ops on already-flat cursor", () => {
   const cursors = {
-    hermes: { lastCompletedStartedAt: 50, snapshots: {} },
+    agent: { lastCompletedStartedAt: 50, snapshots: {} },
   };
 
-  ensureFlatCursor(cursors, "hermes");
+  ensureFlatCursor(cursors, "agent");
 
-  assert.equal(cursors.hermes.lastCompletedStartedAt, 50);
+  assert.equal(cursors.agent.lastCompletedStartedAt, 50);
 });
 
 function mockParserFn() {
   return async ({ cursors: c }) => {
-    c.hermes = c.hermes || {};
-    c.hermes.lastRun = c.hermes.lastRun || 0;
-    c.hermes.lastRun += 1;
-    c.hermes.unfinishedSessionIds = c.hermes.unfinishedSessionIds || [];
-    c.hermes.unfinishedSessionIds.push(`session-${Date.now()}`);
+    c.agent = c.agent || {};
+    c.agent.lastRun = c.agent.lastRun || 0;
+    c.agent.lastRun += 1;
+    c.agent.unfinishedSessionIds = c.agent.unfinishedSessionIds || [];
+    c.agent.unfinishedSessionIds.push(`session-${Date.now()}`);
     return { recordsProcessed: 1 };
   };
 }
 
-function flatHermesCursors() {
+function flatAgentCursors() {
   return {
     hourly: { buckets: {} },
-    hermes: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["old"], snapshots: {} },
+    agent: { lastCompletedStartedAt: 100, unfinishedSessionIds: ["old"], snapshots: {} },
   };
 }
 
@@ -92,53 +92,53 @@ async function runDualParse(t, { cursors, detectInstall }) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tt-cursor-migrate-"));
   t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
   return await multiInstallParse({
-    paths: { native: "/native-hermes", wsl: "/wsl-hermes" },
+    paths: { native: "/native-agent", wsl: "/wsl-agent" },
     parserFn: mockParserFn(),
-    providerName: "hermes",
+    providerName: "agent",
     cursors,
-    getParams: (p) => ({ hermesPath: p }),
+    getParams: (p) => ({ agentPath: p }),
     queuePath: path.join(tmpDir, "queue.jsonl"),
     detectInstall,
   });
 }
 
 test("dual-parse migration backfills the unproven install when ownership is detected", async (t) => {
-  const cursors = flatHermesCursors();
+  const cursors = flatAgentCursors();
   const r = await runDualParse(t, {
     cursors,
     // Probe proves the flat cursor's sessions live in the WSL install.
-    detectInstall: (installPath) => installPath === "/wsl-hermes",
+    detectInstall: (installPath) => installPath === "/wsl-agent",
   });
 
   assert.equal(r.recordsProcessed, 2, "both installs should parse");
-  assert.ok(cursors.hermes.native.lastRun >= 1);
-  assert.ok(cursors.hermes.wsl.lastRun >= 1);
-  assert.ok(cursors.hermes.native.lastCompletedStartedAt === undefined,
+  assert.ok(cursors.agent.native.lastRun >= 1);
+  assert.ok(cursors.agent.wsl.lastRun >= 1);
+  assert.ok(cursors.agent.native.lastCompletedStartedAt === undefined,
     "unproven namespace starts empty so its history backfills");
-  assert.ok(cursors.hermes.wsl.lastCompletedStartedAt === 100,
+  assert.ok(cursors.agent.wsl.lastCompletedStartedAt === 100,
     "proven namespace inherited flat cursor data");
 });
 
 test("dual-parse migration respects native ownership evidence", async (t) => {
-  const cursors = flatHermesCursors();
+  const cursors = flatAgentCursors();
   await runDualParse(t, {
     cursors,
-    detectInstall: (installPath) => installPath === "/native-hermes",
+    detectInstall: (installPath) => installPath === "/native-agent",
   });
 
-  assert.ok(cursors.hermes.native.lastCompletedStartedAt === 100,
+  assert.ok(cursors.agent.native.lastCompletedStartedAt === 100,
     "proven native namespace inherited flat cursor data");
-  assert.ok(cursors.hermes.wsl.lastCompletedStartedAt === undefined,
+  assert.ok(cursors.agent.wsl.lastCompletedStartedAt === undefined,
     "unproven wsl namespace starts empty");
 });
 
 test("dual-parse migration seeds both namespaces without a probe", async (t) => {
-  const cursors = flatHermesCursors();
+  const cursors = flatAgentCursors();
   await runDualParse(t, { cursors });
 
-  assert.ok(cursors.hermes.native.lastCompletedStartedAt === 100,
+  assert.ok(cursors.agent.native.lastCompletedStartedAt === 100,
     "no probe → native seeded (never double count)");
-  assert.ok(cursors.hermes.wsl.lastCompletedStartedAt === 100,
+  assert.ok(cursors.agent.wsl.lastCompletedStartedAt === 100,
     "no probe → wsl seeded (never double count)");
 });
 
@@ -148,11 +148,11 @@ test("dual-parse migration seeds both namespaces on ambiguous or failing probes"
     () => false, // neither matches — no evidence
     () => { throw new Error("db locked"); }, // probe error
   ]) {
-    const cursors = flatHermesCursors();
+    const cursors = flatAgentCursors();
     await runDualParse(t, { cursors, detectInstall });
-    assert.ok(cursors.hermes.native.lastCompletedStartedAt === 100,
+    assert.ok(cursors.agent.native.lastCompletedStartedAt === 100,
       "fallback seeds native with flat data");
-    assert.ok(cursors.hermes.wsl.lastCompletedStartedAt === 100,
+    assert.ok(cursors.agent.wsl.lastCompletedStartedAt === 100,
       "fallback seeds wsl with flat data");
   }
 });
@@ -160,7 +160,7 @@ test("dual-parse migration seeds both namespaces on ambiguous or failing probes"
 test("dual-parse skips detection for already-namespaced cursors", async (t) => {
   const cursors = {
     hourly: { buckets: {} },
-    hermes: {
+    agent: {
       native: { lastCompletedStartedAt: 50 },
       wsl: { lastCompletedStartedAt: 100 },
     },
@@ -172,6 +172,6 @@ test("dual-parse skips detection for already-namespaced cursors", async (t) => {
   });
 
   assert.equal(probeCalls, 0, "namespaced cursors never re-run the ownership probe");
-  assert.equal(cursors.hermes.native.lastCompletedStartedAt, 50);
-  assert.equal(cursors.hermes.wsl.lastCompletedStartedAt, 100);
+  assert.equal(cursors.agent.native.lastCompletedStartedAt, 50);
+  assert.equal(cursors.agent.wsl.lastCompletedStartedAt, 100);
 });

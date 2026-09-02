@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-01T13:49:12.915Z",
+  "generatedAt": "2026-09-02T06:28:10.773Z",
   "root": "dashboard/src",
   "rules": {
     "colors": "hex/rgb(a) literals",
     "rawText": "JSX text nodes containing letters or digits"
   },
   "totals": {
-    "colors": 242,
-    "rawText": 111
+    "colors": 270,
+    "rawText": 124
   },
   "files": {
     "dashboard/src/components/settings/MenuBarSection.jsx": {
@@ -33,6 +33,13 @@
       "colors": 1,
       "rawText": 0,
       "rawTextTokens": []
+    },
+    "dashboard/src/island.jsx": {
+      "colors": 0,
+      "rawText": 1,
+      "rawTextTokens": [
+        "; return ("
+      ]
     },
     "dashboard/src/pages/DashboardPage.jsx": {
       "colors": 1,
@@ -87,6 +94,14 @@
         "0 ? (",
         "0 || browseAnyFilter) ? (",
         "t.id === id)?.label || id) .join(\", \") : copy(\"skills.action.choose_targets\"); return ("
+      ]
+    },
+    "dashboard/src/pages/WidgetsPage.jsx": {
+      "colors": 10,
+      "rawText": 2,
+      "rawTextTokens": [
+        "10.3B",
+        "normalizeDesktopWidgetItems(settings?.desktopWidgets), [settings?.desktopWidgets], ); const ready = available && settings?.desktopWidgetsSupported === true; const alwaysOnTop = settings?.desktopWidgetsAlwaysOnTop !== false; return ("
       ]
     },
     "dashboard/src/pages/WrappedPage.jsx": {
@@ -217,7 +232,7 @@
       ]
     },
     "dashboard/src/ui/dashboard/components/TrendMonitor.jsx": {
-      "colors": 30,
+      "colors": 29,
       "rawText": 5,
       "rawTextTokens": [
         "0 && (",
@@ -242,16 +257,14 @@
     },
     "dashboard/src/ui/dashboard/components/UsageLimitsPanel.test.jsx": {
       "colors": 0,
-      "rawText": 4,
+      "rawText": 2,
       "rawTextTokens": [
-        ", ); // Brand + tier, without repeating \"Coding Plan\" (title: \"Ark Coding Plan Lite\"). expect(screen.getByText(\"Ark Coding Plan Lite\")).toBeInTheDocument(); expect(screen.getByText(\"5h\")).toBeInTheDocument(); expect(screen.getByText(\"Weekly\")).toBeInTheDocument(); expect(screen.getByText(\"Monthly\")).toBeInTheDocument(); expect(screen.getByText(\"33%\")).toBeInTheDocument(); expect(screen.getByText(\"16%\")).toBeInTheDocument(); expect(screen.getByText(\"9%\")).toBeInTheDocument(); // Not-configured fallback shows the Ark CLI setup guide. rerender(",
-        ", ); // Brand name only — no plan_label suffix to avoid \"OpenCode Go Go\". expect(screen.getByText(\"OpenCode Go\")).toBeInTheDocument(); expect(screen.getByText(\"5h\")).toBeInTheDocument(); expect(screen.getByText(\"Weekly\")).toBeInTheDocument(); expect(screen.getByText(\"Monthly\")).toBeInTheDocument(); expect(screen.getByText(\"12%\")).toBeInTheDocument(); expect(screen.getByText(\"30%\")).toBeInTheDocument(); expect(screen.getByText(\"60%\")).toBeInTheDocument(); // Not-configured fallback. rerender(",
         ", ); expect(screen.getByText(\"Codex\")).toBeInTheDocument(); const row = screen.getByText(\"Credits\").closest(\"div\"); expect(within(row).getByText(\"",
         ", ); expect(screen.getByText(\"Cursor\")).toBeInTheDocument(); rerender("
       ]
     },
     "dashboard/src/ui/dashboard/components/UsageOverview.jsx": {
-      "colors": 13,
+      "colors": 12,
       "rawText": 2,
       "rawTextTokens": [
         "0 && (",
@@ -380,6 +393,22 @@
         "0; return (",
         "The Token Tracker",
         "→ tokentracker.cc"
+      ]
+    },
+    "dashboard/src/widget.jsx": {
+      "colors": 20,
+      "rawText": 12,
+      "rawTextTokens": [
+        "0 ?",
+        "0 ? \"detail positive\" : delta",
+        "; case \"limits\": return",
+        "; case \"topModels\": return",
+        "; default: return",
+        "; else content =",
+        "; else if (error && !data) content =",
+        "; else if (loading && !data) content =",
+        "; return (",
+        "sum + displayTokens(cell), 0); return ("
       ]
     }
   }

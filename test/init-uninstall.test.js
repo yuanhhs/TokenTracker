@@ -9,7 +9,6 @@ const { test } = require("node:test");
 // a `sync --drain` subprocess — that dominated the suite's wall time.
 process.env.TOKENTRACKER_SKIP_LOCAL_RUNTIME_COPY = "1";
 process.env.TOKENTRACKER_SKIP_FIRST_SYNC = "1";
-process.env.TOKENTRACKER_SKIP_OPENCLAW_CLI = "1";
 
 const {
   cmdInit,
@@ -21,12 +20,6 @@ const { cmdUninstall } = require("../src/commands/uninstall");
 const { withHome } = require("./helpers/with-home");
 const { buildClaudeHookCommand } = require("../src/lib/claude-config");
 const { buildGeminiHookCommand } = require("../src/lib/gemini-config");
-const {
-  buildOpencodePlugin,
-  DEFAULT_EVENT,
-  DEFAULT_PLUGIN_NAME,
-  PLUGIN_MARKER,
-} = require("../src/lib/opencode-config");
 const { GROK_HOOK_FILENAME } = require("../src/lib/grok-hook");
 
 async function waitForFile(filePath, { timeoutMs = 1500, intervalMs = 50 } = {}) {
@@ -57,7 +50,6 @@ test("notify handler hides detached background sync windows on Windows", () => {
     /cp\.spawn\(argv\[0\], argv\.slice\(1\), \{[\s\S]*?detached: true,[\s\S]*?windowsHide: true,[\s\S]*?stdio: 'ignore'/,
   );
 });
-
 async function runGeneratedNotifyHandler({ trackerDir, notify, args = ["--source=codex", "turn-ended"] }) {
   await fs.mkdir(trackerDir, { recursive: true });
   const notifyPath = path.join(trackerDir, "notify.cjs");
@@ -794,14 +786,12 @@ test("serve-time runtime repair restores hooks for installed local providers", a
   const savedEnv = {
     CODEX_HOME: process.env.CODEX_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_CONFIG_DIR: process.env.OPENCODE_CONFIG_DIR,
     CODEBUDDY_HOME: process.env.CODEBUDDY_HOME,
     WORKBUDDY_HOME: process.env.WORKBUDDY_HOME,
   };
   try {
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini");
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     process.env.CODEBUDDY_HOME = path.join(tmp, ".codebuddy");
     process.env.WORKBUDDY_HOME = path.join(tmp, ".workbuddy");
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
@@ -809,7 +799,6 @@ test("serve-time runtime repair restores hooks for installed local providers", a
     await Promise.all([
       fs.mkdir(path.join(tmp, ".claude"), { recursive: true }),
       fs.mkdir(process.env.GEMINI_HOME, { recursive: true }),
-      fs.mkdir(process.env.OPENCODE_CONFIG_DIR, { recursive: true }),
       fs.mkdir(process.env.CODEBUDDY_HOME, { recursive: true }),
       fs.mkdir(process.env.WORKBUDDY_HOME, { recursive: true }),
     ]);
@@ -824,7 +813,6 @@ test("serve-time runtime repair restores hooks for installed local providers", a
     assert.deepEqual(result.warnings, []);
     assert.equal(result.integrations.claude.changed, true);
     assert.equal(result.integrations.gemini.changed, true);
-    assert.equal(result.integrations.opencode.changed, true);
     assert.equal(result.integrations.codebuddy.changed, true);
     assert.equal(result.integrations.workbuddy.changed, true);
     const notifyPath = path.join(binDir, "notify.cjs");
@@ -856,13 +844,6 @@ test("serve-time runtime repair restores hooks for installed local providers", a
         (hook) => hook.command === buildGeminiHookCommand(notifyPath),
       ),
       true,
-    );
-    assert.equal(
-      await fs.readFile(
-        path.join(process.env.OPENCODE_CONFIG_DIR, "plugin", DEFAULT_PLUGIN_NAME),
-        "utf8",
-      ),
-      buildOpencodePlugin({ notifyPath }),
     );
   } finally {
     for (const [key, value] of Object.entries(savedEnv)) {
@@ -1108,14 +1089,12 @@ test("init preserves existing config fields and custom URLs", async () => {
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
 
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
     await fs.mkdir(trackerDir, { recursive: true });
@@ -1156,8 +1135,6 @@ test("init preserves existing config fields and custom URLs", async () => {
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1167,7 +1144,6 @@ test("init then uninstall restores original Codex notify (when pre-existing noti
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
@@ -1179,7 +1155,6 @@ test("init then uninstall restores original Codex notify (when pre-existing noti
     delete process.env.TOKENTRACKER_SKIP_FIRST_SYNC;
     process.env.CODEX_HOME = path.join(tmp, ".codex-alt");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
@@ -1216,8 +1191,6 @@ test("init then uninstall restores original Codex notify (when pre-existing noti
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     process.env.TOKENTRACKER_SKIP_LOCAL_RUNTIME_COPY = "1";
     process.env.TOKENTRACKER_SKIP_FIRST_SYNC = "1";
     await fs.rm(tmp, { recursive: true, force: true });
@@ -1229,14 +1202,12 @@ test("init refreshes stale Codex backup when current notify is external", async 
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
@@ -1270,8 +1241,6 @@ test("init refreshes stale Codex backup when current notify is external", async 
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1281,14 +1250,12 @@ test("init clears stale Codex backup when current notify is absent", async () =>
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
@@ -1321,37 +1288,22 @@ test("init clears stale Codex backup when current notify is absent", async () =>
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
 
-test("opencode plugin uses session.updated event", () => {
-  const plugin = buildOpencodePlugin({ notifyPath: "/tmp/notify.cjs" });
-  assert.match(plugin, /session\.updated/);
-});
-
-test("opencode config exports plugin constants", () => {
-  assert.equal(typeof PLUGIN_MARKER, "string");
-  assert.ok(PLUGIN_MARKER.length > 0);
-  assert.equal(DEFAULT_EVENT, "session.updated");
-  assert.equal(DEFAULT_PLUGIN_NAME, "tokentracker.js");
-});
 
 test("init then uninstall removes notify when none existed", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-init-uninstall-"));
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
@@ -1377,8 +1329,6 @@ test("init then uninstall removes notify when none existed", async () => {
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1388,14 +1338,12 @@ test("uninstall does not restore stale backup over active third-party Codex noti
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
@@ -1420,8 +1368,6 @@ test("uninstall does not restore stale backup over active third-party Codex noti
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1431,7 +1377,6 @@ test("init skips Codex notify when config is missing", async () => {
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevGeminiHome = process.env.GEMINI_HOME;
   const prevWrite = process.stdout.write;
 
@@ -1440,7 +1385,6 @@ test("init skips Codex notify when config is missing", async () => {
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
 
     process.stdout.write = () => true;
     await cmdInit(["--yes", "--no-open"]);
@@ -1454,8 +1398,6 @@ test("init skips Codex notify when config is missing", async () => {
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     if (prevGeminiHome === undefined) delete process.env.GEMINI_HOME;
     else process.env.GEMINI_HOME = prevGeminiHome;
     await fs.rm(tmp, { recursive: true, force: true });
@@ -1468,7 +1410,6 @@ test("init then uninstall restores original Every Code notify (when config exist
   const prevCodexHome = process.env.CODEX_HOME;
   const prevCodeHome = process.env.CODE_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
@@ -1476,7 +1417,6 @@ test("init then uninstall restores original Every Code notify (when config exist
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.CODE_HOME, { recursive: true });
 
@@ -1513,8 +1453,6 @@ test("init then uninstall restores original Every Code notify (when config exist
     else process.env.CODE_HOME = prevCodeHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1525,7 +1463,6 @@ test("init clears stale Every Code backup when current notify is absent", async 
   const prevCodexHome = process.env.CODEX_HOME;
   const prevCodeHome = process.env.CODE_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
@@ -1533,7 +1470,6 @@ test("init clears stale Every Code backup when current notify is absent", async 
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.CODE_HOME, { recursive: true });
 
@@ -1572,8 +1508,6 @@ test("init clears stale Every Code backup when current notify is absent", async 
     else process.env.CODE_HOME = prevCodeHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1584,7 +1518,6 @@ test("init refreshes stale Every Code backup when current notify is external", a
   const prevCodexHome = process.env.CODEX_HOME;
   const prevCodeHome = process.env.CODE_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
@@ -1592,7 +1525,6 @@ test("init refreshes stale Every Code backup when current notify is external", a
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.CODE_HOME, { recursive: true });
 
@@ -1631,8 +1563,6 @@ test("init refreshes stale Every Code backup when current notify is external", a
     else process.env.CODE_HOME = prevCodeHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1643,7 +1573,6 @@ test("init skips Every Code notify when config is missing", async () => {
   const prevCodexHome = process.env.CODEX_HOME;
   const prevCodeHome = process.env.CODE_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
@@ -1651,7 +1580,6 @@ test("init skips Every Code notify when config is missing", async () => {
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.CODE_HOME, { recursive: true });
 
@@ -1672,8 +1600,6 @@ test("init skips Every Code notify when config is missing", async () => {
     else process.env.CODE_HOME = prevCodeHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1683,14 +1609,12 @@ test("uninstall skips notify restore when no backup and notify not installed", a
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevCodeHome = process.env.CODE_HOME;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.CODE_HOME = path.join(tmp, ".code");
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.CODE_HOME, { recursive: true });
 
@@ -1713,8 +1637,6 @@ test("uninstall skips notify restore when no backup and notify not installed", a
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevCodeHome === undefined) delete process.env.CODE_HOME;
     else process.env.CODE_HOME = prevCodeHome;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1770,14 +1692,12 @@ test("init then uninstall manages Claude hooks without removing existing hooks",
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevWrite = process.stdout.write;
 
   try {
     restoreHome = withHome(tmp);
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
@@ -1846,8 +1766,6 @@ test("init then uninstall manages Claude hooks without removing existing hooks",
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
@@ -1857,7 +1775,6 @@ test("init then uninstall manages Gemini hooks without removing existing hooks",
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevGeminiHome = process.env.GEMINI_HOME;
   const prevWrite = process.stdout.write;
 
@@ -1866,7 +1783,6 @@ test("init then uninstall manages Gemini hooks without removing existing hooks",
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.GEMINI_HOME, { recursive: true });
 
@@ -1932,8 +1848,6 @@ test("init then uninstall manages Gemini hooks without removing existing hooks",
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     if (prevGeminiHome === undefined) delete process.env.GEMINI_HOME;
     else process.env.GEMINI_HOME = prevGeminiHome;
     await fs.rm(tmp, { recursive: true, force: true });
@@ -1945,7 +1859,6 @@ test("init skips Gemini hooks when config directory is missing", async () => {
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevGeminiHome = process.env.GEMINI_HOME;
   const prevWrite = process.stdout.write;
 
@@ -1954,7 +1867,6 @@ test("init skips Gemini hooks when config directory is missing", async () => {
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini-missing");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
 
     const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
@@ -1971,8 +1883,6 @@ test("init skips Gemini hooks when config directory is missing", async () => {
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     if (prevGeminiHome === undefined) delete process.env.GEMINI_HOME;
     else process.env.GEMINI_HOME = prevGeminiHome;
     await fs.rm(tmp, { recursive: true, force: true });
@@ -1984,7 +1894,6 @@ test("init creates Gemini settings when directory exists but file is missing", a
   let restoreHome = () => {};
   const prevCodexHome = process.env.CODEX_HOME;
   const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
   const prevGeminiHome = process.env.GEMINI_HOME;
   const prevWrite = process.stdout.write;
 
@@ -1993,7 +1902,6 @@ test("init creates Gemini settings when directory exists but file is missing", a
     process.env.CODEX_HOME = path.join(tmp, ".codex");
     process.env.GEMINI_HOME = path.join(tmp, ".gemini");
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
     await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
     await fs.mkdir(process.env.GEMINI_HOME, { recursive: true });
 
@@ -2020,96 +1928,8 @@ test("init creates Gemini settings when directory exists but file is missing", a
     else process.env.CODEX_HOME = prevCodexHome;
     if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     if (prevGeminiHome === undefined) delete process.env.GEMINI_HOME;
     else process.env.GEMINI_HOME = prevGeminiHome;
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("init then uninstall manages Opencode plugin without removing other plugins", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-init-uninstall-"));
-  let restoreHome = () => {};
-  const prevCodexHome = process.env.CODEX_HOME;
-  const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
-  const prevWrite = process.stdout.write;
-
-  try {
-    restoreHome = withHome(tmp);
-    process.env.CODEX_HOME = path.join(tmp, ".codex");
-    delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
-    await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
-
-    const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
-    await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
-
-    const opencodeDir = path.join(tmp, ".config", "opencode");
-    const pluginDir = path.join(opencodeDir, "plugin");
-    await fs.mkdir(pluginDir, { recursive: true });
-    const existingPluginPath = path.join(pluginDir, "existing.js");
-    await fs.writeFile(existingPluginPath, "// existing\n", "utf8");
-
-    process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-open"]);
-
-    const pluginPath = path.join(pluginDir, "tokentracker.js");
-    const installed = await fs.readFile(pluginPath, "utf8");
-    assert.match(installed, /TOKENTRACKER_PLUGIN/);
-
-    await cmdUninstall([]);
-
-    await assert.rejects(fs.stat(pluginPath), /ENOENT/);
-    const existing = await fs.readFile(existingPluginPath, "utf8");
-    assert.ok(existing.includes("existing"));
-  } finally {
-    process.stdout.write = prevWrite;
-    restoreHome();
-    if (prevCodexHome === undefined) delete process.env.CODEX_HOME;
-    else process.env.CODEX_HOME = prevCodexHome;
-    if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("init installs Opencode plugin when config dir is missing", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-init-uninstall-"));
-  let restoreHome = () => {};
-  const prevCodexHome = process.env.CODEX_HOME;
-  const prevToken = process.env.TOKENTRACKER_DEVICE_TOKEN;
-  const prevOpencodeConfigDir = process.env.OPENCODE_CONFIG_DIR;
-  const prevWrite = process.stdout.write;
-
-  try {
-    restoreHome = withHome(tmp);
-    process.env.CODEX_HOME = path.join(tmp, ".codex");
-    delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    process.env.OPENCODE_CONFIG_DIR = path.join(tmp, ".config", "opencode");
-    await fs.mkdir(process.env.CODEX_HOME, { recursive: true });
-
-    const codexConfigPath = path.join(process.env.CODEX_HOME, "config.toml");
-    await fs.writeFile(codexConfigPath, "# empty\n", "utf8");
-
-    process.stdout.write = () => true;
-    await cmdInit(["--yes", "--no-open"]);
-
-    const pluginPath = path.join(process.env.OPENCODE_CONFIG_DIR, "plugin", "tokentracker.js");
-    const installed = await fs.readFile(pluginPath, "utf8");
-    assert.match(installed, /TOKENTRACKER_PLUGIN/);
-  } finally {
-    process.stdout.write = prevWrite;
-    restoreHome();
-    if (prevCodexHome === undefined) delete process.env.CODEX_HOME;
-    else process.env.CODEX_HOME = prevCodexHome;
-    if (prevToken === undefined) delete process.env.TOKENTRACKER_DEVICE_TOKEN;
-    else process.env.TOKENTRACKER_DEVICE_TOKEN = prevToken;
-    if (prevOpencodeConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR;
-    else process.env.OPENCODE_CONFIG_DIR = prevOpencodeConfigDir;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });

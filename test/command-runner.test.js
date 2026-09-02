@@ -55,7 +55,7 @@ test("runCommand quotes the command unconditionally under useShell", async () =>
     // names may contain it, and the npm global prefix lives under the
     // user directory. Space-only quoting would leave this path unquoted
     // and cmd.exe would split it at `&`.
-    const command = "C:\\Users\\a&b\\AppData\\Roaming\\npm\\arkcli.cmd";
+    const command = "C:\\Users\\a&b\\AppData\\Roaming\\npm\\local-tool.cmd";
     const result = await runCommand(undefined, command, ["usage", "plan"], {
       platform: "win32",
       useShell: true,
@@ -74,7 +74,7 @@ test("runCommand quotes the command unconditionally under useShell", async () =>
 test("runCommand leaves the command untouched without useShell", async () => {
   const { calls, restore } = stubSpawn();
   try {
-    const command = "C:\\Program Files\\ark cli\\arkcli.cmd";
+    const command = "C:\\Program Files\\local tool\\local-tool.cmd";
     await runCommand(undefined, command, ["usage"], { platform: "win32", timeout: 1000 });
     assert.equal(calls[0].command, command);
     assert.equal(calls[0].options.shell, false);
@@ -87,7 +87,7 @@ test("Windows .cmd path with cmd metacharacters survives both spawn modes", asyn
   // A realistic npm-global install under a Windows account whose name
   // contains `&`: no whitespace, but cmd.exe would split the line at the
   // `&` when the path is handed to a shell unquoted.
-  const command = "C:\\Users\\a&b\\AppData\\Roaming\\npm\\arkcli.cmd";
+  const command = "C:\\Users\\a&b\\AppData\\Roaming\\npm\\local-tool.cmd";
   const args = ["usage", "plan", "--format", "json"];
 
   const { calls, restore } = stubSpawn();

@@ -76,11 +76,11 @@ test("sanitizeOutcome: tool falls back to source, then 'unknown'", () => {
 test("readOutcomesData parses jsonl, skips malformed, strips free-text", () => {
   const p = tmpFile(
     [
-      JSON.stringify({ timestamp: "2026-06-30T10:00:00Z", model: "kimi-k2.6", tool: "opencode", accepted: true, diff: "SHOULD_NOT_APPEAR" }),
+      JSON.stringify({ timestamp: "2026-06-30T10:00:00Z", model: "kimi-k2.6", tool: "codex", accepted: true, diff: "SHOULD_NOT_APPEAR" }),
       "{ this is not json",
       JSON.stringify({ model: "no-timestamp", accepted: true }), // dropped
       "",
-      JSON.stringify({ timestamp: "2026-06-30T11:00:00Z", model: "kimi-k2.6", tool: "opencode", accepted: false }),
+      JSON.stringify({ timestamp: "2026-06-30T11:00:00Z", model: "kimi-k2.6", tool: "codex", accepted: false }),
     ].join("\n"),
   );
   try {
@@ -98,16 +98,16 @@ test("computeQualityPerDollar: join math (qpd, acceptance, effective tokens)", (
   // Two queue rows for one model/tool with a known curated price.
   // kimi-k2.6 = input $0.95 / MTok. 2,000,000 input tokens => $1.90.
   const queueRows = [
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-30T11:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-30T11:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
   ];
   const expectedCost = computeRowCost(queueRows[0]) + computeRowCost(queueRows[1]);
   assert.ok(Math.abs(expectedCost - 1.9) < 1e-9, `sanity: expected ~$1.90, got ${expectedCost}`);
 
   const outcomes = [
-    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "opencode", accepted: true },
-    { timestamp: "2026-06-30T10:40:00Z", model: "kimi-k2.6", tool: "opencode", accepted: true },
-    { timestamp: "2026-06-30T11:30:00Z", model: "kimi-k2.6", tool: "opencode", accepted: false },
+    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "codex", accepted: true },
+    { timestamp: "2026-06-30T10:40:00Z", model: "kimi-k2.6", tool: "codex", accepted: true },
+    { timestamp: "2026-06-30T11:30:00Z", model: "kimi-k2.6", tool: "codex", accepted: false },
   ];
 
   const res = computeQualityPerDollar(queueRows, outcomes, {});
@@ -124,7 +124,7 @@ test("computeQualityPerDollar: join math (qpd, acceptance, effective tokens)", (
   assert.ok(Math.abs(m.effective_cost_usd - 1.9 * (2 / 3)) < 1e-9);
 
   // tool aggregation mirrors model aggregation here (single tool).
-  assert.strictEqual(res.by_tool[0].key, "opencode");
+  assert.strictEqual(res.by_tool[0].key, "codex");
   assert.strictEqual(res.by_tool[0].accepted, 2);
 
   // totals
@@ -135,7 +135,7 @@ test("computeQualityPerDollar: join math (qpd, acceptance, effective tokens)", (
 
 test("computeQualityPerDollar: degrades to cost-only when no outcomes", () => {
   const queueRows = [
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
   ];
   const res = computeQualityPerDollar(queueRows, [], {});
   assert.strictEqual(res.available, false);
@@ -162,10 +162,10 @@ test("computeQualityPerDollar: tolerates null/garbage queue rows", () => {
   const queueRows = [
     null,
     42,
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
   ];
   const outcomes = [
-    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "opencode", accepted: true },
+    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "codex", accepted: true },
   ];
   // Must not throw, and must price only the one valid row.
   const res = computeQualityPerDollar(queueRows, outcomes, {});
@@ -175,12 +175,12 @@ test("computeQualityPerDollar: tolerates null/garbage queue rows", () => {
 
 test("computeQualityPerDollar: respects the [from,to] day window", () => {
   const queueRows = [
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-28T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
-    { source: "opencode", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-28T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
+    { source: "codex", model: "kimi-k2.6", hour_start: "2026-06-30T10:00:00Z", input_tokens: 1_000_000, total_tokens: 1_000_000 },
   ];
   const outcomes = [
-    { timestamp: "2026-06-28T10:30:00Z", model: "kimi-k2.6", tool: "opencode", accepted: false },
-    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "opencode", accepted: true },
+    { timestamp: "2026-06-28T10:30:00Z", model: "kimi-k2.6", tool: "codex", accepted: false },
+    { timestamp: "2026-06-30T10:30:00Z", model: "kimi-k2.6", tool: "codex", accepted: true },
   ];
   const res = computeQualityPerDollar(queueRows, outcomes, { from: "2026-06-30", to: "2026-06-30" });
   assert.strictEqual(res.totals.outcomes, 1);

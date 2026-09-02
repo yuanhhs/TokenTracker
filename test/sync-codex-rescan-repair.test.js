@@ -93,7 +93,6 @@ async function withTempSyncEnv(fn) {
     CODEX_HOME: process.env.CODEX_HOME,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_HOME: process.env.OPENCODE_HOME,
     DSH_HOME: process.env.DSH_HOME,
     TOKENTRACKER_DSH_HOME: process.env.TOKENTRACKER_DSH_HOME,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
@@ -105,7 +104,6 @@ async function withTempSyncEnv(fn) {
     process.env.CODEX_HOME = path.join(home, ".codex");
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
-    process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
     process.env.TOKENTRACKER_AUTO_RETRY_NO_SPAWN = "1";
     delete process.env.DSH_HOME;

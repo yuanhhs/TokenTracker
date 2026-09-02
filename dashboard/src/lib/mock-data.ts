@@ -445,7 +445,7 @@ function buildMockRollingWindow({ rows, from, to }: AnyRecord = {}) {
   };
 }
 
-const MOCK_PROJECT_SOURCES = ["claude", "codex", "gemini", "cursor", "opencode", "kilo"];
+const MOCK_PROJECT_SOURCES = ["claude", "codex", "gemini", "cursor", "kilo"];
 
 function buildMockProjectEntry(repo: string, index: number, seedValue: string) {
   const hash = hashString(`${seedValue}:${repo}`);

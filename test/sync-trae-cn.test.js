@@ -50,16 +50,11 @@ async function withTempTraeEnv(fn) {
     CODEX_HOME: process.env.CODEX_HOME,
     CODE_HOME: process.env.CODE_HOME,
     GEMINI_HOME: process.env.GEMINI_HOME,
-    OPENCODE_HOME: process.env.OPENCODE_HOME,
     XDG_DATA_HOME: process.env.XDG_DATA_HOME,
     TOKENTRACKER_REASONIX_HOME: process.env.TOKENTRACKER_REASONIX_HOME,
     REASONIX_STATE_HOME: process.env.REASONIX_STATE_HOME,
     TOKENTRACKER_DEVICE_TOKEN: process.env.TOKENTRACKER_DEVICE_TOKEN,
     TOKENTRACKER_INSFORGE_BASE_URL: process.env.TOKENTRACKER_INSFORGE_BASE_URL,
-    TOKENTRACKER_OPENCLAW_HOME: process.env.TOKENTRACKER_OPENCLAW_HOME,
-    TOKENTRACKER_OPENCLAW_AGENT_ID: process.env.TOKENTRACKER_OPENCLAW_AGENT_ID,
-    TOKENTRACKER_OPENCLAW_PREV_SESSION_ID: process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID,
-    TOKENTRACKER_OPENCLAW_SESSION_KEY: process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY,
     TOKENTRACKER_TRAE_CN_HOME: process.env.TOKENTRACKER_TRAE_CN_HOME,
     TOKENTRACKER_TRAE_CN_USAGE: process.env.TOKENTRACKER_TRAE_CN_USAGE,
     TOKENTRACKER_WSL_MODE: process.env.TOKENTRACKER_WSL_MODE,
@@ -70,18 +65,13 @@ async function withTempTraeEnv(fn) {
     process.env.CODEX_HOME = path.join(home, ".codex");
     process.env.CODE_HOME = path.join(home, ".code");
     process.env.GEMINI_HOME = path.join(home, ".gemini");
-    process.env.OPENCODE_HOME = path.join(home, ".opencode");
     process.env.XDG_DATA_HOME = path.join(home, ".local", "share");
-    process.env.TOKENTRACKER_OPENCLAW_HOME = path.join(home, ".openclaw");
     process.env.TOKENTRACKER_TRAE_CN_HOME = traeCnHome;
     process.env.TOKENTRACKER_TRAE_CN_USAGE = "1";
     delete process.env.TOKENTRACKER_REASONIX_HOME;
     delete process.env.REASONIX_STATE_HOME;
     delete process.env.TOKENTRACKER_DEVICE_TOKEN;
     delete process.env.TOKENTRACKER_INSFORGE_BASE_URL;
-    delete process.env.TOKENTRACKER_OPENCLAW_AGENT_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_PREV_SESSION_ID;
-    delete process.env.TOKENTRACKER_OPENCLAW_SESSION_KEY;
     delete process.env.TOKENTRACKER_WSL_MODE;
     fs.mkdirSync(path.join(traeCnHome, "User", "globalStorage"), { recursive: true });
     return await fn({ home, traeCnHome });
