@@ -5,7 +5,6 @@ enum MenuBarIconStyle: String, CaseIterable {
     case clawd
     case cat
     case bot
-    case pet
     case `static`
 
     static let defaultsKey = "MenuBarIconStyle"
@@ -30,7 +29,7 @@ enum MenuBarIconStyle: String, CaseIterable {
     }
 }
 
-/// Motion tier for the runner icons (cat / pet). The animator maps its state
+/// Motion tier for the runner icons. The animator maps its state
 /// machine onto these tiers; the tables below are the single source of truth
 /// for frame pacing so tests can pin the speed contract.
 enum MenuBarRunnerMotion {
@@ -46,7 +45,7 @@ enum MenuBarRunnerPace {
     ///
     /// `bot` is different in kind: its state shows in WHICH clip plays, not how fast,
     /// and the clips the menu bar uses are sampled at 24 fps (it plays images and
-    /// cannot interpolate, unlike the pet window).
+    /// cannot interpolate).
     ///
     /// It still slows down when idle rather than holding 24 fps everywhere. Every
     /// frame runs the animator's image-updated callback, which recomposites the whole
@@ -61,13 +60,6 @@ enum MenuBarRunnerPace {
             case .sleeping: return 1.2
             case .idle: return 0.5
             case .syncing: return 0.2
-            case .sprinting: return 0.08
-            }
-        case .pet:
-            switch motion {
-            case .sleeping: return 0.6
-            case .idle: return 0.4
-            case .syncing: return 0.15
             case .sprinting: return 0.08
             }
         case .bot:

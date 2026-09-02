@@ -7,9 +7,6 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Clawd companion replaces the old header + Today card
-            ClawdCompanionView(viewModel: viewModel)
-
             switch serverManager.status {
             case .idle, .starting:
                 ServerStartingView()

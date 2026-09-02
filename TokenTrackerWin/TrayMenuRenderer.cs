@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace TokenTrackerWin;
 
 /// <summary>
-/// Renders the tray + pet context menus to match the dashboard's shared Select
+/// Renders the tray context menu to match the dashboard's shared Select
 /// dropdown (<c>dashboard/src/ui/components/Select.jsx</c>) exactly:
 ///   • popup: rounded-xl (12px), 1px gray-200 border, white bg
 ///   • item:  rounded-lg (8px), reserved left check column

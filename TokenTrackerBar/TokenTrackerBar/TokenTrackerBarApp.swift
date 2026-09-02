@@ -77,7 +77,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewModel = DashboardViewModel()
     private let serverManager = ServerManager()
     private let launchAtLoginManager = LaunchAtLoginManager()
-    private lazy var desktopPetController = DesktopPetWindowController(viewModel: viewModel)
     private lazy var dynamicIslandController = DynamicIslandController(viewModel: viewModel)
     private static var userInitiatedQuit = false
     private static let wakeCatchUpDebounceInterval: TimeInterval = 60
@@ -128,12 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             viewModel: viewModel,
             serverManager: serverManager,
             launchAtLoginManager: launchAtLoginManager,
-            desktopPetController: desktopPetController,
             dynamicIslandController: dynamicIslandController
         )
-
-        // Bring the desktop pet back if it was showing when the app last quit.
-        desktopPetController.restoreIfNeeded()
 
         // Bring the Dynamic Island back if it was enabled when the app last quit.
         dynamicIslandController.restoreIfNeeded()
@@ -141,7 +136,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NativeBridge.shared.configure(
             viewModel: viewModel,
             launchAtLoginManager: launchAtLoginManager,
-            desktopPetController: desktopPetController,
             dynamicIslandController: dynamicIslandController
         )
         registerWakeCatchUpObservers()
@@ -232,16 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             guard url.scheme == "tokentracker" else { continue }
-            if url.host == "auth" && url.path.hasPrefix("/done") {
-                DashboardWindowController.shared.handleAuthDone()
-            } else if url.host == "auth" && url.path.hasPrefix("/callback") {
-                // Browser relays OAuth code back via tokentracker://auth/callback?insforge_code=xxx
-                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                let code = components?.queryItems?.first(where: { $0.name == "insforge_code" })?.value
-                if let code {
-                    DashboardWindowController.shared.handleAuthCallback(code: code)
-                }
-            } else if url.host == "open" || url.host == "dashboard" {
+            if url.host == "open" || url.host == "dashboard" {
                 // The web app's local-only pages (Limits / Skills on
                 // tokentracker.cc) deep-link here via tokentracker://open to
                 // surface the local dashboard window.

@@ -1,8 +1,7 @@
 import React from "react";
-import { FlaskConical, Gauge, Globe, Monitor, Palette, Settings, UserRound } from "lucide-react";
+import { FlaskConical, Gauge, Globe, Monitor, Palette, Settings } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LimitsSettingsPanel } from "../components/LimitsSettingsPanel.jsx";
-import { AccountSection } from "../components/settings/AccountSection.jsx";
 import { AppearanceSection } from "../components/settings/AppearanceSection.jsx";
 import { LabsSection } from "../components/settings/LabsSection.jsx";
 import {
@@ -23,7 +22,6 @@ const SETTINGS_SECTION_IDS = {
   APPEARANCE: "appearance",
   NATIVE_APP: "native-app",
   NETWORK: "network",
-  ACCOUNT: "account",
   LIMITS: "limits",
   LABS: "labs",
 };
@@ -96,12 +94,6 @@ export function SettingsPage() {
           content: <NetworkSection proxySettings={proxySettings} />,
         }]
       : []),
-    {
-      id: SETTINGS_SECTION_IDS.ACCOUNT,
-      label: copy("settings.section.account"),
-      Icon: UserRound,
-      content: <AccountSection />,
-    },
     {
       id: SETTINGS_SECTION_IDS.LIMITS,
       label: copy("settings.section.limits"),

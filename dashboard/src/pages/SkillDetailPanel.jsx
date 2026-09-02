@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Checkbox } from "@base-ui/react/checkbox";
-import { ArrowUpCircle, Check, ExternalLink, Info, Loader2, MonitorSmartphone, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Check, ExternalLink, Info, Loader2, Trash2, X } from "lucide-react";
 import { ProviderIcon } from "../ui/dashboard/components/ProviderIcon.jsx";
 import { copy } from "../lib/copy";
 import { cn } from "../lib/cn";
@@ -134,10 +134,8 @@ function SkillDetailPanelInner({
     ? `https://github.com/${skill.repoOwner}/${skill.repoName}`
     : null;
   const activeTargetIds = new Set(skill.targets || []);
-  const readOnly = Boolean(skill.readOnly || skill.remote);
-  const remote = Boolean(skill.remote);
-  const deviceSources = Array.isArray(skill.deviceSources) ? skill.deviceSources : [];
-  const showUsage = !remote && (!readOnly || activeTargetIds.has("claude"));
+  const readOnly = Boolean(skill.readOnly);
+  const showUsage = true;
   const removing = busyKey === removeBusyKey(skill);
   const lastUsed = relativeLastUsed(usage?.lastUsedAt);
   const hasUsage = Boolean(usage && usage.invocations > 0);
@@ -246,7 +244,7 @@ function SkillDetailPanelInner({
           ) : null}
           {readOnly ? (
             <div className="mt-4 rounded-xl bg-oai-gray-50 px-3 py-2.5 text-xs leading-5 text-oai-gray-600 ring-1 ring-oai-gray-200 dark:bg-oai-gray-900/60 dark:text-oai-gray-300 dark:ring-oai-gray-800">
-              {copy(remote ? "skills.inventory.read_only_remote" : "skills.inventory.read_only_managed")}
+              {copy("skills.inventory.read_only_managed")}
             </div>
           ) : null}
           {skill.sourceName ? (
@@ -254,25 +252,6 @@ function SkillDetailPanelInner({
               {copy("skills.inventory.source", { source: skill.sourceName })}
             </div>
           ) : null}
-          {deviceSources.length ? (
-            <section className="mt-5">
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-500 dark:text-oai-gray-400">
-                {copy("skills.inventory.devices_title")}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {deviceSources.map((device) => (
-                  <span
-                    key={device.id}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-oai-gray-100 px-2.5 py-1 text-xs text-oai-gray-700 ring-1 ring-oai-gray-200 dark:bg-oai-gray-800 dark:text-oai-gray-200 dark:ring-oai-gray-700"
-                  >
-                    <MonitorSmartphone className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <span className="max-w-52 truncate">{device.name}</span>
-                  </span>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           {/* Activity — properties list (NOT a metrics dashboard). Surfaced near
               the top because "do I use this / what does it cost" is the keep-or-cut
               decision and the angle only a token tracker can show. */}

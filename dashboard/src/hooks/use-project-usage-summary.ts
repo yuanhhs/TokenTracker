@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
 import { isMockEnabled } from "../lib/mock-data";
 import { getProjectUsageSummary } from "../lib/api";
 import { useLatestRequestGuard } from "./use-latest-request-guard";
@@ -10,7 +9,6 @@ const FETCH_LIMIT = 10;
 
 export function useProjectUsageSummary({
   baseUrl,
-  accessToken,
   from,
   to,
   source,
@@ -21,14 +19,8 @@ export function useProjectUsageSummary({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mockEnabled = isMockEnabled();
-  const tokenReady = isAccessTokenReady(accessToken);
-
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
   const beginRequest = useLatestRequestGuard([
     baseUrl,
-    accessToken,
     from,
     to,
     source,
@@ -38,21 +30,12 @@ export function useProjectUsageSummary({
 
   const refresh = useCallback(async () => {
     const isCurrent = beginRequest();
-    const resolvedToken = await resolveAuthAccessToken(accessToken);
     if (!isCurrent()) return;
-    // 本地模式允许空 token
-    if (!resolvedToken && !mockEnabled && !isLocalMode) {
-      setEntries([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
       const res = await getProjectUsageSummary({
         baseUrl,
-        accessToken: resolvedToken,
         limit: FETCH_LIMIT,
         from,
         to,
@@ -70,21 +53,14 @@ export function useProjectUsageSummary({
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [accessToken, baseUrl, from, mockEnabled, source, timeZone, to, tzOffsetMinutes, isLocalMode, beginRequest]);
+  }, [baseUrl, from, mockEnabled, source, timeZone, to, tzOffsetMinutes, beginRequest]);
 
   useEffect(() => {
-    // 本地模式跳过 token 检查
-    if (!tokenReady && !mockEnabled && !isLocalMode) {
-      setEntries([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
     setEntries([]);
     setError(null);
     setLoading(true);
     refresh();
-  }, [mockEnabled, refresh, tokenReady, isLocalMode]);
+  }, [mockEnabled, refresh]);
 
   return { entries, loading, error, refresh };
 }

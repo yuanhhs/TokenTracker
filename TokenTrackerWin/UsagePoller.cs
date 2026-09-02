@@ -5,21 +5,11 @@ using System.Text.Json;
 namespace TokenTrackerWin;
 
 /// <summary>
-/// Polls the local server's usage endpoints for the figures the tray + floating pet
-/// surface. The tray only needs today's totals ("Today &lt;tokens&gt; · &lt;cost&gt;"),
-/// but the desktop pet mirrors the macOS companion's data-rich quip pool, so when the
-/// pet is visible the poller also gathers the rolling / heatmap / top-model stats the
-/// macOS <c>DashboardViewModel</c> feeds its <c>quipPool</c>.
-///
-/// The 7-day / 30-day rolling stats + today's conversation count come <b>free</b> from
-/// the same usage-summary call the tray already makes (the endpoint returns a
-/// <c>rolling</c> block). The heatmap (all-time active days) and model breakdown (top
-/// models) need their own calls, so they are gated behind <see cref="IncludeRichStats"/>
-/// — only fetched while the pet is on screen, never wasted when it's hidden.
+/// Polls the local server's usage summary for the tray's local-only figures.
 /// </summary>
 internal sealed class UsagePoller : IDisposable
 {
-    /// <summary>One of the pet's "top models" (name + share + provider), mirroring macOS TopModel.</summary>
+    /// <summary>Optional top-model statistic retained for wire compatibility.</summary>
     public readonly record struct TopModelStat(string Name, string Percent, string Source);
 
     public readonly record struct UsageStats(
@@ -39,40 +29,11 @@ internal sealed class UsagePoller : IDisposable
     private static readonly HttpClient Http =
         new(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(6) };
     private static readonly IReadOnlyList<TopModelStat> NoModels = Array.Empty<TopModelStat>();
-    // Cross-device ("account") aggregate request flag; the local server decides
-    // whether to serve it (signed in + cloud sync on) or local data, keeping the
-    // tray/pet figures aligned with the dashboard. Joined with an explicit '&'.
-    private const string AccountQuery = "account=1";
     private readonly Func<string> _baseUrl;
     private CancellationTokenSource? _cts;
 
-    /// <summary>
-    /// When true, each poll also gathers the heatmap + model-breakdown stats the pet's
-    /// quip pool uses (two extra calls). The tray sets this from the pet's visibility so
-    /// the extra work only happens while the pet is on screen.
-    /// </summary>
-    public volatile bool IncludeRichStats;
-
-    /// <summary>
-    /// Whether the most recent summary fetch returned cross-device ("account view")
-    /// data rather than local single-machine data. Mirrors the macOS APIClient's
-    /// <c>accountViewActive</c>; driven by the <c>X-TokenTracker-Account-View</c>
-    /// response header the local server sets.
-    /// </summary>
-    public volatile bool AccountViewActive;
-
-    /// <summary>
-    /// Fetch the provider quota snapshot while the desktop pet is visible. Keeping
-    /// this behind the same visibility gate as rich stats avoids waking provider
-    /// credential readers when the pet is hidden.
-    /// </summary>
-    public volatile bool IncludeLimits;
-
     /// <summary>Raised on the thread-pool with fresh stats. UI must marshal to the UI thread.</summary>
     public event Action<UsageStats>? StatsUpdated;
-
-    /// <summary>Raised with the raw local usage-limits JSON so each pet client can select its own display line.</summary>
-    public event Action<string>? LimitsUpdated;
 
     public UsagePoller(Func<string> baseUrl) => _baseUrl = baseUrl;
 
@@ -87,11 +48,6 @@ internal sealed class UsagePoller : IDisposable
             {
                 var stats = await FetchAsync();
                 if (stats is { } s && !token.IsCancellationRequested) StatsUpdated?.Invoke(s);
-                if (IncludeLimits)
-                {
-                    var limits = await FetchLimitsAsync();
-                    if (limits is not null && !token.IsCancellationRequested) LimitsUpdated?.Invoke(limits);
-                }
                 try { await Task.Delay(TimeSpan.FromSeconds(60), token); }
                 catch (TaskCanceledException) { break; }
             }
@@ -105,26 +61,7 @@ internal sealed class UsagePoller : IDisposable
         {
             var stats = await FetchAsync();
             if (stats is { } s && !token.IsCancellationRequested) StatsUpdated?.Invoke(s);
-            if (IncludeLimits)
-            {
-                var limits = await FetchLimitsAsync();
-                if (limits is not null && !token.IsCancellationRequested) LimitsUpdated?.Invoke(limits);
-            }
         }, token);
-    }
-
-    private async Task<string?> FetchLimitsAsync()
-    {
-        try
-        {
-            using var resp = await Http.GetAsync(_baseUrl() + "/functions/tokentracker-usage-limits");
-            if (!resp.IsSuccessStatusCode) return null;
-            return await resp.Content.ReadAsStringAsync();
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private async Task<UsageStats?> FetchAsync()
@@ -134,20 +71,11 @@ internal sealed class UsagePoller : IDisposable
             var today = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             var tzQuery = TimeZoneQuery();
 
-            // account=1 → the server serves the same cross-device aggregate the
-            // dashboard shows when the user is signed in with cloud sync on, and
-            // otherwise falls back to local single-machine data. Same response
-            // schema either way, so parsing below is unchanged.
             var summaryUrl = $"{_baseUrl()}/functions/tokentracker-usage-summary"
-                             + $"?from={today}&to={today}{tzQuery}&{AccountQuery}";
+                             + $"?from={today}&to={today}{tzQuery}";
 
             using var resp = await Http.GetAsync(summaryUrl);
             if (!resp.IsSuccessStatusCode) return null;
-
-            // Track whether the server served the cross-device aggregate or fell
-            // back to local data, mirroring the macOS client.
-            if (resp.Headers.TryGetValues("X-TokenTracker-Account-View", out var accountViewValues))
-                AccountViewActive = accountViewValues.FirstOrDefault() == "1";
 
             await using var stream = await resp.Content.ReadAsStreamAsync();
             using var doc = await JsonDocument.ParseAsync(stream);
@@ -178,21 +106,12 @@ internal sealed class UsagePoller : IDisposable
                 }
             }
 
-            // Heatmap (all-time active days / streak) + top models only when the pet wants them.
-            int streak = 0, activeAll = 0;
-            IReadOnlyList<TopModelStat> models = NoModels;
-            if (IncludeRichStats)
-            {
-                (streak, activeAll) = await FetchHeatmapAsync(tzQuery);
-                models = await FetchTopModelsAsync(today, tzQuery);
-            }
-
             return new UsageStats(
                 tokens, cost, convos,
                 l7Tokens, l7Active,
                 l30Tokens, l30Avg,
-                streak, activeAll,
-                models);
+                0, 0,
+                NoModels);
         }
         catch
         {
@@ -200,101 +119,10 @@ internal sealed class UsagePoller : IDisposable
         }
     }
 
-    /// <summary>Heatmap: all-time active days + current streak (streak is server-computed; the
-    /// local server returns 0, matching how the macOS pet reads it against the same backend).</summary>
-    private async Task<(int Streak, int ActiveDays)> FetchHeatmapAsync(string tzQuery)
-    {
-        try
-        {
-            var url = $"{_baseUrl()}/functions/tokentracker-usage-heatmap?weeks=52{tzQuery}&{AccountQuery}";
-            using var resp = await Http.GetAsync(url);
-            if (!resp.IsSuccessStatusCode) return (0, 0);
-            await using var stream = await resp.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
-            var root = doc.RootElement;
-            return ((int)GetLong(root, "streak_days"), (int)GetLong(root, "active_days"));
-        }
-        catch { return (0, 0); }
-    }
-
-    /// <summary>
-    /// Top models over the last 30 days — a faithful port of the macOS
-    /// <c>DashboardViewModel.buildTopModels()</c>: dedupe by lowercased model name, keep the
-    /// provider from the highest-token row for that name, percent = tokens / total billable
-    /// (one decimal), sort by tokens desc then name asc, top 5.
-    /// </summary>
-    private async Task<IReadOnlyList<TopModelStat>> FetchTopModelsAsync(string today, string tzQuery)
-    {
-        try
-        {
-            var from = DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var url = $"{_baseUrl()}/functions/tokentracker-usage-model-breakdown"
-                      + $"?from={from}&to={today}{tzQuery}&{AccountQuery}";
-            using var resp = await Http.GetAsync(url);
-            if (!resp.IsSuccessStatusCode) return NoModels;
-            await using var stream = await resp.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
-            if (!doc.RootElement.TryGetProperty("sources", out var sources)
-                || sources.ValueKind != JsonValueKind.Array) return NoModels;
-
-            var tokensByKey = new Dictionary<string, long>();
-            var nameByKey = new Dictionary<string, string>();
-            var sourceByKey = new Dictionary<string, string>();
-            var weightByKey = new Dictionary<string, long>();
-            long totalTokensAll = 0;
-
-            foreach (var src in sources.EnumerateArray())
-            {
-                var srcName = src.TryGetProperty("source", out var sn) ? sn.GetString() ?? "" : "";
-                if (!src.TryGetProperty("models", out var modelsEl) || modelsEl.ValueKind != JsonValueKind.Array)
-                    continue;
-                foreach (var m in modelsEl.EnumerateArray())
-                {
-                    long mt = m.TryGetProperty("totals", out var mtotals) ? ResolveDisplayTokens(mtotals) : 0;
-                    if (mt <= 0) continue;
-                    var name = m.TryGetProperty("model", out var mn) ? mn.GetString() ?? "" : "";
-                    if (string.IsNullOrEmpty(name)) name = "—";
-                    var key = name.ToLowerInvariant().Trim();
-                    if (key.Length == 0) continue;
-
-                    totalTokensAll += mt;
-                    tokensByKey[key] = tokensByKey.GetValueOrDefault(key) + mt;
-                    if (mt >= weightByKey.GetValueOrDefault(key))
-                    {
-                        weightByKey[key] = mt;
-                        nameByKey[key] = name;
-                        sourceByKey[key] = srcName;
-                    }
-                }
-            }
-
-            if (tokensByKey.Count == 0) return NoModels;
-            long totalTokens = totalTokensAll > 0 ? totalTokensAll : tokensByKey.Values.Sum();
-
-            return tokensByKey
-                .Select(kv => new
-                {
-                    Tokens = kv.Value,
-                    Stat = new TopModelStat(
-                        nameByKey.GetValueOrDefault(kv.Key, "—"),
-                        totalTokens > 0
-                            ? (kv.Value / (double)totalTokens * 100).ToString("0.0", CultureInfo.InvariantCulture)
-                            : "0.0",
-                        sourceByKey.GetValueOrDefault(kv.Key, "")),
-                })
-                .OrderByDescending(x => x.Tokens)
-                .ThenBy(x => x.Stat.Name, StringComparer.Ordinal)
-                .Take(5)
-                .Select(x => x.Stat)
-                .ToList();
-        }
-        catch { return NoModels; }
-    }
-
     /// <summary>
     /// Match the dashboard's resolveDisplayTokens semantics: prefer a positive
     /// billable total, otherwise fall back to a positive raw total. Keeping this
-    /// policy here prevents the Windows tray/pet from disagreeing with the same
+    /// policy here keeps the Windows tray consistent with the same
     /// usage-summary response rendered in the Dashboard.
     /// </summary>
     internal static long ResolveDisplayTokens(JsonElement totals)

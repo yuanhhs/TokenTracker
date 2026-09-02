@@ -4,10 +4,8 @@ import {
   Award,
   BarChart3,
   Gauge,
-  Trophy,
   History,
   LayoutGrid,
-  PawPrint,
   Globe,
   Puzzle,
   Activity,
@@ -25,7 +23,6 @@ import { cn } from "../../lib/cn";
 import { useTheme } from "../../hooks/useTheme.js";
 import { useLocale } from "../../hooks/useLocale.js";
 import { shouldFetchGithubStars } from "../dashboard/util/should-fetch-github-stars.js";
-import { InsforgeUserHeaderControls } from "../../components/InsforgeUserHeaderControls.jsx";
 import { isNativeApp, isNativeEmbed, isNativeWindowsApp } from "../../lib/native-bridge.js";
 
 const STORAGE_KEY = "tt.sidebarCollapsed";
@@ -41,7 +38,6 @@ export function getNavGroups() {
         { id: "usage", to: "/dashboard", icon: BarChart3, label: copy("nav.usage") },
         { id: "sessions", to: "/sessions", icon: History, label: copy("nav.sessions") },
         { id: "limits", to: "/limits", icon: Gauge, label: copy("nav.limits") },
-        { id: "leaderboard", to: "/leaderboard", icon: Trophy, label: copy("nav.leaderboard") },
         { id: "achievements", to: "/achievements", icon: Award, label: copy("nav.achievements") },
       ],
     },
@@ -50,7 +46,6 @@ export function getNavGroups() {
       label: copy("nav.group.tools"),
       items: [
         { id: "widgets", to: "/widgets", icon: LayoutGrid, label: copy("nav.widgets") },
-        { id: "pet", to: "/pet-settings", icon: PawPrint, label: copy("nav.pet") },
         { id: "skills", to: "/skills", icon: Puzzle, label: copy("nav.skills") },
         { id: "ip-check", to: "/ip-check", icon: Globe, label: copy("nav.ip_check") },
         { id: "service-status", to: "/service-status", icon: Activity, label: copy("nav.service_status") },
@@ -109,9 +104,6 @@ function isActive(pathname, to) {
   const normalized = pathname.replace(/\/+$/, "") || "/";
   if (to === "/dashboard") {
     return normalized === "/dashboard" || normalized === "/";
-  }
-  if (to === "/leaderboard") {
-    return normalized === "/leaderboard" || normalized.startsWith("/leaderboard/");
   }
   return normalized === to;
 }
@@ -323,35 +315,19 @@ function SidebarBody({ collapsed, onToggleCollapsed, onItemClick, showCloseButto
 
   return (
     <>
-      {/* Top: identity only — full-width, aligned with nav items (px-2) */}
-      <div className={cn("px-2 pt-2 pb-2", collapsed && "flex justify-center")}>
-        {showCloseButton ? (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <InsforgeUserHeaderControls
-                variant="sidebar"
-                collapsed={collapsed}
-                onAfterAction={onItemClick}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={copy("nav.close_menu")}
-              title={copy("nav.close_menu")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-oai-gray-500 dark:text-oai-gray-500 hover:bg-oai-gray-200/60 dark:hover:bg-oai-gray-800 hover:text-oai-gray-900 dark:hover:text-oai-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
-            >
-              <X className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-            </button>
-          </div>
-        ) : (
-          <InsforgeUserHeaderControls
-            variant="sidebar"
-            collapsed={collapsed}
-            onAfterAction={onItemClick}
-          />
-        )}
-      </div>
+      {showCloseButton && (
+        <div className="flex justify-end px-2 pt-2 pb-1">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={copy("nav.close_menu")}
+            title={copy("nav.close_menu")}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-oai-gray-500 dark:text-oai-gray-500 hover:bg-oai-gray-200/60 dark:hover:bg-oai-gray-800 hover:text-oai-gray-900 dark:hover:text-oai-gray-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
+          >
+            <X className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+          </button>
+        </div>
+      )}
 
       {/* Nav */}
       <nav

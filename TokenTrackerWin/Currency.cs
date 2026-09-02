@@ -9,10 +9,7 @@ namespace TokenTrackerWin;
 /// localStorage; these are the fallbacks when a rate is missing.
 ///
 /// The chosen symbol + rate are also cached natively (native-settings.json, alongside
-/// the locale/theme prefs) so the floating pet can show the right currency on a cold
-/// launch — when only the pet is on screen and the dashboard WebView (the live source)
-/// hasn't been created yet, there'd otherwise be nothing to read and the pet would fall
-/// back to USD even though the app last ran in, say, CNY.
+/// the locale/theme prefs) so the tray can show the right currency on a cold launch.
 /// </summary>
 internal static class Currency
 {
@@ -40,8 +37,7 @@ internal static class Currency
         "TokenTracker",
         "native-settings.json");
 
-    /// <summary>Cache the live currency symbol + USD→currency rate so a cold-launched pet
-    /// matches the app's last-used unit before the dashboard WebView exists.</summary>
+    /// <summary>Cache the live currency symbol + USD to currency rate for tray startup.</summary>
     public static void Persist(string symbol, decimal rate)
     {
         try

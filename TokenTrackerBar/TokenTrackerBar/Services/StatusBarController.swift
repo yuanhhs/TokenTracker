@@ -36,16 +36,9 @@ final class StatusBarController: NSObject {
     private let viewModel: DashboardViewModel
     private let serverManager: ServerManager
     private let launchAtLoginManager: LaunchAtLoginManager
-    private let desktopPetController: DesktopPetWindowController
     private let dynamicIslandController: DynamicIslandController
     private var animator: MenuBarAnimator?
     private let queueActivityMonitor = QueueActivityMonitor()
-    private let accountUploadMonitor = QueueActivityMonitor(
-        queueURL: FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".tokentracker/tracker/queue.state.json"),
-        settleDelay: BackgroundRefreshPolicy.defaultAccountUploadVisibilityDelay,
-        publishInitialState: true
-    )
     private let confettiController = ScreenConfettiOverlayController()
     private var cancellables = Set<AnyCancellable>()
     /// While the status-item menu is open, refreshes the “Check for Updates” row when download/check status changes.
@@ -73,12 +66,10 @@ final class StatusBarController: NSObject {
     init(viewModel: DashboardViewModel,
          serverManager: ServerManager,
          launchAtLoginManager: LaunchAtLoginManager,
-         desktopPetController: DesktopPetWindowController,
          dynamicIslandController: DynamicIslandController) {
         self.viewModel = viewModel
         self.serverManager = serverManager
         self.launchAtLoginManager = launchAtLoginManager
-        self.desktopPetController = desktopPetController
         self.dynamicIslandController = dynamicIslandController
         super.init()
 
@@ -290,31 +281,13 @@ final class StatusBarController: NSObject {
         }
         queueActivityMonitor.start()
 
-        // Cross-device account summaries are authoritative only after upload
-        // advances queue.state.json. Local queue writes happen earlier.
-        accountUploadMonitor.onSettledActivity = { [weak self] in
-            guard let self else { return }
-            let summaries = self.selectedMenuBarSummaries()
-            Task { @MainActor [weak self] in
-                await self?.viewModel.refreshAfterAccountUpload(menuBarSummaries: summaries)
-            }
-        }
-        accountUploadMonitor.start()
-
         updateStatsDisplay()
     }
 
     private func selectedMenuBarSummaries() -> MenuBarSummarySelection {
-        var summaries = showStats
+        let summaries = showStats
             ? MenuBarDisplayPreferences.summarySelection(for: MenuBarDisplayPreferences.read())
             : MenuBarSummarySelection()
-        // The floating pet is another always-visible consumer of today and
-        // rolling usage. When menu-bar stats are hidden, returning an empty
-        // selection here made queue writes animate the pet but left its usage
-        // numbers stale until the dashboard opened or Sync Now was clicked.
-        if desktopPetController.isVisible {
-            summaries.formUnion([.today, .rolling])
-        }
         return summaries
     }
 
@@ -354,13 +327,6 @@ final class StatusBarController: NSObject {
                 self?.refreshAnimatorState()
                 self?.updateStatsDisplay()
             }
-            .store(in: &cancellables)
-
-        // Re-render pet frames when the selected character changes
-        PetCharacterStore.shared.$character
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.animator?.applyCurrentState() }
             .store(in: &cancellables)
 
         viewModel.$rollingSummary
@@ -1198,14 +1164,6 @@ final class StatusBarController: NSObject {
         displayItem.submenu = displayMenu
         menu.addItem(displayItem)
 
-        // Desktop Pet
-        let petItem = NSMenuItem(title: Strings.menuDesktopPet, action: #selector(toggleDesktopPet), keyEquivalent: "")
-        petItem.target = self
-        petItem.state = desktopPetController.isVisible ? .on : .off
-        menu.addItem(petItem)
-
-        menu.addItem(.separator())
-
         // ── Group 3: Preferences & Notifications ──
         let loginItem = NSMenuItem(title: Strings.menuLaunchAtLogin, action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         loginItem.target = self
@@ -1368,10 +1326,9 @@ final class StatusBarController: NSObject {
 
     private func iconStyleLabel(_ style: MenuBarIconStyle) -> String {
         switch style {
-        case .clawd: return Strings.petCharacterClawd
-        case .bot: return Strings.petCharacterBot
+        case .clawd: return "Clawd"
+        case .bot: return "Bot"
         case .cat: return Strings.iconStyleCat
-        case .pet: return Strings.iconStyleMyPet
         case .static: return Strings.iconStyleStatic
         }
     }
@@ -1399,10 +1356,6 @@ final class StatusBarController: NSObject {
 
     @objc private func toggleLaunchAtLogin() {
         launchAtLoginManager.toggle()
-    }
-
-    @objc private func toggleDesktopPet() {
-        desktopPetController.toggle()
     }
 
     @objc private func quit() {

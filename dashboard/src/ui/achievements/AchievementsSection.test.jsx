@@ -18,20 +18,20 @@ const earned = (id, tier) => ({
 });
 
 describe("AchievementsSection", () => {
-  it("own view renders the full catalog for the scope (earned + locked)", () => {
+  it("own view renders the local catalog for the scope (earned + locked)", () => {
     render(
-      <AchievementsSection achievements={[earned("streak", 2)]} isOwn scope="cloud" />,
+      <AchievementsSection achievements={[earned("project_hopper", 2)]} isOwn scope="local" />,
     );
-    const cloudCount = BADGE_CATALOG.filter((b) => b.scope === "cloud").length;
-    expect(screen.getAllByRole("button")).toHaveLength(cloudCount);
+    const localCount = BADGE_CATALOG.filter((b) => b.scope === "local").length;
+    expect(screen.getAllByRole("button")).toHaveLength(localCount);
   });
 
   it("visitor view renders earned badges only", () => {
     render(
       <AchievementsSection
-        achievements={[earned("streak", 2), earned("podium", 0)]}
+        achievements={[earned("project_hopper", 2), earned("project_devotion", 0)]}
         isOwn={false}
-        scope="cloud"
+        scope="local"
       />,
     );
     expect(screen.getAllByRole("button")).toHaveLength(1);
@@ -39,14 +39,14 @@ describe("AchievementsSection", () => {
 
   it("visitor view with nothing earned renders nothing", () => {
     const { container } = render(
-      <AchievementsSection achievements={[]} isOwn={false} scope="cloud" />,
+      <AchievementsSection achievements={[]} isOwn={false} scope="local" />,
     );
     expect(container.firstChild).toBeNull();
   });
 
   it("tolerates a missing achievements payload (older backends)", () => {
     const { container } = render(
-      <AchievementsSection achievements={undefined} isOwn={false} scope="cloud" />,
+      <AchievementsSection achievements={undefined} isOwn={false} scope="local" />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -54,19 +54,19 @@ describe("AchievementsSection", () => {
 
 describe("AchievementBadge", () => {
   it("renders artwork for a known badge", () => {
-    const { container } = render(<AchievementBadge badgeId="token_titan" tier={3} />);
+    const { container } = render(<AchievementBadge badgeId="project_hopper" tier={3} />);
     const img = container.querySelector("img");
     expect(img?.getAttribute("src")).toContain("/achievements/");
   });
 
   it("desaturates locked badges", () => {
-    const { container } = render(<AchievementBadge badgeId="token_titan" tier={0} />);
+    const { container } = render(<AchievementBadge badgeId="project_hopper" tier={0} />);
     const img = container.querySelector("img");
     expect(img?.style.filter).toContain("grayscale");
   });
 
   it("gives page-scale artwork more room than the tier ring", () => {
-    const { container } = render(<AchievementBadge badgeId="token_titan" tier={3} size="lg" />);
+    const { container } = render(<AchievementBadge badgeId="project_hopper" tier={3} size="lg" />);
     const badge = container.firstElementChild;
     expect(badge?.style.width).toBe("108px");
     expect(badge?.style.padding).toBe("2px");
@@ -76,16 +76,16 @@ describe("AchievementBadge", () => {
 describe("badge helpers", () => {
   it("sortBadges orders by tier desc then catalog order", () => {
     const sorted = sortBadges([
-      { id: "veteran", tier: 2 },
-      { id: "token_titan", tier: 2 },
-      { id: "streak", tier: 4 },
+      { id: "project_devotion", tier: 2 },
+      { id: "project_hopper", tier: 2 },
+      { id: "night_owl", tier: 4 },
     ]);
-    expect(sorted.map((b) => b.id)).toEqual(["streak", "token_titan", "veteran"]);
+    expect(sorted.map((b) => b.id)).toEqual(["night_owl", "project_hopper", "project_devotion"]);
   });
 
   it("highestBadge ignores unearned entries", () => {
-    expect(highestBadge([{ id: "streak", tier: 0 }])).toBeNull();
-    expect(highestBadge([{ id: "streak", tier: 1 }, { id: "podium", tier: 3 }])?.id).toBe("podium");
+    expect(highestBadge([{ id: "project_hopper", tier: 0 }])).toBeNull();
+    expect(highestBadge([{ id: "project_hopper", tier: 1 }, { id: "night_owl", tier: 3 }])?.id).toBe("night_owl");
   });
 
   it("badgeProgress inverts for lower_is_better metrics and clamps", () => {

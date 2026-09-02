@@ -18,7 +18,6 @@ final class NativeBridge {
     weak var webView: WKWebView?
     private weak var viewModel: DashboardViewModel?
     private weak var launchAtLoginManager: LaunchAtLoginManager?
-    private weak var desktopPetController: DesktopPetWindowController?
     private weak var dynamicIslandController: DynamicIslandController?
     private var cancellables = Set<AnyCancellable>()
 
@@ -27,12 +26,10 @@ final class NativeBridge {
     func configure(
         viewModel: DashboardViewModel,
         launchAtLoginManager: LaunchAtLoginManager,
-        desktopPetController: DesktopPetWindowController,
         dynamicIslandController: DynamicIslandController? = nil
     ) {
         self.viewModel = viewModel
         self.launchAtLoginManager = launchAtLoginManager
-        self.desktopPetController = desktopPetController
         self.dynamicIslandController = dynamicIslandController
 
         cancellables.removeAll()
@@ -89,10 +86,6 @@ final class NativeBridge {
         switch type {
         case "getSettings":
             pushSettings()
-        case "getPetSettings":
-            pushPetSettings()
-        case "refreshPetCatalog":
-            PetCatalog.shared.refresh()
         case "getSystemAppearance":
             DashboardWindowController.shared.pushCurrentSystemAppearanceToWeb()
         case "setChromeAppearance":
@@ -105,10 +98,6 @@ final class NativeBridge {
         case "setSetting":
             if let key = dict["key"] as? String {
                 applySetting(key: key, value: dict["value"])
-            }
-        case "setPetSetting":
-            if let key = dict["key"] as? String {
-                applyPetSetting(key: key, value: dict["value"])
             }
         case "notify":
             if let title = dict["title"] as? String,
@@ -260,19 +249,6 @@ final class NativeBridge {
         webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    func pushPetSettings() {
-        guard let controller = desktopPetController else { return }
-        let payload: [String: Any] = [
-            "visible": controller.isVisible,
-            "character": PetCharacterStore.shared.character.rawValue,
-            "botColor": PetCharacterStore.shared.botColor,
-            "size": PetSizePreset.from(scale: controller.uiState.floatingScale).rawValue,
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else { return }
-        let js = "window.dispatchEvent(new CustomEvent('native:petSettings', { detail: \(json) }));"
-        webView?.evaluateJavaScript(js, completionHandler: nil)
-    }
 
     // MARK: - Setters
 
@@ -398,36 +374,6 @@ final class NativeBridge {
             break
         }
         pushSettings()
-    }
-
-    private func applyPetSetting(key: String, value: Any?) {
-        guard let controller = desktopPetController else { return }
-        // No trailing pushPetSettings() here: every mutation path below already pushes
-        // (show/hide/setSize/setCharacter), and their same-value guards only skip the
-        // echo when the dashboard's optimistic state already matches.
-        switch key {
-        case "visible":
-            if let visible = value as? Bool {
-                visible ? controller.show() : controller.hide()
-            }
-        case "character":
-            if let raw = value as? String, let character = PetCharacter(rawValue: raw) {
-                controller.setCharacter(character)
-            }
-        case "botColor":
-            if let raw = value as? String {
-                // Unlike the paths above, the store has no dashboard-visible side effect
-                // to echo, so push explicitly after it settles.
-                PetCharacterStore.shared.setBotColor(raw)
-                pushPetSettings()
-            }
-        case "size":
-            if let raw = value as? String, let size = PetSizePreset(rawValue: raw) {
-                controller.setSize(size)
-            }
-        default:
-            break
-        }
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

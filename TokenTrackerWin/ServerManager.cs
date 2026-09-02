@@ -158,18 +158,12 @@ internal sealed class ServerManager : IDisposable
 
     // ── Port selection ─────────────────────────────────────────────────
 
-    // OAuth (Google/GitHub) redirects to http://127.0.0.1:<port>/auth/callback, which
-    // must be in InsForge's allowed-redirect-URL list. A dynamic port can't be, so we
-    // prefer this fixed port (registered in the InsForge allow-list alongside the macOS
-    // app's :7680). It sits in the IANA "registered" range (10000–49151), so Windows
-    // won't hand it out as an ephemeral port, and it avoids the DoSvc-held :7680.
+    // Prefer a stable loopback port for a predictable local dashboard URL while
+    // avoiding the system service that commonly occupies :7680.
     private const int PreferredPort = 17680;
 
     /// <summary>
-    /// Prefer the OAuth-allow-listed fixed port; fall back to an OS-assigned free
-    /// loopback port if it's taken (login still works for email; OAuth needs the fixed
-    /// port to match the redirect allow-list). The CLI re-binds the chosen port a moment
-    /// later; the race window is negligible on loopback.
+    /// Prefer the fixed port; fall back to an OS-assigned free loopback port if needed.
     /// </summary>
     private static int PickServerPort()
     {

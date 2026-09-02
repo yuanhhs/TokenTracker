@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
+import { useCallback, useEffect, useState } from "react";
 import { formatDateLocal, formatDateUTC } from "../lib/date-range";
 import { isMockEnabled } from "../lib/mock-data";
 import { getLocalDayKey, getTimeZoneCacheKey } from "../lib/timezone";
 import {
-  fetchCloudUsageDaily,
-  fetchCloudUsageSummary,
   getUsageDaily,
   getUsageSummary,
 } from "../lib/api";
@@ -29,14 +26,9 @@ export function useUsageData({
   timeZone,
   tzOffsetMinutes,
   now,
-  accountView = false,
-  accountAccessToken = null,
-  accountRevision = 0,
-  accountViewResolving = false,
   deviceId = null,
 }: any = {}) {
-  const useCloud = Boolean(accountView && accountAccessToken);
-  const scopeKey = useCloud ? "cloud" : "local";
+  const scopeKey = "local";
   const [daily, setDaily] = useState<any[]>([]);
   const [summary, setSummary] = useState<any | null>(null);
   const [rolling, setRolling] = useState<any | null>(null);
@@ -45,7 +37,6 @@ export function useUsageData({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mockEnabled = isMockEnabled();
-  const tokenReady = isAccessTokenReady(accessToken);
   const cacheAllowed = !guestAllowed && !mockEnabled;
 
   const deviceScope = deviceId || "all";
@@ -58,22 +49,6 @@ export function useUsageData({
     const tzKey = getTimeZoneCacheKey({ timeZone, offsetMinutes: tzOffsetMinutes });
     return `tokentracker.usage.${cacheKey}.${scopeKey}.${host}.${from}.${to}.${dataKey}.${tzKey}.${deviceScope}`;
   })();
-
-  // Wipe state when the scope flips so the previously-rendered local data
-  // doesn't visually persist while the cloud fetch is in flight (and vice
-  // versa). The dependent fetcher will repopulate via refresh() below.
-  const lastScopeRef = useRef(scopeKey);
-  useEffect(() => {
-    if (lastScopeRef.current === scopeKey) return;
-    lastScopeRef.current = scopeKey;
-    setDaily([]);
-    setSummary(null);
-    setRolling(null);
-    setSource("edge");
-    setFetchedAt(null);
-    setError(null);
-    setLoading(true);
-  }, [scopeKey]);
 
   const readCache = useCallback(() => {
     if (!storageKey || typeof window === "undefined") return null;
@@ -114,9 +89,6 @@ export function useUsageData({
     }
   }, [storageKey]);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
   const beginRequest = useLatestRequestGuard([
     baseUrl,
     from,
@@ -124,9 +96,6 @@ export function useUsageData({
     includeDaily,
     includeSummary,
     scopeKey,
-    accessToken,
-    accountAccessToken,
-    accountRevision,
     deviceId,
     timeZone,
     tzOffsetMinutes,
@@ -134,22 +103,9 @@ export function useUsageData({
 
   const refresh = useCallback(async () => {
     const isCurrent = beginRequest();
-    const resolvedToken = await resolveAuthAccessToken(accessToken);
-    const cloudToken = useCloud ? await resolveAuthAccessToken(accountAccessToken) : null;
     if (!isCurrent()) return;
-    // 本地模式允许空 token；云端模式必须 resolve 到一个 JWT 字符串
-    if (!resolvedToken && !mockEnabled && !isLocalMode && !useCloud) return;
-    if (useCloud && !cloudToken) {
-      // Cloud scope but the JWT could not be resolved/refreshed (refresh token
-      // also dead). Surface an explicit error + stop loading instead of a bare
-      // return, which previously left the panel stuck in a silent spinner.
-      setError("Your session expired. Please sign in again to view account data.");
-      setLoading(false);
-      return;
-    }
-    const dailyFetcher = useCloud ? fetchCloudUsageDaily : getUsageDaily;
-    const summaryFetcher = useCloud ? fetchCloudUsageSummary : getUsageSummary;
-    const tokenForFetch = useCloud ? cloudToken : resolvedToken;
+    const dailyFetcher = getUsageDaily;
+    const summaryFetcher = getUsageSummary;
     setLoading(true);
     setError(null);
     try {
@@ -160,7 +116,6 @@ export function useUsageData({
           const [dailyResult, summaryResult] = await Promise.allSettled([
             dailyFetcher({
               baseUrl,
-              accessToken: tokenForFetch,
               from,
               to,
               device: deviceId,
@@ -169,7 +124,6 @@ export function useUsageData({
             }),
             summaryFetcher({
               baseUrl,
-              accessToken: tokenForFetch,
               from,
               to,
               device: deviceId,
@@ -184,7 +138,6 @@ export function useUsageData({
         } else {
           dailyRes = await dailyFetcher({
             baseUrl,
-            accessToken: tokenForFetch,
             from,
             to,
             device: deviceId,
@@ -195,7 +148,6 @@ export function useUsageData({
       } else if (includeSummary) {
         summaryRes = await summaryFetcher({
           baseUrl,
-          accessToken: tokenForFetch,
           from,
           to,
           device: deviceId,
@@ -223,7 +175,6 @@ export function useUsageData({
         try {
           const fallback = await summaryFetcher({
             baseUrl,
-            accessToken: tokenForFetch,
             from,
             to,
             device: deviceId,
@@ -302,7 +253,6 @@ export function useUsageData({
       if (isCurrent()) setLoading(false);
     }
   }, [
-    accessToken,
     baseUrl,
     from,
     includeDaily,
@@ -312,42 +262,16 @@ export function useUsageData({
     cacheAllowed,
     now,
     readCache,
-    tokenReady,
     timeZone,
     to,
     tzOffsetMinutes,
     clearCache,
     writeCache,
-    isLocalMode,
-    useCloud,
-    accountAccessToken,
-    accountRevision,
     deviceId,
     beginRequest,
   ]);
 
   useEffect(() => {
-    if (accountViewResolving) {
-      // Scope not yet resolved (auth loading, cloud likely). Hold a loading
-      // state without reading the local cache or firing the local fetch, so we
-      // don't paint local data that the cloud flip would immediately wipe.
-      setLoading(true);
-      return;
-    }
-    const isLocalMode = typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-    const isLocalModeCheck = typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-    if (!tokenReady && !guestAllowed && !mockEnabled && !isLocalModeCheck && !useCloud) {
-      setDaily([]);
-      setSummary(null);
-      setRolling(null);
-      setError(null);
-      setLoading(false);
-      setSource("edge");
-      setFetchedAt(null);
-      return;
-    }
     if (!cacheAllowed) {
       clearCache();
       setDaily([]);
@@ -387,16 +311,12 @@ export function useUsageData({
     setLoading(true);
     refresh();
   }, [
-    accessToken,
     mockEnabled,
     readCache,
     refresh,
-    tokenReady,
     guestAllowed,
     cacheAllowed,
     clearCache,
-    isLocalMode,
-    accountViewResolving,
     includeSummary,
   ]);
 

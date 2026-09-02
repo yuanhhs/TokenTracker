@@ -70,7 +70,7 @@ const {
   resolveReasonixHome,
   resolveTraeStoragePath,
 } = require("../lib/rollout");
-const { resolveRuntimeConfig, DEFAULT_BASE_URL } = require("../lib/runtime-config");
+const { resolveRuntimeConfig } = require("../lib/runtime-config");
 const {
   BOLD,
   DIM,
@@ -81,7 +81,7 @@ const {
   promptMenu,
   createSpinner,
 } = require("../lib/cli-ui");
-const { renderLocalReport, renderAuthTransition, renderSuccessBox } = require("../lib/init-flow");
+const { renderLocalReport, renderSuccessBox } = require("../lib/init-flow");
 const { maybeShowStarCta } = require("../lib/star-cta");
 
 const ASCII_LOGO = [
@@ -149,11 +149,9 @@ async function cmdInit(argv) {
 
   const configPath = path.join(trackerDir, "config.json");
   const notifyOriginalPath = path.join(trackerDir, "codex_notify_original.json");
-  const linkCodeStatePath = path.join(trackerDir, "link_code_state.json");
-
   const existingConfig = await readJson(configPath);
   const runtime = resolveRuntimeConfig({
-    cli: { baseUrl: opts.baseUrl, dashboardUrl: opts.dashboardUrl },
+    cli: { dashboardUrl: opts.dashboardUrl },
     config: existingConfig || {},
     env: process.env,
   });
@@ -191,7 +189,7 @@ async function cmdInit(argv) {
       runtime,
     });
     renderLocalReport({ summary: preview.summary, isDryRun: true });
-    renderAccountNotLinked({ context: "dry-run" });
+    process.stdout.write("\nDry run complete. Run init without --dry-run to apply changes.\n\n");
     return;
   }
 
@@ -206,7 +204,6 @@ async function cmdInit(argv) {
       binDir,
       configPath,
       notifyOriginalPath,
-      linkCodeStatePath,
       notifyPath,
       appDir,
       trackerBinPath,
@@ -294,34 +291,10 @@ function renderLocalSuccess({ firstSync } = {}) {
   process.stdout.write(lines.join("\n"));
 }
 
-function renderAccountNotLinked({ context } = {}) {
-  if (context === "dry-run") {
-    process.stdout.write(
-      [
-        "",
-        "Dry run complete. Run init without --dry-run to apply changes.",
-        "",
-      ].join("\n"),
-    );
-    return;
-  }
-  renderLocalSuccess();
-}
-
-function shouldUseBrowserAuth({ deviceToken, opts }) {
-  if (deviceToken) return false;
-  if (opts.noAuth) return false;
-  if (opts.linkCode) return false;
-  if (opts.email || opts.password) return false;
-  return true;
-}
-
 async function buildDryRunSummary({ opts, home, trackerDir, notifyPath, runtime }) {
-  const deviceToken = runtime?.deviceToken || null;
-  const pendingBrowserAuth = shouldUseBrowserAuth({ deviceToken, opts });
   const context = buildIntegrationTargets({ home, trackerDir, notifyPath });
   const summary = await previewIntegrations({ context });
-  return { summary, pendingBrowserAuth, deviceToken };
+  return { summary };
 }
 
 async function runSetup({
@@ -331,7 +304,6 @@ async function runSetup({
   binDir,
   configPath,
   notifyOriginalPath,
-  linkCodeStatePath,
   notifyPath,
   appDir,
   trackerBinPath,
@@ -340,10 +312,7 @@ async function runSetup({
 }) {
   await ensureDir(trackerDir);
   await ensureDir(binDir);
-  let deviceToken = runtime?.deviceToken || null;
-  let deviceId = existingConfig?.deviceId || null;
   const installedAt = existingConfig?.installedAt || new Date().toISOString();
-  let pendingBrowserAuth = false;
 
   await installLocalTrackerApp({ appDir });
 
@@ -351,14 +320,22 @@ async function runSetup({
     existingConfig && typeof existingConfig === "object" && !Array.isArray(existingConfig)
       ? existingConfig
       : {};
-  const config = {
-    ...existingPlainConfig,
-    installedAt,
-    // Keep a persisted legacy URL until the first sync. sync owns the migration
-    // lock and must reset the upload offset/backoff before removing this marker;
-    // rewriting it here would skip the historical replay permanently.
-    baseUrl: opts.baseUrl || existingPlainConfig.baseUrl || DEFAULT_BASE_URL,
-  };
+  const config = { ...existingPlainConfig, installedAt };
+  // Init is local-only. Remove credentials and cloud identity left by an older
+  // installation instead of carrying them into the new config.
+  for (const key of [
+    "deviceToken",
+    "deviceId",
+    "machineId",
+    "baseUrl",
+    "anonKey",
+    "refreshToken",
+    "accessToken",
+    "cloudSync",
+    "cloud_sync",
+  ]) {
+    delete config[key];
+  }
   if (opts.dashboardUrl) {
     config.dashboardUrl = opts.dashboardUrl;
   }
@@ -378,9 +355,6 @@ async function runSetup({
 
   return {
     summary,
-    pendingBrowserAuth,
-    deviceToken,
-    deviceId,
     installedAt,
   };
 }
@@ -1150,13 +1124,7 @@ function containsNestedTokenTrackerNotify(cmd, expectedNotify) {
 
 function parseArgs(argv) {
   const out = {
-    baseUrl: null,
     dashboardUrl: null,
-    email: null,
-    password: null,
-    deviceName: null,
-    linkCode: null,
-    noAuth: false,
     noOpen: false,
     yes: false,
     dryRun: false,
@@ -1164,13 +1132,7 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--base-url") out.baseUrl = argv[++i] || null;
-    else if (a === "--dashboard-url") out.dashboardUrl = argv[++i] || null;
-    else if (a === "--email") out.email = argv[++i] || null;
-    else if (a === "--password") out.password = argv[++i] || null;
-    else if (a === "--device-name") out.deviceName = argv[++i] || null;
-    else if (a === "--link-code") out.linkCode = argv[++i] || null;
-    else if (a === "--no-auth") out.noAuth = true;
+    if (a === "--dashboard-url") out.dashboardUrl = argv[++i] || null;
     else if (a === "--no-open") out.noOpen = true;
     else if (a === "--yes") out.yes = true;
     else if (a === "--dry-run") out.dryRun = true;

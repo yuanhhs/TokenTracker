@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAccountView } from "../contexts/AccountViewContext.jsx";
 import { useActivityHeatmap } from "../hooks/use-activity-heatmap.js";
 import { useDashboardCardOrder } from "../hooks/use-dashboard-card-order.js";
 import { useProjectUsageSummary } from "../hooks/use-project-usage-summary";
@@ -7,11 +6,6 @@ import { useTrendData } from "../hooks/use-trend-data.js";
 import { useUsageData } from "../hooks/use-usage-data.js";
 import { useUsageLimits } from "../hooks/use-usage-limits.js";
 import { useUsageModelBreakdown } from "../hooks/use-usage-model-breakdown.js";
-import {
-  isAccessTokenReady,
-  normalizeAccessToken,
-  resolveAuthAccessToken,
-} from "../lib/auth-token";
 import { copy } from "../lib/copy";
 import { useLocale } from "../hooks/useLocale.js";
 import { useCurrency } from "../hooks/useCurrency.js";
@@ -40,19 +34,9 @@ import {
   getBrowserTimeZoneOffsetMinutes,
   getLocalDayKey,
 } from "../lib/timezone";
-import {
-  getUserStatus,
-  invalidateAccountResponseCache,
-  invalidateSessionInsightsCache,
-  triggerLocalSync,
-  renameAccountDevice,
-} from "../lib/api";
+import { invalidateSessionInsightsCache, triggerLocalSync } from "../lib/api";
 import { ActivityHeatmap } from "../ui/dashboard/components/ActivityHeatmap.jsx";
 import { DashboardView } from "../ui/dashboard/views/DashboardView.jsx";
-import { useAccountDevices } from "../hooks/use-account-devices.js";
-import { DeviceUsageCard } from "../ui/dashboard/components/DeviceUsageCard.jsx";
-import { formatDeviceLabel } from "../lib/device-label.js";
-import { CLOUD_USAGE_SYNCED_EVENT, getCurrentDeviceId } from "../lib/cloud-sync-prefs";
 import { ShareModal } from "../ui/share/ShareModal";
 import { useShareCardData } from "../ui/share/use-share-card-data";
 
@@ -62,13 +46,10 @@ const DETAILS_PAGED_PERIODS = new Set(["day", "total", "custom"]);
 
 // Default Overview card order — each column is dragged/persisted independently.
 const LEFT_CARD_ORDER_DEFAULTS = [
-  "islandOnboarding",
-  "macAppBanner",
   "statsPanel",
   "widgetOnboarding",
   "installCopy",
   "activityHeatmap",
-  "deviceUsage",
   "trendMonitor",
   "qualityPerDollar",
   "sessionInsights",
@@ -120,27 +101,14 @@ function isForceInstallEnabled() {
 
 export function DashboardPage({
   baseUrl,
-  auth,
-  signedIn,
-  sessionSoftExpired,
-  signOut,
   publicMode = false,
   publicToken = null,
-  signInUrl = "/sign-in",
-  signUpUrl = "/sign-up",
   onMainContentVisible,
 }) {
   const { resolvedLocale } = useLocale();
   const { currency, rate } = useCurrency();
   const { mode: tokenFormatMode, setMode: setTokenFormatMode, formatTokens, formatTokensTooltip } = useTokenFormat();
   const [costModalOpen, setCostModalOpen] = useState(false);
-  const [linkCode, setLinkCode] = useState(null);
-  const [linkCodeExpiresAt, setLinkCodeExpiresAt] = useState(null);
-  const [linkCodeLoading, setLinkCodeLoading] = useState(false);
-  const [linkCodeError, setLinkCodeError] = useState(null);
-  const [linkCodeExpiryTick, setLinkCodeExpiryTick] = useState(0);
-  const [linkCodeRefreshToken, setLinkCodeRefreshToken] = useState(0);
-  const [userStatus, setUserStatus] = useState(null);
   const screenshotMode = useMemo(() => {
     if (typeof window === "undefined") return false;
     return isScreenshotModeEnabled(window.location.search);
@@ -150,199 +118,20 @@ export function DashboardPage({
   const identityScrambleDurationMs = 2200;
   const [coreIndexCollapsed, setCoreIndexCollapsed] = useState(true);
   const [installCopied, setInstallCopied] = useState(false);
-  const [sessionExpiredCopied, setSessionExpiredCopied] = useState(false);
   const [manualSyncLoading, setManualSyncLoading] = useState(false);
   const [dashboardContentShown, setDashboardContentShown] = useState(false);
   const mainContentVisibleNotifiedRef = useRef(false);
   const mockEnabled = isMockEnabled();
-  const authTokenAllowed = signedIn && !sessionSoftExpired;
-  const authAccessToken = useMemo(() => {
-    if (!authTokenAllowed) return null;
-    if (typeof auth === "function") return auth;
-    if (typeof auth === "string") return auth;
-    if (auth && typeof auth === "object") return auth;
-    return null;
-  }, [auth, authTokenAllowed]);
-  const effectiveAuthToken = authTokenAllowed ? authAccessToken : null;
-  const accessToken = publicMode ? normalizeAccessToken(publicToken) : effectiveAuthToken;
-  const accessEnabled = signedIn || mockEnabled || publicMode;
-  const authTokenReady = authTokenAllowed && isAccessTokenReady(effectiveAuthToken);
-  const guestAllowed = signedIn && sessionSoftExpired && !publicMode;
-
-  // Cloud (cross-device account view) — driven by Settings → Cloud sync toggle
-  // on localhost, mandatory on public hosts (www.tokentracker.cc et al.).
-  // publicMode (shared link) opts out of account view entirely.
-  const {
-    accountView: accountViewBase,
-    revision: accountRevision,
-    resolving: accountResolvingBase,
-  } = useAccountView();
-  const accountView = accountViewBase && !publicMode;
-  const accountAccessToken = accountView ? effectiveAuthToken : null;
-  // While the resolved scope is still unknown (auth loading + cloud likely),
-  // hooks hold a loading state instead of painting local data that would be
-  // wiped on the flip to cloud (the local→cloud "double flash").
-  const accountViewResolving = accountResolvingBase && !publicMode;
-
-
-  useEffect(() => {
-    if (!signedIn || mockEnabled) {
-      setLinkCode(null);
-      setLinkCodeExpiresAt(null);
-      setLinkCodeLoading(false);
-      setLinkCodeError(null);
-      return;
-    }
-    if (publicMode) return;
-    if (!authTokenReady) {
-      setLinkCode(null);
-      setLinkCodeExpiresAt(null);
-      setLinkCodeLoading(false);
-      setLinkCodeError(null);
-      return;
-    }
-    let active = true;
-    const resetLinkCode = () => {
-      setLinkCode(null);
-      setLinkCodeExpiresAt(null);
-      setLinkCodeLoading(false);
-      setLinkCodeError(null);
-    };
-    setLinkCodeLoading(true);
-    setLinkCodeError(null);
-    (async () => {
-      let resolvedToken = null;
-      try {
-        resolvedToken = await resolveAuthAccessToken(effectiveAuthToken);
-      } catch (_err) {
-        resolvedToken = null;
-      }
-      if (!active) return;
-      if (!resolvedToken) {
-        resetLinkCode();
-        return;
-      }
-      try {
-        const data = { link_code: null, expires_at: null };
-        if (!active) return;
-        setLinkCode(typeof data?.link_code === "string" ? data.link_code : null);
-        setLinkCodeExpiresAt(typeof data?.expires_at === "string" ? data.expires_at : null);
-      } catch (err) {
-        if (!active) return;
-        setLinkCode(null);
-        setLinkCodeExpiresAt(null);
-        setLinkCodeError(err?.message || "Failed to load link code");
-      } finally {
-        if (!active) return;
-        setLinkCodeLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [
-    baseUrl,
-    mockEnabled,
-    signedIn,
-    publicMode,
-    authTokenReady,
-    effectiveAuthToken,
-    linkCodeRefreshToken,
-  ]);
 
   // 本地模式判断
   const isLocalMode = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  useEffect(() => {
-    // 本地模式：跳过登录检查，直接获取 userStatus
-    if (!isLocalMode && (!signedIn || mockEnabled || publicMode)) {
-      setUserStatus(null);
-      return;
-    }
-    if (!isLocalMode && !authTokenReady) {
-      setUserStatus(null);
-      return;
-    }
-    let active = true;
-    (async () => {
-      let resolvedToken = null;
-      try {
-        resolvedToken = await resolveAuthAccessToken(effectiveAuthToken);
-      } catch (_err) {
-        resolvedToken = null;
-      }
-      if (!active) return;
-      // 本地模式允许空 token
-      if (!resolvedToken && !isLocalMode) {
-        setUserStatus(null);
-        return;
-      }
-      try {
-        const data = await getUserStatus({
-          baseUrl,
-          accessToken: resolvedToken,
-        });
-        if (!active) return;
-        setUserStatus(data && typeof data === "object" ? data : null);
-      } catch (_err) {
-        if (!active) return;
-        setUserStatus(null);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [authTokenReady, baseUrl, effectiveAuthToken, mockEnabled, publicMode, signedIn]);
-
-  const linkCodeExpired = useMemo(() => {
-    if (!linkCodeExpiresAt) return false;
-    const ts = Date.parse(linkCodeExpiresAt);
-    if (!Number.isFinite(ts)) return false;
-    const now = linkCodeExpiryTick || Date.now();
-    return ts <= now;
-  }, [linkCodeExpiresAt, linkCodeExpiryTick]);
-
-  useEffect(() => {
-    if (!signedIn || mockEnabled || publicMode) return;
-    if (!linkCodeExpiresAt || !linkCodeExpired) return;
-    if (linkCodeLoading) return;
-    setLinkCode(null);
-    setLinkCodeExpiresAt(null);
-    setLinkCodeError(null);
-    setLinkCodeRefreshToken((value) => value + 1);
-  }, [linkCodeExpired, linkCodeExpiresAt, linkCodeLoading, mockEnabled, signedIn]);
-
-  useEffect(() => {
-    if (!linkCodeExpiresAt || publicMode) return;
-    const ts = Date.parse(linkCodeExpiresAt);
-    if (!Number.isFinite(ts)) return;
-    const now = Date.now();
-    setLinkCodeExpiryTick(now);
-    if (ts <= now) return;
-    const timeoutId = window.setTimeout(() => setLinkCodeExpiryTick(Date.now()), ts - now);
-    const handleVisibilityChange = () => {
-      if (typeof document === "undefined") return;
-      if (document.visibilityState !== "visible") return;
-      setLinkCodeExpiryTick(Date.now());
-    };
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    }
-    window.addEventListener("focus", handleVisibilityChange);
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      }
-      window.removeEventListener("focus", handleVisibilityChange);
-    };
-  }, [linkCodeExpiresAt]);
 
   const timeZone = useMemo(() => getBrowserTimeZone(), []);
   const tzOffsetMinutes = useMemo(() => getBrowserTimeZoneOffsetMinutes(), []);
   const mockNow = useMemo(() => getMockNow(), []);
-  const cacheKey = publicMode ? null : auth?.userId || auth?.email || "default";
+  const cacheKey = publicMode ? null : "local";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [customFrom, setCustomFrom] = useState(null);
   const [customTo, setCustomTo] = useState(null);
@@ -360,82 +149,6 @@ export function DashboardPage({
   }, [mockNow, period, timeZone, tzOffsetMinutes, customFrom, customTo]);
   const from = range.from;
   const to = range.to;
-
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [currentDeviceId, setCurrentDeviceId] = useState(() => getCurrentDeviceId());
-  useEffect(() => {
-    const refreshCurrentDevice = () => setCurrentDeviceId(getCurrentDeviceId());
-    window.addEventListener(CLOUD_USAGE_SYNCED_EVENT, refreshCurrentDevice);
-    window.addEventListener("storage", refreshCurrentDevice);
-    return () => {
-      window.removeEventListener(CLOUD_USAGE_SYNCED_EVENT, refreshCurrentDevice);
-      window.removeEventListener("storage", refreshCurrentDevice);
-    };
-  }, []);
-  const { devices: accountDevices, accountSources: accountDeviceSources, refresh: refreshAccountDevices } = useAccountDevices({
-    from,
-    to,
-    timeZone,
-    tzOffsetMinutes,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-  });
-  // Only devices with usage in the selected range are shown anywhere — a
-  // zero-usage registration (typically a stale fingerprint-drift duplicate) is
-  // noise in both the filter dropdown and the breakdown card.
-  const activeDevices = useMemo(
-    () => accountDevices
-      .filter((d) => (Number(d.total_tokens) || 0) > 0)
-      .map((d) => ({ ...d, isCurrent: d.id === currentDeviceId })),
-    [accountDevices, currentDeviceId],
-  );
-  const accountSourceRows = useMemo(
-    () => accountDeviceSources.filter((s) => (Number(s.total_tokens) || 0) > 0),
-    [accountDeviceSources],
-  );
-  // Dropdown filter: choosing between devices needs 2+ of them.
-  const showDeviceFilter = accountView && activeDevices.length >= 2;
-  // Breakdown card: needs 2+ rows; account-level sources count as rows.
-  const showDeviceCard = accountView && activeDevices.length + accountSourceRows.length >= 2;
-  // Reset the filter when no selector is visible, or when the selected device
-  // disappears (revoked / idle in the new range / not in the latest list).
-  useEffect(() => {
-    if (!showDeviceFilter && !showDeviceCard) {
-      if (selectedDevice !== null) setSelectedDevice(null);
-      return;
-    }
-    if (selectedDevice && !activeDevices.some((d) => d.id === selectedDevice)) {
-      setSelectedDevice(null);
-    }
-  }, [showDeviceFilter, showDeviceCard, activeDevices, selectedDevice]);
-
-  const deviceOptions = useMemo(() => {
-    if (!showDeviceFilter) return [];
-    return [
-      { value: "", label: copy("dashboard.device_filter.all") },
-      ...activeDevices.map((d) => {
-        const deviceLabel = formatDeviceLabel(d) || copy("dashboard.device_card.unnamed");
-        const currentSuffix = d.isCurrent ? ` (${copy("dashboard.device_card.current")})` : "";
-        return { value: d.id, label: `${deviceLabel}${currentSuffix}` };
-      }),
-    ];
-  }, [showDeviceFilter, activeDevices, resolvedLocale]);
-
-  const deviceUsageBlock = showDeviceCard ? (
-    <DeviceUsageCard
-      devices={activeDevices}
-      accountSources={accountSourceRows}
-      currentDeviceId={currentDeviceId}
-      selectedDeviceId={selectedDevice || ""}
-      onSelectDevice={(id) => setSelectedDevice(id || null)}
-      onRenameDevice={async (id, name) => {
-        const token = await resolveAuthAccessToken(accountAccessToken);
-        await renameAccountDevice({ deviceId: id, name, accessToken: token });
-        await refreshAccountDevices();
-      }}
-    />
-  ) : null;
 
   const timeZoneLabel = useMemo(
     () => formatTimeZoneLabel({ timeZone, offsetMinutes: tzOffsetMinutes }),
@@ -480,8 +193,6 @@ export function DashboardPage({
     refresh: refreshUsage,
   } = useUsageData({
     baseUrl,
-    accessToken,
-    guestAllowed,
     from,
     to,
     includeDaily: period !== "total",
@@ -489,11 +200,6 @@ export function DashboardPage({
     timeZone,
     tzOffsetMinutes,
     now: mockNow,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-    accountViewResolving,
-    deviceId: selectedDevice,
   });
   const {
     daily: dailyBreakdownDaily,
@@ -501,22 +207,15 @@ export function DashboardPage({
     refresh: refreshDailyBreakdown,
   } = useUsageData({
     baseUrl,
-    accessToken,
-    guestAllowed,
     from: dailyBreakdownRange.from,
     to: dailyBreakdownRange.to,
     includeDaily: true,
-    // This card only renders daily rows. Avoid a second account-summary scan
-    // whose totals/rolling payload was fetched and then discarded.
+    // This card only renders daily rows and does not need summary totals.
     includeSummary: false,
     cacheKey: cacheKey ? `${cacheKey}.daily-breakdown` : "daily-breakdown",
     timeZone,
     tzOffsetMinutes,
     now: mockNow,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-    accountViewResolving,
   });
 
   const {
@@ -525,18 +224,11 @@ export function DashboardPage({
     refresh: refreshModelBreakdown,
   } = useUsageModelBreakdown({
     baseUrl,
-    accessToken,
-    guestAllowed,
     from,
     to,
     cacheKey,
     timeZone,
     tzOffsetMinutes,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-    accountViewResolving,
-    deviceId: selectedDevice,
   });
 
   const [projectUsageLimit, setProjectUsageLimit] = useState(3);
@@ -546,7 +238,6 @@ export function DashboardPage({
     refresh: refreshProjectUsage,
   } = useProjectUsageSummary({
     baseUrl,
-    accessToken,
     from,
     to,
     timeZone,
@@ -570,8 +261,6 @@ export function DashboardPage({
     refresh: refreshTrend,
   } = useTrendData({
     baseUrl,
-    accessToken,
-    guestAllowed,
     period,
     from,
     to,
@@ -582,11 +271,6 @@ export function DashboardPage({
     now: mockNow,
     sharedRows: shareDailyToTrend ? daily : null,
     sharedRange: shareDailyToTrend ? { from, to } : null,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-    accountViewResolving,
-    deviceId: selectedDevice,
   });
 
   // Stable useTrendData config handed to the zoom modal so it can hold its OWN
@@ -595,23 +279,13 @@ export function DashboardPage({
   const trendZoomConfig = useMemo(
     () => ({
       baseUrl,
-      accessToken,
-      guestAllowed,
       cacheKey,
       timeZone: trendTimeZone,
       tzOffsetMinutes: trendTzOffsetMinutes,
       now: mockNow,
-      // Carry the account (cross-device cloud) scope into the zoom modal so its
-      // granularity drill-down reads the SAME source as the main trend chart —
-      // otherwise the zoom silently shows local/default-scope data in account view.
-      accountView,
-      accountAccessToken,
-      accountRevision,
-      accountViewResolving,
     }),
     [
-      baseUrl, accessToken, guestAllowed, cacheKey, trendTimeZone, trendTzOffsetMinutes, mockNow,
-      accountView, accountAccessToken, accountRevision, accountViewResolving,
+      baseUrl, cacheKey, trendTimeZone, trendTzOffsetMinutes, mockNow,
     ],
   );
 
@@ -622,18 +296,11 @@ export function DashboardPage({
     refresh: refreshHeatmap,
   } = useActivityHeatmap({
     baseUrl,
-    accessToken,
-    guestAllowed,
     weeks: 52,
     cacheKey,
     timeZone,
     tzOffsetMinutes,
     now: mockNow,
-    accountView,
-    accountAccessToken,
-    accountRevision,
-    accountViewResolving,
-    deviceId: selectedDevice,
   });
 
   const {
@@ -808,8 +475,6 @@ export function DashboardPage({
   }
 
   const activeDays = useMemo(() => {
-    // 本地模式下跳过登录检查
-    if (!signedIn && !mockEnabled && !publicMode && !isLocalMode) return 0;
     const serverActive = Number(heatmap?.active_days);
     if (Number.isFinite(serverActive)) return serverActive;
 
@@ -838,7 +503,7 @@ export function DashboardPage({
     }
 
     return count;
-  }, [signedIn, mockEnabled, heatmap?.active_days, heatmap?.weeks, heatmapDaily]);
+  }, [heatmap?.active_days, heatmap?.weeks, heatmapDaily]);
 
   const [prevPeriod, setPrevPeriod] = useState("month");
   const handlePeriodChange = useCallback((p) => {
@@ -873,8 +538,7 @@ export function DashboardPage({
   }, [selectedPeriod, customFrom, prevPeriod]);
 
   const refreshUsageStats = useCallback(async () => {
-    if (accountView) invalidateAccountResponseCache();
-    if (!accountView) invalidateSessionInsightsCache();
+    invalidateSessionInsightsCache();
     await Promise.all([
       refreshUsage(),
       refreshHeatmap(),
@@ -884,7 +548,6 @@ export function DashboardPage({
       refreshDailyBreakdown(),
     ]);
   }, [
-    accountView,
     refreshDailyBreakdown,
     refreshHeatmap,
     refreshModelBreakdown,
@@ -923,7 +586,7 @@ export function DashboardPage({
   // request instead of starting a duplicate sync.
   const localReloadSyncPromiseRef = useRef(null);
   useEffect(() => {
-    if (!isLocalMode || mockEnabled || accountView) return undefined;
+    if (!isLocalMode || mockEnabled) return undefined;
     if (!localReloadSyncPromiseRef.current) {
       localReloadSyncPromiseRef.current = triggerLocalSync({
         auto: true,
@@ -943,21 +606,21 @@ export function DashboardPage({
     return () => {
       active = false;
     };
-  }, [isLocalMode, mockEnabled, accountView]);
+  }, [isLocalMode, mockEnabled]);
 
   // Provider hooks update the queue quickly, while the native server also
   // performs a once-per-minute all-source fallback scan. Re-read the local
   // aggregates while this dashboard remains visible so those queue updates
   // appear without requiring a click or a page reload.
   useEffect(() => {
-    if (!isLocalMode || mockEnabled || accountView) return undefined;
+    if (!isLocalMode || mockEnabled) return undefined;
     const autoRefresh = startLocalUsageAutoRefresh({
       refresh: () => refreshUsageStatsRef.current(),
       onError: (error) =>
         console.warn("[DashboardPage] Automatic usage refresh failed:", error),
     });
     return () => autoRefresh.stop();
-  }, [isLocalMode, mockEnabled, accountView]);
+  }, [isLocalMode, mockEnabled]);
 
   const handleUsageRefresh = useCallback(async () => {
     setManualSyncLoading(true);
@@ -981,14 +644,10 @@ export function DashboardPage({
     trendLoading ||
     modelBreakdownLoading ||
     projectUsageLoading;
-  // Show the dashboard skeleton only on the *initial* cloud (account-view)
-  // load — while auth/cloud is resolving, or while the first account fetch is
-  // in flight and no detail rows exist yet. A later refresh keeps the rendered
-  // data (no skeleton, no flash); local mode loads fast and is left untouched.
+  // Show the dashboard skeleton only on the initial local load.
   const initialDashboardLoading =
     !dashboardContentShown &&
-    (accountViewResolving ||
-      (accountView && usageLoadingState && !hasDetailsActual));
+    (usageLoadingState && !hasDetailsActual);
   const usageSourceLabel = useMemo(
     () =>
       copy("shared.data_source", {
@@ -996,29 +655,7 @@ export function DashboardPage({
       }),
     [usageSource, resolvedLocale],
   );
-  const identityRawName = useMemo(() => {
-    if (typeof auth?.name !== "string") return "";
-    return auth.name.trim();
-  }, [auth?.name]);
-  const publicIdentityName = "";
-
-  const identityLabel = useMemo(() => {
-    if (!identityRawName || identityRawName.includes("@")) {
-      return copy("dashboard.identity.fallback");
-    }
-    return identityRawName;
-  }, [identityRawName]);
-
-  const identityHandle = useMemo(() => {
-    return identityLabel.replace(/[^a-zA-Z0-9._-]/g, "_");
-  }, [identityLabel]);
-
-  const identityDisplayName = useMemo(() => {
-    if (publicMode) {
-      return publicIdentityName || copy("dashboard.identity.fallback");
-    }
-    return identityHandle;
-  }, [identityHandle, publicIdentityName, publicMode]);
+  const identityDisplayName = copy("dashboard.identity.fallback");
   const identityStartDate = useMemo(() => {
     let earliest = null;
 
@@ -1048,38 +685,7 @@ export function DashboardPage({
 
     return earliest;
   }, [heatmap?.weeks, heatmapDaily]);
-  const identitySubscriptions = useMemo(() => {
-    if (publicMode) return [];
-    const rows = Array.isArray(userStatus?.subscriptions?.items)
-      ? userStatus.subscriptions.items
-      : [];
-    const normalized = rows
-      .map((row) => {
-        const tool = typeof row?.tool === "string" ? row.tool.trim() : "";
-        const planTypeRaw =
-          typeof row?.plan_type === "string"
-            ? row.plan_type
-            : typeof row?.planType === "string"
-              ? row.planType
-              : "";
-        const planType = planTypeRaw.trim();
-        if (!tool || !planType) return null;
-        return {
-          tool,
-          planType,
-          provider: typeof row?.provider === "string" ? row.provider.trim() : "",
-          product: typeof row?.product === "string" ? row.product.trim() : "",
-          rateLimitTier:
-            typeof row?.rate_limit_tier === "string"
-              ? row.rate_limit_tier.trim()
-              : typeof row?.rateLimitTier === "string"
-                ? row.rateLimitTier.trim()
-                : "",
-        };
-      })
-      .filter(Boolean);
-    return normalized.slice(0, 6);
-  }, [publicMode, userStatus]);
+  const identitySubscriptions = [];
 
   const activityHeatmapBlock = (
     <ActivityHeatmap
@@ -1230,8 +836,7 @@ export function DashboardPage({
     periodFrom: from,
     periodTo: to,
     heatmap,
-    accessToken: typeof accessToken === "string" ? accessToken : null,
-    userId: auth?.userId || null,
+      userId: null,
     currency,
     exchangeRate: rate,
   });
@@ -1243,31 +848,19 @@ export function DashboardPage({
   const costInfoEnabled = summaryCostValue && summaryCostValue !== "-" && fleetData.length > 0;
 
   const installInitCmdBase = copy("dashboard.install.cmd.init");
-  const resolvedLinkCode = !linkCodeExpired ? linkCode : null;
-  const installInitCmdCopy = resolvedLinkCode
-    ? copy("dashboard.install.cmd.init_link_code", {
-        link_code: resolvedLinkCode,
-      })
-    : installInitCmdBase;
+  const installInitCmdCopy = installInitCmdBase;
   const installInitCmdDisplay = installInitCmdBase;
   const installSyncCmd = copy("dashboard.install.cmd.sync");
-  const installCopyLabel = resolvedLinkCode
-    ? copy("dashboard.install.copy")
-    : copy("dashboard.install.copy_base");
+  const installCopyLabel = copy("dashboard.install.copy_base");
   const installCopiedLabel = copy("dashboard.install.copied");
-  const sessionExpiredCopyLabel = copy("dashboard.session_expired.copy_label");
-  const sessionExpiredCopiedLabel = copy("dashboard.session_expired.copied");
-  const hasActiveDeviceToken = Boolean(
-    userStatus?.install?.has_active_device_token ?? userStatus?.install?.hasActiveDeviceToken,
-  );
   const shouldShowInstall = shouldShowInstallCard({
     publicMode,
     screenshotMode,
     forceInstall,
-    accessEnabled,
+    accessEnabled: true,
     heatmapLoading,
     activeDays,
-    hasActiveDeviceToken,
+    hasActiveDeviceToken: false,
   });
   const installPrompt = copy("dashboard.install.prompt");
 
@@ -1278,14 +871,6 @@ export function DashboardPage({
     setInstallCopied(true);
     window.setTimeout(() => setInstallCopied(false), 2000);
   }, [installInitCmdCopy]);
-
-  const handleCopySessionExpired = useCallback(async () => {
-    if (!installInitCmdBase) return;
-    const didCopy = await safeWriteClipboard(installInitCmdBase);
-    if (!didCopy) return;
-    setSessionExpiredCopied(true);
-    window.setTimeout(() => setSessionExpiredCopied(false), 2000);
-  }, [installInitCmdBase]);
 
   const dailyEmptyTemplate = useMemo(
     () => copy("dashboard.daily.empty", { cmd: "{{cmd}}" }),
@@ -1302,15 +887,10 @@ export function DashboardPage({
   const headerRight = null;
   const footerLeftContent = null;
 
-  const showExpiredGate = sessionSoftExpired && !publicMode;
-  // 使用上面定义的 isLocalMode
-  const requireAuthGate = !signedIn && !mockEnabled && !sessionSoftExpired && !isLocalMode;
-  const showAuthGate = requireAuthGate && !publicMode;
-
   useEffect(() => {
-    if (showExpiredGate || showAuthGate || initialDashboardLoading) return;
+    if (initialDashboardLoading) return;
     setDashboardContentShown(true);
-  }, [initialDashboardLoading, showAuthGate, showExpiredGate]);
+  }, [initialDashboardLoading]);
 
   const dashboardCardOrder = useDashboardCardOrder(
     LEFT_CARD_ORDER_DEFAULTS,
@@ -1319,11 +899,10 @@ export function DashboardPage({
 
   useEffect(() => {
     if (mainContentVisibleNotifiedRef.current) return;
-    if (showExpiredGate || showAuthGate) return;
     if (usageLoadingState) return;
     mainContentVisibleNotifiedRef.current = true;
     onMainContentVisible?.();
-  }, [onMainContentVisible, showAuthGate, showExpiredGate, usageLoadingState]);
+  }, [onMainContentVisible, usageLoadingState]);
 
   return (
     <>
@@ -1331,8 +910,6 @@ export function DashboardPage({
       copy={copy}
       onOpenShare={openShareModal}
       screenshotMode={screenshotMode}
-      showExpiredGate={showExpiredGate}
-      showAuthGate={showAuthGate}
       identityDisplayName={identityDisplayName}
       identityStartDate={identityStartDate}
       activeDays={activeDays}
@@ -1343,7 +920,6 @@ export function DashboardPage({
       setProjectUsageLimit={setProjectUsageLimit}
       projectDetailQuery={{ from, to, timeZone, tzOffsetMinutes }}
       topModels={topModels}
-      signedIn={signedIn}
       publicMode={publicMode}
       isLocalMode={isLocalMode}
       shouldShowInstall={shouldShowInstall}
@@ -1353,8 +929,6 @@ export function DashboardPage({
       installCopiedLabel={installCopiedLabel}
       installCopyLabel={installCopyLabel}
       installInitCmdDisplay={installInitCmdDisplay}
-      linkCodeLoading={linkCodeLoading}
-      linkCodeError={linkCodeError}
       trendRowsForDisplay={trendRowsForDisplay}
       trendFromForDisplay={trendFromForDisplay}
       trendToForDisplay={trendToForDisplay}
@@ -1425,10 +999,6 @@ export function DashboardPage({
       setDetailsPage={setDetailsPage}
       costModalOpen={costModalOpen}
       closeCostModal={closeCostModal}
-      deviceOptions={deviceOptions}
-      selectedDevice={selectedDevice || ""}
-      onDeviceChange={(v) => setSelectedDevice(v || null)}
-      deviceUsageBlock={deviceUsageBlock}
       leftCardOrder={dashboardCardOrder.left.order}
       onLeftReorder={dashboardCardOrder.left.reorder}
       rightCardOrder={dashboardCardOrder.right.order}

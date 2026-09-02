@@ -79,7 +79,6 @@ class DashboardViewModel: ObservableObject {
     private var pendingFullRefreshAfterHiddenRefresh = false
     private var pendingUsagePublications = PendingUsagePublicationQueue()
     private var needsFullRefreshOnPopoverOpen = false
-    private var summaryPublicationState = SummaryPublicationState()
     private let resetDetector = WeeklyLimitResetDetector()
 
     // MARK: - Computed Properties
@@ -167,11 +166,6 @@ class DashboardViewModel: ObservableObject {
                         to: rollingTo
                     )
                     self.todaySummary = result.summary
-                    self.summaryPublicationState.record(
-                        source: result.source,
-                        completedAt: result.completedAt,
-                        for: .today
-                    )
                 } catch {
                     errorCount += 1
                     if firstError == nil { firstError = error.localizedDescription }
@@ -194,11 +188,6 @@ class DashboardViewModel: ObservableObject {
                         to: rollingTo
                     )
                     self.rollingSummary = result.summary
-                    self.summaryPublicationState.record(
-                        source: result.source,
-                        completedAt: result.completedAt,
-                        for: .rolling
-                    )
                 } catch {
                     errorCount += 1
                     if firstError == nil { firstError = error.localizedDescription }
@@ -212,11 +201,6 @@ class DashboardViewModel: ObservableObject {
                         to: totalRange.to
                     )
                     self.totalSummary = result.summary
-                    self.summaryPublicationState.record(
-                        source: result.source,
-                        completedAt: result.completedAt,
-                        for: .total
-                    )
                 } catch {
                     errorCount += 1
                     if firstError == nil { firstError = error.localizedDescription }
@@ -353,43 +337,6 @@ class DashboardViewModel: ObservableObject {
         await refreshAfterUsagePublication(.localQueue, menuBarSummaries: summaries)
     }
 
-    /// Account summaries become authoritative only after this machine's queue
-    /// offset advances. This avoids re-reading an old cloud aggregate merely
-    /// because the local parser wrote its queue first.
-    func refreshAfterAccountUpload(menuBarSummaries summaries: MenuBarSummarySelection) async {
-        let relevantSummaries = isPopoverVisible ? .all : summaries
-        await waitForAccountCacheVisibility(for: relevantSummaries)
-        await refreshAfterUsagePublication(.accountUpload, menuBarSummaries: summaries)
-    }
-
-    private func waitForAccountCacheVisibility(
-        for summaries: MenuBarSummarySelection
-    ) async {
-        while !Task.isCancelled {
-            let slotDelay: TimeInterval = summaries.isEmpty
-                ? 0
-                : UsagePublicationPolicy.remainingAccountCacheDelay(
-                    state: summaryPublicationState,
-                    summaries: summaries,
-                    now: Date()
-                )
-            let latestAccountRead = await APIClient.shared.latestAccountSummaryReadCompletedAt
-            let globalDelay = UsagePublicationPolicy.remainingAccountCacheDelay(
-                latestReadCompletedAt: latestAccountRead,
-                now: Date()
-            )
-            let delay = max(slotDelay, globalDelay)
-            guard delay > 0 else { return }
-            do {
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            } catch {
-                return
-            }
-            // Re-evaluate after sleeping because another account read may have
-            // populated the edge cache while this publication was waiting.
-        }
-    }
-
     private func refreshAfterUsagePublication(
         _ source: UsagePublicationSource,
         menuBarSummaries summaries: MenuBarSummarySelection
@@ -404,7 +351,6 @@ class DashboardViewModel: ObservableObject {
         }
 
         let affectedSummaries = UsagePublicationPolicy.summariesToRefresh(
-            state: summaryPublicationState,
             sources: source,
             requested: .all
         )
@@ -458,11 +404,6 @@ class DashboardViewModel: ObservableObject {
                         if summaries.contains(.rolling) {
                             self.rollingSummary = result.summary
                         }
-                        self.summaryPublicationState.record(
-                            source: result.source,
-                            completedAt: result.completedAt,
-                            for: summaries.intersection([.today, .rolling])
-                        )
                         successfulFetches += 1
                     } catch {
                         if firstError == nil { firstError = error }
@@ -479,11 +420,6 @@ class DashboardViewModel: ObservableObject {
                             to: range.to
                         )
                         self.totalSummary = result.summary
-                        self.summaryPublicationState.record(
-                            source: result.source,
-                            completedAt: result.completedAt,
-                            for: .total
-                        )
                         successfulFetches += 1
                     } catch {
                         if firstError == nil { firstError = error }

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isAccessTokenReady, resolveAuthAccessToken } from "../lib/auth-token";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { isMockEnabled } from "../lib/mock-data";
 import { getTimeZoneCacheKey } from "../lib/timezone";
-import { fetchCloudUsageModelBreakdown, getUsageModelBreakdown } from "../lib/api";
+import { getUsageModelBreakdown } from "../lib/api";
 import { useLatestRequestGuard } from "./use-latest-request-guard";
 
 export function useUsageModelBreakdown({
@@ -14,20 +13,14 @@ export function useUsageModelBreakdown({
   cacheKey,
   timeZone,
   tzOffsetMinutes,
-  accountView = false,
-  accountAccessToken = null,
-  accountRevision = 0,
-  accountViewResolving = false,
   deviceId = null,
 }: any = {}) {
-  const useCloud = Boolean(accountView && accountAccessToken);
-  const scopeKey = useCloud ? "cloud" : "local";
+  const scopeKey = "local";
   const [breakdown, setBreakdown] = useState<any | null>(null);
   const [source, setSource] = useState<string>("edge");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mockEnabled = isMockEnabled();
-  const tokenReady = isAccessTokenReady(accessToken);
   const cacheAllowed = !guestAllowed;
 
   const storageKey = useMemo(() => {
@@ -71,17 +64,11 @@ export function useUsageModelBreakdown({
     }
   }, [storageKey]);
 
-  const isLocalMode = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
   const beginRequest = useLatestRequestGuard([
     baseUrl,
     from,
     to,
     scopeKey,
-    accessToken,
-    accountAccessToken,
-    accountRevision,
     deviceId,
     timeZone,
     tzOffsetMinutes,
@@ -89,35 +76,14 @@ export function useUsageModelBreakdown({
 
   // Wipe state when the scope flips so the prior buckets don't render
   // while the new fetch is in flight.
-  const lastScopeRef = useRef(scopeKey);
-  useEffect(() => {
-    if (lastScopeRef.current === scopeKey) return;
-    lastScopeRef.current = scopeKey;
-    setBreakdown(null);
-    setSource("edge");
-    setError(null);
-    setLoading(true);
-  }, [scopeKey]);
-
   const refresh = useCallback(async () => {
     const isCurrent = beginRequest();
-    const resolvedToken = await resolveAuthAccessToken(accessToken);
-    const cloudToken = useCloud ? await resolveAuthAccessToken(accountAccessToken) : null;
     if (!isCurrent()) return;
-    if (!resolvedToken && !mockEnabled && !isLocalMode && !useCloud) return;
-    if (useCloud && !cloudToken) {
-      setError("Your session expired. Please sign in again to view account data.");
-      setLoading(false);
-      return;
-    }
-    const tokenForFetch = useCloud ? cloudToken : resolvedToken;
-    const breakdownFetcher = useCloud ? fetchCloudUsageModelBreakdown : getUsageModelBreakdown;
     setLoading(true);
     setError(null);
     try {
-      const res = await breakdownFetcher({
+      const res = await getUsageModelBreakdown({
         baseUrl,
-        accessToken: tokenForFetch,
         from,
         to,
         device: deviceId,
@@ -156,7 +122,6 @@ export function useUsageModelBreakdown({
       if (isCurrent()) setLoading(false);
     }
   }, [
-    accessToken,
     baseUrl,
     from,
     mockEnabled,
@@ -165,30 +130,14 @@ export function useUsageModelBreakdown({
     readCache,
     timeZone,
     to,
-    tokenReady,
     tzOffsetMinutes,
     clearCache,
     writeCache,
-    isLocalMode,
-    useCloud,
-    accountAccessToken,
-    accountRevision,
     deviceId,
     beginRequest,
   ]);
 
   useEffect(() => {
-    if (accountViewResolving) {
-      setLoading(true);
-      return;
-    }
-    if (!tokenReady && !guestAllowed && !mockEnabled && !isLocalMode && !useCloud) {
-      setBreakdown(null);
-      setSource("edge");
-      setError(null);
-      setLoading(false);
-      return;
-    }
     if (!cacheAllowed) {
       clearCache();
       setBreakdown(null);
@@ -210,16 +159,12 @@ export function useUsageModelBreakdown({
     setLoading(true);
     refresh();
   }, [
-    accessToken,
     mockEnabled,
     readCache,
     refresh,
-    tokenReady,
     guestAllowed,
     cacheAllowed,
     clearCache,
-    isLocalMode,
-    accountViewResolving,
   ]);
 
   const normalizedSource = mockEnabled ? "mock" : source;

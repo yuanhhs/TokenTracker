@@ -203,16 +203,12 @@ function richLinkMetaPlugin() {
 
 // Per-route static SEO/AEO pages. The dashboard is a single-page app that serves
 // one index.html for every route, with a canonical hardcoded to the homepage.
-// Google therefore collapses /ip-check and /leaderboard into "/" ("Page with
-// redirect" / "Alternate page with canonical"), so those routes never rank on
-// their own. To fix indexability WITHOUT adding rollup inputs (which reshuffle
-// shared chunks and have historically broken the native OAuth callback — see
-// CLAUDE.md), we clone the built dist/index.html in closeBundle and rewrite the
-// canonical, social meta, <title>, description, JSON-LD, and the crawlable
-// aeo-seed-content block per route. Vercel rewrites map the clean URLs to these
-// files (see vercel.json). Runtime JS still boots the SPA and renders the real
-// route, so users see the interactive page while crawlers get a self-canonical,
-// route-specific document.
+// Google otherwise collapses /ip-check into "/" ("Page with redirect" /
+// "Alternate page with canonical"), so that route never ranks on its own. To
+// fix indexability without adding rollup inputs, clone the built dist/index.html
+// in closeBundle and rewrite its canonical, social meta, title, description,
+// JSON-LD, and crawlable aeo-seed-content block. Vercel rewrites map the clean
+// URL to this file (see vercel.json); runtime JS still boots the SPA.
 const ROUTE_SEO_PAGES = [
   {
     file: "ip-check.html",
@@ -301,61 +297,6 @@ const ROUTE_SEO_PAGES = [
       <p>
         Token Tracker is a free, open-source, local-first dashboard that monitors AI token usage and cost
         across 27 AI coding tools including Claude Code. Install with <code>npx tokentracker-cli</code>.
-      </p>
-    </main>`,
-  },
-  {
-    file: "leaderboard.html",
-    url: "https://www.tokentracker.cc/leaderboard",
-    title: "AI Coding Token Usage Leaderboard — Claude, Codex, Cursor",
-    description:
-      "Public Token Tracker leaderboard ranking AI coding token usage across Claude Code, Codex, Cursor, Gemini and 27 tools. Opt-in, privacy-first — token counts only, never prompts.",
-    jsonld: {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "Organization",
-          "@id": "https://www.tokentracker.cc/#organization",
-          name: "Token Tracker",
-          url: "https://www.tokentracker.cc/",
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.tokentracker.cc/leaderboard#webpage",
-          url: "https://www.tokentracker.cc/leaderboard",
-          name: "AI Coding Token Usage Leaderboard",
-          isPartOf: { "@id": "https://www.tokentracker.cc/#website" },
-          description:
-            "Public leaderboard ranking opt-in AI coding token usage across Claude Code, Codex, Cursor, Gemini and 27 tools.",
-        },
-        {
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.tokentracker.cc/" },
-            { "@type": "ListItem", position: 2, name: "Leaderboard", item: "https://www.tokentracker.cc/leaderboard" },
-          ],
-        },
-      ],
-    },
-    seed: `<main class="aeo-seed-content" aria-label="AI Coding Token Usage Leaderboard AI-readable summary">
-      <h1>AI coding token usage leaderboard</h1>
-      <p>
-        The Token Tracker leaderboard ranks opt-in AI coding token usage across Claude Code, OpenAI Codex,
-        Cursor, Gemini CLI and 27 supported tools. It is privacy-first: entries are opt-in and expose token
-        counts only — never prompts or conversation content. See how your AI coding token consumption
-        compares with other developers by model, tool, and time window.
-      </p>
-      <h2>How the leaderboard works</h2>
-      <ul>
-        <li>Opt-in only — you choose whether to appear, using a public display name.</li>
-        <li>Token counts only — never prompts, code, or conversation content.</li>
-        <li>Ranks usage across Claude Code, Codex, Cursor, Gemini and 27 AI coding tools.</li>
-        <li>Powered by optional Token Tracker cloud sync; local-first by default.</li>
-      </ul>
-      <h2>Part of Token Tracker</h2>
-      <p>
-        Token Tracker is a free, open-source, local-first dashboard that monitors AI token usage and cost
-        across 27 AI coding tools. Install with <code>npx tokentracker-cli</code>.
       </p>
     </main>`,
   },
@@ -652,18 +593,11 @@ async function handleLocalApi(req, res, url) {
       } catch {
         body = {};
       }
-      const extraEnv = {};
       const drain = body.drain === true;
       const auto = body.auto === true && !drain;
       const background = auto && body.background === true;
       const allLocalSources = background && body.allLocalSources === true;
-      if (typeof body.deviceToken === "string" && body.deviceToken.trim()) {
-        extraEnv.TOKENTRACKER_DEVICE_TOKEN = body.deviceToken.trim();
-      }
-      if (typeof body.insforgeBaseUrl === "string" && /^https?:\/\//i.test(body.insforgeBaseUrl.trim())) {
-        extraEnv.TOKENTRACKER_INSFORGE_BASE_URL = body.insforgeBaseUrl.trim();
-      }
-      const result = await runLocalSyncCommand(extraEnv, {
+      const result = await runLocalSyncCommand({}, {
         drain,
         auto,
         background,
@@ -1154,10 +1088,6 @@ async function proxyToLocalCli(req, res) {
 }
 
 function localDataApiPlugin() {
-  // Pet packages are implemented in the current checkout's local API. Do not
-  // proxy these routes to :7680: a developer may have an older packaged app
-  // running there, which would make the import UI silently disappear even
-  // though the source tree already supports the feature.
   const esmRequire = createRequire(import.meta.url);
   // Vite config reloads reuse the same node process, so the CJS require
   // cache would otherwise keep serving the local-api module loaded at the
@@ -1190,15 +1120,12 @@ function localDataApiPlugin() {
           return;
         }
         const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-        const isRepoPetApi = url.pathname === "/api/local-auth"
-          || url.pathname === "/functions/tokentracker-pets"
+        const isRepoLocalApi = url.pathname === "/api/local-auth"
           // The subscription store schema/shape evolves with this checkout
           // (cycle field, corrupt-store backups); a stale packaged app on
           // :7680 would 404 the Limits-page subscription UI in dev mode.
           || url.pathname === "/functions/tokentracker-subscription-manager"
-          || url.pathname === "/api/pets/import"
-          || url.pathname.startsWith("/api/pets/local/")
-          || url.pathname.startsWith("/api/pets/codex/");
+          ;
         // Project usage also runs against the current checkout (not :7680):
         // the endpoints evolve with the dashboard UI, and a stale packaged
         // app on :7680 would 404 the drill-down modal.
@@ -1225,7 +1152,7 @@ function localDataApiPlugin() {
         // Serve the checkout implementation so a stale packaged desktop app (or
         // Windows DoSvc occupying :7680) cannot hide newly supported tool roots.
         const isRepoSkillsApi = url.pathname === "/functions/tokentracker-skills";
-        if (isRepoPetApi || isRepoProjectUsageApi || isRepoSessionAnalyticsApi || isRepoSkillsApi) {
+        if (isRepoLocalApi || isRepoProjectUsageApi || isRepoSessionAnalyticsApi || isRepoSkillsApi) {
           Promise.resolve(handleRepoLocalApi(req, res, url))
             .then((handled) => { if (!handled) next(); })
             .catch(next);
@@ -1256,19 +1183,10 @@ export default defineConfig(({ mode }) => {
     define["import.meta.env.VITE_APP_VERSION"] = JSON.stringify(fallbackVersion);
   }
 
-  // Build inputs. The Windows tray app's floating-pet page (pet.html) is an
-  // OPT-IN extra entry, enabled only when TOKENTRACKER_BUILD_PET=1 (set by the
-  // Windows build). Adding a rollup entry reshuffles shared chunks, so keeping it
-  // off by default makes the macOS + web builds byte-identical to a no-pet build —
-  // this matters because this project has a history of chunk-split changes subtly
-  // breaking the native OAuth callback (see CLAUDE.md). macOS never loads pet.html.
   const rollupInput = {
     main: path.resolve(ROOT_DIR, "index.html"),
     share: path.resolve(ROOT_DIR, "share.html"),
   };
-  if (process.env.TOKENTRACKER_BUILD_PET === "1") {
-    rollupInput.pet = path.resolve(ROOT_DIR, "pet.html");
-  }
 
   return {
     plugins: [
@@ -1294,7 +1212,6 @@ export default defineConfig(({ mode }) => {
           { from: /^\/functions\/.*$/, to: (ctx) => ctx.parsedUrl.pathname }
         ]
       },
-      // 代理 InsForge auth/functions 请求到云端，避免跨域 cookie 问题
       proxy: (() => {
         const proxies = {
           // IP-check page proxies ip.net.coffee API + assets. Without this,
@@ -1307,15 +1224,6 @@ export default defineConfig(({ mode }) => {
             rewrite: (p) => p.replace(/^\/proxy\/ipcheck/, ""),
           },
         };
-        const insforge = loadEnv("development", ROOT_DIR, "VITE_").VITE_INSFORGE_BASE_URL;
-        if (insforge) {
-          proxies["/api/auth"] = {
-            target: insforge,
-            changeOrigin: true,
-            secure: true,
-            cookieDomainRewrite: "localhost",
-          };
-        }
         return proxies;
       })(),
     },

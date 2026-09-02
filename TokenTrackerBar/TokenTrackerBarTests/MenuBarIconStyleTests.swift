@@ -61,13 +61,6 @@ final class MenuBarIconStyleTests: XCTestCase {
         XCTAssertEqual(MenuBarRunnerPace.frameInterval(style: .cat, motion: .sprinting), 0.08)
     }
 
-    func testPetSpeedTiers() {
-        XCTAssertEqual(MenuBarRunnerPace.frameInterval(style: .pet, motion: .sleeping), 0.6)
-        XCTAssertEqual(MenuBarRunnerPace.frameInterval(style: .pet, motion: .idle), 0.4)
-        XCTAssertEqual(MenuBarRunnerPace.frameInterval(style: .pet, motion: .syncing), 0.15)
-        XCTAssertEqual(MenuBarRunnerPace.frameInterval(style: .pet, motion: .sprinting), 0.08)
-    }
-
     func testBotSpeedTiers() {
         // bot expresses state through WHICH clip plays, so sprinting matches syncing
         // rather than going faster; the clips are sampled at 24 fps and idle plays them

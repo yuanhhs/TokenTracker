@@ -8,7 +8,7 @@ const { resolveTrackerPaths } = require("../lib/tracker-paths");
 const { createLocalApiHandler, resolveQueuePath } = require("../lib/local-api");
 const { ensurePricingLoaded } = require("../lib/pricing");
 const { serveStaticFile } = require("../lib/static-server");
-const { openInBrowser } = require("../lib/browser-auth");
+const { openInBrowser } = require("../lib/open-browser");
 const { maybeShowStarCta } = require("../lib/star-cta");
 
 const DEFAULT_PORT = 7680;
@@ -233,19 +233,6 @@ async function cmdServe(argv) {
     onError: (e) =>
       process.stdout.write(`Background local sync warning: ${e?.message || e}\n`),
   });
-
-  // Anonymous daily heartbeat (see src/lib/telemetry.js for the privacy
-  // contract). Fire-and-forget at startup, then re-checked every 6 hours so
-  // long-lived embedded-app servers still count on later days; the shared
-  // 24h throttle state guarantees at most one send per day.
-  {
-    const { maybeSendHeartbeat } = require("../lib/telemetry");
-    const { trackerDir: heartbeatTrackerDir } = await resolveTrackerPaths();
-    const sendHeartbeat = () =>
-      maybeSendHeartbeat({ trackerDir: heartbeatTrackerDir }).catch(() => {});
-    sendHeartbeat();
-    setInterval(sendHeartbeat, 6 * 60 * 60 * 1000).unref();
-  }
 
   server.on("error", (e) => {
     process.stderr.write(`Server error: ${e.message}\n`);

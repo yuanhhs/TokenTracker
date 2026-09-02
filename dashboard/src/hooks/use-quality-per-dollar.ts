@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { getOutcomes } from "../lib/api";
-import { resolveAuthAccessToken } from "../lib/auth-token";
 import { useLatestRequestGuard } from "./use-latest-request-guard";
 
 // Fetches the opt-in quality-per-dollar / Effective-Tokens join from the local
@@ -11,13 +10,12 @@ export function useQualityPerDollar({
   enabled = false,
   from,
   to,
-  accessToken,
   deviceId = null,
 }: any = {}) {
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const beginRequest = useLatestRequestGuard([enabled, from, to, accessToken, deviceId]);
+  const beginRequest = useLatestRequestGuard([enabled, from, to, deviceId]);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -25,9 +23,7 @@ export function useQualityPerDollar({
     setLoading(true);
     setError(null);
     try {
-      const token = await resolveAuthAccessToken(accessToken);
-      if (!isCurrent()) return;
-      const res = await getOutcomes({ from, to, device: deviceId, accessToken: token });
+      const res = await getOutcomes({ from, to, device: deviceId });
       if (!isCurrent()) return;
       setData(res || null);
     } catch (e: any) {
@@ -37,7 +33,7 @@ export function useQualityPerDollar({
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [enabled, from, to, accessToken, deviceId, beginRequest]);
+  }, [enabled, from, to, deviceId, beginRequest]);
 
   useEffect(() => {
     if (!enabled) {

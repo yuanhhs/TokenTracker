@@ -36,8 +36,6 @@ final class MenuBarAnimator {
     private(set) var currentState: State = .idle
     private var renderedImage: NSImage
 
-    private let petFrameProvider = MenuBarPetFrameProvider()
-    private let botFrameProvider = MenuBarBotFrameProvider()
     private var sprintUntil: Date = .distantPast
 
     /// Static fallback icon (original lightning bolt)
@@ -125,9 +123,7 @@ final class MenuBarAnimator {
         case .cat:
             applyCat()
         case .bot:
-            applyBot()
-        case .pet:
-            applyPet()
+            applyClawd()
         }
     }
 
@@ -179,81 +175,6 @@ final class MenuBarAnimator {
 
     private var catInterval: TimeInterval {
         MenuBarRunnerPace.frameInterval(style: .cat, motion: runnerMotion)
-    }
-
-    // MARK: - Pet (desktop pet silhouette)
-
-    private func applyPet() {
-        // "My pet" with a vector character: route to the vector provider instead of
-        // falling through to Clawd. The atlas provider correctly returns nil for a
-        // character with no sheet, but that made a working renderer unreachable.
-        if PetCharacterStore.shared.character.renderer == .vector {
-            applyBot()
-            return
-        }
-        guard let frames = petFrameProvider.frames(for: PetCharacterStore.shared.character) else {
-            // Clawd is selected (no atlas) or the atlas failed to load.
-            applyClawd()
-            return
-        }
-
-        if reduceMotion {
-            setButtonImage(frames.idle[0])
-            return
-        }
-
-        switch currentState {
-        case .disconnected:
-            setButtonImage(frames.disconnected)
-        case .sleeping where !isSprinting:
-            startAnimation(frames: frames.sleeping, interval: petInterval)
-        case .syncing:
-            startAnimation(frames: frames.active, interval: petInterval)
-        case .idle, .sleeping:
-            startAnimation(
-                frames: isSprinting ? frames.active : frames.idle,
-                interval: petInterval
-            )
-        }
-    }
-
-    private var petInterval: TimeInterval {
-        MenuBarRunnerPace.frameInterval(style: .pet, motion: runnerMotion)
-    }
-
-    // MARK: - Bot (vector morphing character)
-
-    /// Same shape as `applyPet`, but every tier is a real clip rather than one still:
-    /// `bot` expresses state by WHICH clip plays, so `disconnected` animates too.
-    private func applyBot() {
-        guard let frames = botFrameProvider.frames() else {
-            // BotFrames.json missing or schema-stale — run gen:bot-frames.
-            applyClawd()
-            return
-        }
-
-        if reduceMotion {
-            setButtonImage(frames.idle[0])
-            return
-        }
-
-        switch currentState {
-        case .disconnected:
-            startAnimation(frames: frames.disconnected, interval: botInterval)
-        case .sleeping where !isSprinting:
-            startAnimation(frames: frames.sleeping, interval: botInterval)
-        case .syncing:
-            startAnimation(frames: frames.active, interval: botInterval)
-        case .idle, .sleeping:
-            startAnimation(
-                frames: isSprinting ? frames.active : frames.idle,
-                interval: botInterval
-            )
-        }
-    }
-
-    private var botInterval: TimeInterval {
-        MenuBarRunnerPace.frameInterval(style: .bot, motion: runnerMotion)
     }
 
     private var runnerMotion: MenuBarRunnerMotion {
