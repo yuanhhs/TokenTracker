@@ -24,6 +24,9 @@ const {
   parseWindowsListeningPorts,
   listAntigravityPorts,
   detectAntigravityProcess,
+  detectAntigravityProcesses,
+  parseAntigravityBootstrapCsrfToken,
+  discoverAntigravityCsrfToken,
   fetchAntigravityLimits,
   fetchCopilotLimits,
   describeCopilotOtelStatus,
@@ -3507,6 +3510,223 @@ lang 123 me 22u IPv4 0x123 0t0 TCP 127.0.0.1:51234 (LISTEN)
 
       assert.equal(result.configured, true);
       assert.ok(result.error.includes("not running"), `expected "not running" message, got: ${result.error}`);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  // The VS Code extension spawns `agy --hub`, which — unlike the IDE and the
+  // desktop app — never puts its CSRF token on the command line. It inlines the
+  // token into the HTML it serves instead.
+  const HUB_BOOTSTRAP_HTML =
+    '<!doctype html><html lang="en">  <head><script>window.__APP_CONFIG__ = '
+    + '{"productName":"antigravity","csrfToken":"hub-token","appVersion":"","devMode":false};'
+    + "</script><title>Antigravity</title></head><body></body></html>";
+
+  const HUB_AGY_COMMAND =
+    "C:\\Users\\me\\.gemini\\bin\\agy.exe --hub --hub-port=58865 --app_data_dir=antigravity --add-dir=C:\\work";
+
+  const HUB_QUOTA_SUMMARY = {
+    code: 0,
+    response: {
+      groups: [
+        {
+          displayName: "Gemini Models",
+          buckets: [
+            { bucketId: "gemini-weekly", remainingFraction: 0.5, resetTime: "2026-05-28T00:00:00.000Z" },
+            { bucketId: "gemini-5h", remainingFraction: 1, resetTime: "2026-05-21T05:00:00.000Z" },
+          ],
+        },
+        {
+          displayName: "Claude and GPT models",
+          buckets: [
+            { bucketId: "3p-weekly", remainingFraction: 0.75, resetTime: "2026-05-28T00:00:00.000Z" },
+            { bucketId: "3p-5h", remainingFraction: 1, resetTime: "2026-05-21T05:00:00.000Z" },
+          ],
+        },
+      ],
+    },
+  };
+
+  it("parses the CSRF token out of the bootstrap HTML", () => {
+    assert.equal(parseAntigravityBootstrapCsrfToken(HUB_BOOTSTRAP_HTML), "hub-token");
+  });
+
+  it("returns null when the served HTML carries no app config", () => {
+    assert.equal(parseAntigravityBootstrapCsrfToken("<!doctype html><html></html>"), null);
+    assert.equal(parseAntigravityBootstrapCsrfToken(""), null);
+    assert.equal(parseAntigravityBootstrapCsrfToken(null), null);
+    // Config present but the token field is empty.
+    assert.equal(
+      parseAntigravityBootstrapCsrfToken('<script>window.__APP_CONFIG__ = {"csrfToken":""};</script>'),
+      null,
+    );
+  });
+
+  it("discovers the CSRF token from a running hub", async () => {
+    const calls = [];
+    const textRequestFn = async ({ scheme, port, path: requestPath }) => {
+      calls.push({ scheme, port, path: requestPath });
+      return HUB_BOOTSTRAP_HTML;
+    };
+
+    const token = await discoverAntigravityCsrfToken({ scheme: "http", port: 58865, textRequestFn });
+
+    assert.equal(token, "hub-token");
+    assert.deepEqual(calls, [{ scheme: "http", port: 58865, path: "/" }]);
+  });
+
+  it("returns null when the hub cannot be reached", async () => {
+    const textRequestFn = async () => {
+      throw new Error("ECONNREFUSED");
+    };
+
+    assert.equal(await discoverAntigravityCsrfToken({ port: 58865, textRequestFn }), null);
+  });
+
+  it("reads --hub-port off the VS Code extension's agy hub", async () => {
+    const commandRunner = () => ({
+      stdout: JSON.stringify([{ ProcessId: 27496, CommandLine: HUB_AGY_COMMAND }]),
+      status: 0,
+    });
+
+    const candidates = await detectAntigravityProcesses({ commandRunner, platform: "win32" });
+
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0].pid, 27496);
+    assert.equal(candidates[0].hubPort, 58865);
+    assert.equal(candidates[0].csrfToken, null);
+    assert.equal(candidates[0].extensionPort, null);
+  });
+
+  it("ranks a token-bearing language server ahead of an agy hub", async () => {
+    const commandRunner = () => ({
+      stdout: JSON.stringify([
+        { ProcessId: 27496, CommandLine: HUB_AGY_COMMAND },
+        {
+          ProcessId: 21780,
+          CommandLine:
+            "C:\\Users\\me\\AppData\\Local\\Programs\\antigravity\\resources\\bin\\language_server.exe"
+            + " --standalone --override_ide_name antigravity --override_ide_version 2.11.0"
+            + " --csrf_token desktop-token --app_data_dir antigravity",
+        },
+      ]),
+      status: 0,
+    });
+
+    const candidates = await detectAntigravityProcesses({ commandRunner, platform: "win32" });
+
+    assert.deepEqual(candidates.map((c) => c.pid), [21780, 27496]);
+    // The singular helper keeps returning the best candidate.
+    const best = await detectAntigravityProcess({ commandRunner, platform: "win32" });
+    assert.equal(best.pid, 21780);
+    assert.equal(best.csrfToken, "desktop-token");
+  });
+
+  it("authenticates to the agy hub with the token from its bootstrap HTML", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-hub-"));
+    try {
+      fs.mkdirSync(path.join(tmp, ".gemini", "antigravity"), { recursive: true });
+      const commands = [];
+      const commandRunner = (command) => {
+        commands.push(command);
+        return {
+          stdout: JSON.stringify([{ ProcessId: 27496, CommandLine: HUB_AGY_COMMAND }]),
+          status: 0,
+        };
+      };
+      // The hub speaks plain HTTP, so an HTTPS attempt fails at the TLS layer.
+      const textRequestFn = async ({ scheme }) => {
+        if (scheme !== "http") throw new Error("EPROTO");
+        return HUB_BOOTSTRAP_HTML;
+      };
+      const rpcs = [];
+      const requestFn = async ({ scheme, port, path: requestPath, csrfToken }) => {
+        rpcs.push({ scheme, port, path: requestPath, csrfToken });
+        if (scheme !== "http") throw new Error("Client sent an HTTP request to an HTTPS server.");
+        if (!csrfToken) throw new Error("HTTP 401: missing CSRF token");
+        if (requestPath.includes("GetUnleashData")) return { code: 0 };
+        assert.ok(requestPath.includes("RetrieveUserQuotaSummary"));
+        return HUB_QUOTA_SUMMARY;
+      };
+
+      const result = await fetchAntigravityLimits({
+        home: tmp,
+        commandRunner,
+        requestFn,
+        textRequestFn,
+        platform: "win32",
+        nowMs: Date.parse("2026-05-21T00:00:00.000Z"),
+      });
+
+      assert.equal(result.configured, true);
+      assert.equal(result.error, null);
+      assert.equal(result.cached, undefined, "expected live data, not a cache fallback");
+      assert.equal(result.primary_window.used_percent, 25);
+      assert.equal(result.secondary_window.used_percent, 0);
+      assert.equal(result.tertiary_window.used_percent, 50);
+      assert.equal(result.quaternary_window.used_percent, 0);
+
+      // --hub-port is on the command line, so no netstat port scan is needed.
+      assert.deepEqual(commands, ["powershell.exe"]);
+      assert.ok(rpcs.length > 0);
+      assert.ok(rpcs.every((r) => r.port === 58865));
+      assert.ok(
+        rpcs.filter((r) => r.scheme === "http").every((r) => r.csrfToken === "hub-token"),
+        "every HTTP RPC should carry the bootstrapped token",
+      );
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("falls through to a second surface when the first one fails", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-antigravity-failover-"));
+    try {
+      fs.mkdirSync(path.join(tmp, ".gemini", "antigravity"), { recursive: true });
+      const commandRunner = (command) => {
+        if (command === "powershell.exe") {
+          return {
+            stdout: JSON.stringify([
+              {
+                ProcessId: 21780,
+                CommandLine:
+                  "C:\\Users\\me\\AppData\\Local\\Programs\\antigravity\\resources\\bin\\language_server.exe"
+                  + " --override_ide_name antigravity --csrf_token stale-token --app_data_dir antigravity",
+              },
+              { ProcessId: 27496, CommandLine: HUB_AGY_COMMAND },
+            ]),
+            status: 0,
+          };
+        }
+        // Port scan for the language server (it has no --hub-port).
+        return { stdout: "TCP  127.0.0.1:51234  0.0.0.0:0  LISTENING  21780", status: 0 };
+      };
+      const textRequestFn = async ({ scheme }) => {
+        if (scheme !== "http") throw new Error("EPROTO");
+        return HUB_BOOTSTRAP_HTML;
+      };
+      const requestFn = async ({ scheme, port, path: requestPath, csrfToken }) => {
+        // The language server is shutting down: its port answers nothing.
+        if (port === 51234) throw new Error("ECONNREFUSED");
+        if (scheme !== "http" || !csrfToken) throw new Error("HTTP 401: missing CSRF token");
+        if (requestPath.includes("GetUnleashData")) return { code: 0 };
+        return HUB_QUOTA_SUMMARY;
+      };
+
+      const result = await fetchAntigravityLimits({
+        home: tmp,
+        commandRunner,
+        requestFn,
+        textRequestFn,
+        platform: "win32",
+        nowMs: Date.parse("2026-05-21T00:00:00.000Z"),
+      });
+
+      assert.equal(result.configured, true);
+      assert.equal(result.error, null);
+      assert.equal(result.cached, undefined);
+      assert.equal(result.primary_window.used_percent, 25);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

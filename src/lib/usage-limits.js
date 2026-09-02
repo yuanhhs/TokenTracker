@@ -55,6 +55,9 @@ const DEFAULT_PROVIDER_TIMEOUT_MS = 15_000;
 const ANTIGRAVITY_LIMITS_CACHE_FILE = "usage-limits-cache.json";
 const ANTIGRAVITY_LIMITS_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ANTIGRAVITY_LIMITS_CACHE_UNKNOWN_RESET_TTL_MS = 12 * 60 * 60 * 1000;
+// The CSRF token sits in the first few hundred bytes of the bootstrap HTML, so
+// stop reading well before the rest of the single-page app streams in.
+const ANTIGRAVITY_BOOTSTRAP_MAX_BYTES = 64 * 1024;
 // Claude shares its OAuth usage endpoint budget with Claude Code itself, so a transient
 // 429 is common. Persist the last successful read so the panel can keep showing it instead
 // of flashing a red error. Separate file from Antigravity's (whose writer rewrites the whole
@@ -2113,7 +2116,16 @@ function parseWindowsProcesses(output) {
     .filter((entry) => Number.isFinite(entry.pid) && entry.command);
 }
 
-async function detectAntigravityProcess({ commandRunner, platform = process.platform } = {}) {
+// Try the surfaces that hand us their CSRF token up front (Antigravity IDE and
+// the desktop app both pass --csrf_token) before an `agy --hub`, whose token
+// has to be read back out of the hub's bootstrap HTML.
+function antigravityCandidateRank(candidate) {
+  if (candidate.csrfToken) return 0;
+  if (Number.isFinite(candidate.hubPort)) return 1;
+  return 2;
+}
+
+async function detectAntigravityProcesses({ commandRunner, platform = process.platform } = {}) {
   let processes;
   if (platform === "win32") {
     const script = [
@@ -2138,24 +2150,30 @@ async function detectAntigravityProcess({ commandRunner, platform = process.plat
       .filter(Boolean);
   }
 
-  let sawProcess = false;
+  const candidates = [];
   for (const parsed of processes) {
     if (!isAntigravityCommandLine(parsed.command)) continue;
-    sawProcess = true;
-    const csrfToken = extractCommandFlag(parsed.command, "--csrf_token") || null;
     const extensionPort = extractFirstNumber(extractCommandFlag(parsed.command, "--extension_server_port"));
-    return {
+    // The hub the VS Code extension spawns picks an ephemeral port and prints
+    // it on its own command line, so we never have to go probing for it.
+    const hubPort = extractFirstNumber(extractCommandFlag(parsed.command, "--hub-port"));
+    candidates.push({
       configured: true,
       pid: parsed.pid,
-      csrfToken,
+      csrfToken: extractCommandFlag(parsed.command, "--csrf_token") || null,
       extensionPort: Number.isFinite(extensionPort) ? extensionPort : null,
-    };
+      hubPort: Number.isFinite(hubPort) ? hubPort : null,
+    });
   }
 
-  if (sawProcess) {
-    return { configured: true, error: "Antigravity CSRF token not found. Restart Antigravity and retry." };
-  }
-  return { configured: false };
+  // Stable sort: candidates of equal rank keep process-enumeration order.
+  candidates.sort((a, b) => antigravityCandidateRank(a) - antigravityCandidateRank(b));
+  return candidates;
+}
+
+async function detectAntigravityProcess(options = {}) {
+  const [best] = await detectAntigravityProcesses(options);
+  return best || { configured: false };
 }
 
 function resolveAntigravityLimitsCachePath({ home } = {}) {
@@ -2715,6 +2733,76 @@ function requestLocalJson({
   });
 }
 
+function requestLocalText({
+  scheme,
+  port,
+  path: requestPath,
+  timeoutMs = 8000,
+  textRequestFn,
+}) {
+  if (typeof textRequestFn === "function") {
+    return textRequestFn({ scheme, port, path: requestPath, timeoutMs });
+  }
+
+  const client = scheme === "https" ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      {
+        hostname: "127.0.0.1",
+        port,
+        path: requestPath,
+        method: "GET",
+        rejectUnauthorized: false,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          data += chunk;
+          if (data.length >= ANTIGRAVITY_BOOTSTRAP_MAX_BYTES) {
+            resolve(data);
+            res.destroy();
+          }
+        });
+        res.on("end", () => resolve(data));
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy(new Error("timeout"));
+    });
+    req.end();
+  });
+}
+
+// Every Antigravity backend bootstraps its web UI by inlining a per-process
+// CSRF token into the HTML it serves on any non-RPC path:
+//   window.__APP_CONFIG__ = {"productName":"antigravity","csrfToken":"…",…}
+// The `agy --hub` process the VS Code extension spawns never puts that token on
+// its command line, so reading it back out here is the only way to authenticate
+// against it. Treat the result as a live loopback credential: never log it.
+function parseAntigravityBootstrapCsrfToken(html) {
+  const text = String(html || "");
+  if (!text.includes("__APP_CONFIG__")) return null;
+  const token = text.match(/"csrfToken"\s*:\s*"([^"]+)"/)?.[1]?.trim();
+  return token || null;
+}
+
+async function discoverAntigravityCsrfToken({ scheme = "http", port, timeoutMs, textRequestFn } = {}) {
+  try {
+    const html = await requestLocalText({ scheme, port, path: "/", timeoutMs, textRequestFn });
+    return parseAntigravityBootstrapCsrfToken(html);
+  } catch (_error) {
+    return null;
+  }
+}
+
 function antigravityCodeIsOk(code) {
   if (code === null || code === undefined) return true;
   if (typeof code === "number") return code === 0;
@@ -2901,9 +2989,24 @@ async function probeAntigravityPort(port, csrfToken, { timeoutMs, requestFn, sch
   }
 }
 
+// The VS Code extension keeps no ~/.gemini subdirectory of its own until the
+// `agy --hub` backend it spawns has run at least once, so check for the
+// extension itself too — otherwise a fresh install looks like "no Antigravity".
+function hasVscodeAntigravityExtension({ home } = {}) {
+  const userHome = home || os.homedir();
+  return [".vscode", ".vscode-insiders"].some((editorDir) => {
+    try {
+      return fs.readdirSync(path.join(userHome, editorDir, "extensions"))
+        .some((name) => name.startsWith("google.google-antigravity-"));
+    } catch {
+      return false;
+    }
+  });
+}
+
 function hasAntigravityInstallEvidence({ home } = {}) {
   const geminiHome = path.join(home || os.homedir(), ".gemini");
-  return ["antigravity", "antigravity-ide", "antigravity-cli"]
+  const hasDataDir = ["antigravity", "antigravity-ide", "antigravity-cli"]
     .some((name) => {
       try {
         return fs.statSync(path.join(geminiHome, name)).isDirectory();
@@ -2911,9 +3014,100 @@ function hasAntigravityInstallEvidence({ home } = {}) {
         return false;
       }
     });
+  return hasDataDir || hasVscodeAntigravityExtension({ home });
 }
 
-async function fetchAntigravityLimits({ home, commandRunner, requestFn, fetchImpl = fetch, timeoutMs = 8000, nowMs = Date.now(), platform = process.platform } = {}) {
+function describeAntigravityFailure(error) {
+  if (error?.message === "timeout") return "Antigravity quota request timed out.";
+  return error?.message || "Unknown error";
+}
+
+async function fetchAntigravityLimitsForProcess(processInfo, {
+  commandRunner,
+  requestFn,
+  textRequestFn,
+  timeoutMs,
+  platform,
+  finalize,
+  finalizeQuotaSummary,
+}) {
+  // `agy --hub` prints its own ephemeral port on its command line, so skip the
+  // netstat/lsof subprocess entirely when we already know where to knock.
+  const ports = Number.isFinite(processInfo.hubPort)
+    ? [processInfo.hubPort]
+    : await listAntigravityPorts(processInfo.pid, { commandRunner, platform });
+
+  let workingPort = null;
+  let workingScheme = "https";
+  let csrfToken = processInfo.csrfToken;
+  for (const port of ports) {
+    for (const scheme of ["https", "http"]) {
+      // The IDE and desktop app pass --csrf_token; the hub does not, so fall
+      // back to reading the token out of the HTML it serves.
+      const token = processInfo.csrfToken
+        || await discoverAntigravityCsrfToken({ scheme, port, timeoutMs, textRequestFn });
+      if (await probeAntigravityPort(port, token, { timeoutMs, requestFn, scheme })) {
+        workingPort = port;
+        workingScheme = scheme;
+        csrfToken = token;
+        break;
+      }
+    }
+    if (workingPort) break;
+  }
+  if (!workingPort) {
+    throw new Error("Antigravity port detection failed: no working API port found");
+  }
+
+  try {
+    const quotaSummary = await requestLocalJson({
+      scheme: workingScheme,
+      port: workingPort,
+      path: "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
+      body: antigravityDefaultBody(),
+      csrfToken,
+      timeoutMs,
+      requestFn,
+    });
+    return finalizeQuotaSummary(quotaSummary);
+  } catch (_quotaError) {
+    // quota summary not available (IDE servers return 404) → fall back to GetUserStatus
+  }
+
+  try {
+    const userStatus = await requestLocalJson({
+      scheme: workingScheme,
+      port: workingPort,
+      path: "/exa.language_server_pb.LanguageServerService/GetUserStatus",
+      body: antigravityDefaultBody(),
+      csrfToken,
+      timeoutMs,
+      requestFn,
+    });
+    return finalize(userStatus);
+  } catch (_primaryError) {
+    const fallbackPort =
+      Number.isFinite(processInfo.extensionPort) && processInfo.extensionPort > 0
+        ? processInfo.extensionPort
+        : workingPort;
+    // agy has no extension server port; try the other scheme on the same port
+    const fallbackScheme = !csrfToken && fallbackPort === workingPort
+      ? (workingScheme === "https" ? "http" : "https")
+      : (fallbackPort === workingPort ? workingScheme : "http");
+    const modelConfigs = await requestLocalJson({
+      scheme: fallbackScheme,
+      port: fallbackPort,
+      path: "/exa.language_server_pb.LanguageServerService/GetCommandModelConfigs",
+      body: antigravityDefaultBody(),
+      csrfToken,
+      timeoutMs,
+      requestFn,
+    });
+    return finalize(modelConfigs, { fallbackToConfigs: true });
+  }
+}
+
+async function fetchAntigravityLimits({ home, commandRunner, requestFn, textRequestFn, fetchImpl = fetch, timeoutMs = 8000, nowMs = Date.now(), platform = process.platform } = {}) {
   const finalize = (payload, normalizeOptions) => {
     const result = {
       configured: true,
@@ -2934,103 +3128,45 @@ async function fetchAntigravityLimits({ home, commandRunner, requestFn, fetchImp
     return result;
   };
 
-  try {
-    const processInfo = await detectAntigravityProcess({ commandRunner, platform });
-    if (!processInfo.configured) {
-      const cached = readAntigravityLimitsCache({ home, nowMs });
-      if (cached) return cached;
-      // No install evidence → user likely doesn't have Antigravity at all.
-      // Return configured:false so the card stays neutral (like other providers).
-      if (!hasAntigravityInstallEvidence({ home })) {
-        return { configured: false };
-      }
-      return { configured: true, error: "Antigravity IDE is not running. Launch Antigravity to see usage limits." };
-    }
-    if (processInfo.error) {
-      return { configured: true, error: processInfo.error };
-    }
-    const ports = await listAntigravityPorts(processInfo.pid, { commandRunner, platform });
-    let workingPort = null;
-    let workingScheme = "https";
-    for (const port of ports) {
-      if (await probeAntigravityPort(port, processInfo.csrfToken, { timeoutMs, requestFn })) {
-        workingPort = port;
-        break;
-      }
-      // agy CLI serves both HTTPS and HTTP; no CSRF needed
-      if (!processInfo.csrfToken) {
-        if (await probeAntigravityPort(port, null, { timeoutMs, requestFn, scheme: "http" })) {
-          workingPort = port;
-          workingScheme = "http";
-          break;
-        }
-      }
-    }
-    if (!workingPort) {
-      throw new Error("Antigravity port detection failed: no working API port found");
-    }
-
-    try {
-      const quotaSummary = await requestLocalJson({
-        scheme: workingScheme,
-        port: workingPort,
-        path: "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
-        body: antigravityDefaultBody(),
-        csrfToken: processInfo.csrfToken,
-        timeoutMs,
-        requestFn,
-      });
-      return finalizeQuotaSummary(quotaSummary);
-    } catch (_quotaError) {
-      // quota summary not available (IDE servers return 404) → fall back to GetUserStatus
-    }
-
-    try {
-      const userStatus = await requestLocalJson({
-        scheme: workingScheme,
-        port: workingPort,
-        path: "/exa.language_server_pb.LanguageServerService/GetUserStatus",
-        body: antigravityDefaultBody(),
-        csrfToken: processInfo.csrfToken,
-        timeoutMs,
-        requestFn,
-      });
-      return finalize(userStatus);
-    } catch (primaryError) {
-      const fallbackPort =
-        Number.isFinite(processInfo.extensionPort) && processInfo.extensionPort > 0
-          ? processInfo.extensionPort
-          : workingPort;
-      // agy has no extension server port; try HTTP on the same port
-      const fallbackScheme = !processInfo.csrfToken && fallbackPort === workingPort
-        ? (workingScheme === "https" ? "http" : "https")
-        : (fallbackPort === workingPort ? "https" : "http");
-      const modelConfigs = await requestLocalJson({
-        scheme: fallbackScheme,
-        port: fallbackPort,
-        path: "/exa.language_server_pb.LanguageServerService/GetCommandModelConfigs",
-        body: antigravityDefaultBody(),
-        csrfToken: processInfo.csrfToken,
-        timeoutMs,
-        requestFn,
-      });
-      return finalize(modelConfigs, { fallbackToConfigs: true });
-    }
-  } catch (error) {
+  const degrade = (message) => {
     const cached = readAntigravityLimitsCache({ home, nowMs });
     if (cached) return cached;
-    // If there's no install evidence, this error is likely from a system that
-    // never had Antigravity — return neutral state like other providers.
+    // No install evidence → user likely doesn't have Antigravity at all.
+    // Return configured:false so the card stays neutral (like other providers).
     if (!hasAntigravityInstallEvidence({ home })) {
       return { configured: false };
     }
-    const message = error?.message === "timeout"
-      ? "Antigravity quota request timed out."
-      : error?.message || "Unknown error";
-    return {
-      configured: true,
-      error: message,
-    };
+    return { configured: true, error: message };
+  };
+
+  try {
+    const candidates = await detectAntigravityProcesses({ commandRunner, platform });
+    if (!candidates.length) {
+      return degrade("Antigravity IDE is not running. Launch Antigravity to see usage limits.");
+    }
+
+    // A user can run several surfaces at once (VS Code extension alongside the
+    // IDE or desktop app); try each until one answers instead of giving up on
+    // whichever happened to be enumerated first.
+    let lastError = null;
+    for (const processInfo of candidates) {
+      try {
+        return await fetchAntigravityLimitsForProcess(processInfo, {
+          commandRunner,
+          requestFn,
+          textRequestFn,
+          timeoutMs,
+          platform,
+          finalize,
+          finalizeQuotaSummary,
+        });
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  } catch (error) {
+    return degrade(describeAntigravityFailure(error));
   }
 }
 
@@ -3505,6 +3641,9 @@ module.exports = {
   parseWindowsListeningPorts,
   listAntigravityPorts,
   detectAntigravityProcess,
+  detectAntigravityProcesses,
+  parseAntigravityBootstrapCsrfToken,
+  discoverAntigravityCsrfToken,
   fetchAntigravityLimits,
   fetchCopilotLimits,
   readCopilotOauthToken,
