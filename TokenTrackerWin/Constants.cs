@@ -1,7 +1,7 @@
 namespace TokenTrackerWin;
 
 /// <summary>
-/// Mirror of <c>TokenTrackerBar/Utilities/Constants.swift</c>. The local server
+/// Shared constants for the Windows app. The local server
 /// port and dashboard URL must match the CLI (<c>tracker serve</c> binds :7680).
 /// </summary>
 internal static class Constants

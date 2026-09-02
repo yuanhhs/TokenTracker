@@ -8,7 +8,6 @@ import {
   getMockUsageSummary,
   getMockProjectUsageSummary,
   getMockProjectUsageDetail,
-  getMockAchievements,
   isMockEnabled,
 } from "./mock-data";
 import { getLocalApiAuthHeaders } from "./local-api-auth";
@@ -50,7 +49,6 @@ const PATHS = {
   usageCategoryBreakdown: "tokentracker-usage-category-breakdown",
   projectUsageSummary: "tokentracker-project-usage-summary",
   projectUsageDetail: "tokentracker-project-usage-detail",
-  achievements: "tokentracker-achievements",
   localSync: "tokentracker-local-sync",
   usageLimits: "tokentracker-usage-limits",
   outcomes: "tokentracker-outcomes",
@@ -160,30 +158,15 @@ export async function getProjectUsageDetail({
   return fetchLocalJson(PATHS.projectUsageDetail, params);
 }
 
-/**
- * Local (privacy-scoped) achievements: project_hopper / project_devotion /
- * night_owl, computed by the local CLI from queue data that never leaves the
- * machine.
- */
-export async function getLocalAchievements({ timeZone, tzOffsetMinutes }: AnyRecord = {}) {
-  if (isMockEnabled()) {
-    return getMockAchievements();
-  }
-  return fetchLocalJson(PATHS.achievements, buildTimeZoneParams({ timeZone, tzOffsetMinutes }));
-}
-
 export async function triggerLocalSync({
   signal,
   auto = false,
   background = false,
   allLocalSources = false,
-  drain = false,
 }: AnyRecord = {}) {
   const authHeaders = await getLocalApiAuthHeaders();
   const body: AnyRecord = {};
-  if (drain) {
-    body.drain = true;
-  } else if (auto) {
+  if (auto) {
     body.auto = true;
     if (background) {
       body.background = true;

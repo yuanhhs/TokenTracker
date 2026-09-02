@@ -14,16 +14,6 @@ import {
 } from "./lib/dashboard-preload.js";
 
 const nullComponent = () => null;
-const Analytics = lazy(() =>
-  import("@vercel/analytics/react")
-    .then((m) => ({ default: m.Analytics }))
-    .catch(() => ({ default: nullComponent })),
-);
-const SpeedInsights = lazy(() =>
-  import("@vercel/speed-insights/react")
-    .then((m) => ({ default: m.SpeedInsights }))
-    .catch(() => ({ default: nullComponent })),
-);
 const CommandPalette = lazy(() =>
   import("./ui/dashboard/components/CommandPalette.jsx")
     .then((m) => ({ default: m.CommandPalette }))
@@ -35,7 +25,6 @@ const DashboardPage = lazy(() =>
 );
 const IpCheckPage = lazy(() => import("./pages/IpCheckPage.jsx"));
 const ServiceStatusPage = lazy(() => import("./pages/ServiceStatusPage.jsx"));
-const AchievementsPage = lazy(() => import("./pages/AchievementsPage.jsx"));
 const LandingPage = lazy(() =>
   import("./pages/LandingPage.jsx").then((m) => ({ default: m.LandingPage })),
 );
@@ -48,8 +37,9 @@ const SettingsPage = lazy(() =>
 const SkillsPage = lazy(() =>
   import("./pages/SkillsPage.jsx").then((m) => ({ default: m.SkillsPage })),
 );
-const SessionsPage = lazy(() => import("./pages/SessionsPage.jsx"));
-const WidgetsPage = lazy(() => import("./pages/WidgetsPage.jsx"));
+const SessionsPage = lazy(() =>
+  import("./pages/SessionsPage.jsx").then((m) => ({ default: m.SessionsPage })),
+);
 const WrappedPage = lazy(() => import("./pages/WrappedPage.jsx"));
 
 const DASHBOARD_PATHS = new Set([
@@ -59,10 +49,8 @@ const DASHBOARD_PATHS = new Set([
   "/settings",
   "/skills",
   "/sessions",
-  "/widgets",
   "/ip-check",
   "/service-status",
-  "/achievements",
 ]);
 
 export default function App() {
@@ -108,40 +96,23 @@ export default function App() {
     return <Navigate to="/landing" replace />;
   }
 
-  // These paths used to be backed by authentication, leaderboard, pet, or
-  // device OAuth flows. Keep old links harmless by returning to the local app.
-  if (
-    normalizedPath === "/login" ||
-    normalizedPath === "/reset-password" ||
-    normalizedPath.startsWith("/auth/") ||
-    normalizedPath === "/device" ||
-    normalizedPath === "/leaderboard" ||
-    normalizedPath.startsWith("/leaderboard/") ||
-    /^\/u\/[^/]+$/i.test(normalizedPath) ||
-    normalizedPath === "/pet-settings"
-  ) {
-    return <Navigate to={isLocalMode || mockEnabled ? "/dashboard" : "/landing"} replace />;
-  }
-
   let PageComponent = DashboardPage;
   if (normalizedPath === "/landing") PageComponent = LandingPage;
   else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
   else if (normalizedPath === "/skills") PageComponent = SkillsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
-  else if (normalizedPath === "/widgets") PageComponent = WidgetsPage;
   else if (normalizedPath === "/ip-check") PageComponent = IpCheckPage;
   else if (normalizedPath === "/service-status") PageComponent = ServiceStatusPage;
-  else if (normalizedPath === "/achievements") PageComponent = AchievementsPage;
   else if (normalizedPath === "/wrapped") PageComponent = WrappedPage;
 
   const showSidebar = isLocalMode && isDashboardPath;
-  const content =
-    normalizedPath === "/landing" ? (
-      <LandingPage />
-    ) : normalizedPath === "/wrapped" ? (
-      <WrappedPage />
-    ) : (
+  // /landing and /wrapped render standalone: PageComponent is already resolved
+  // to them above, and neither takes the dashboard data props.
+  const isStandalonePage = normalizedPath === "/landing" || normalizedPath === "/wrapped";
+  let content = <PageComponent />;
+  if (!isStandalonePage) {
+    content = (
       <PageComponent
         key={resolvedLocale}
         baseUrl={getBackendBaseUrl()}
@@ -150,16 +121,17 @@ export default function App() {
         onMainContentVisible={onMainContentVisible}
       />
     );
+  }
 
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <ToastProvider>
-          <Suspense fallback={null}>{showSidebar ? <AppLayout>{content}</AppLayout> : content}</Suspense>
+          <Suspense fallback={null}>
+            {showSidebar ? <AppLayout>{content}</AppLayout> : content}
+          </Suspense>
           <Suspense fallback={null}>
             {showSidebar ? <CommandPalette /> : null}
-            <Analytics />
-            <SpeedInsights />
           </Suspense>
         </ToastProvider>
       </ThemeProvider>

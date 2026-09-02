@@ -7,7 +7,7 @@ using System.Net.Sockets;
 namespace TokenTrackerWin;
 
 /// <summary>
-/// Windows counterpart of <c>TokenTrackerBar/Services/ServerManager.swift</c>.
+/// Starts and monitors the embedded local server.
 /// Resolves a Node runtime + the tracker CLI entry, then launches
 /// <c>tracker serve --port P</c> on a port this process picked as free, and
 /// keeps a lightweight health-check loop running.
@@ -19,7 +19,7 @@ namespace TokenTrackerWin;
 /// wouldn't know which port it landed on. Pre-selecting a free loopback port
 /// and passing it explicitly keeps the URL deterministic.
 ///
-/// Runtime resolution (mirrors the macOS "embedded first, dev fallback" logic):
+/// Runtime resolution uses the embedded server first, then a development fallback:
 ///   1. Embedded runtime bundled next to the exe (EmbeddedServer\node.exe + tokentracker\bin\tracker.js).
 ///   2. Dev override via env vars TOKENTRACKER_NODE / TOKENTRACKER_ENTRY (local self-test against the repo).
 ///   3. Dev auto-detect: walk up from the build output and use the repo's bin\tracker.js.

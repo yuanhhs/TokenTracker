@@ -185,26 +185,15 @@ test("non-background auto trae-cn sync fetches the exact rolling range and queue
     assert.equal(traeRows[0].conversation_count, 1);
     assert.equal(traeRows[0].hour_start, halfHourBucket(usageTime));
 
-    // The sync appends exactly one canonical session-state observation
-    // after the bucket row (queue order: a device's rows land before the
-    // states describing them).
+    // The cloud account-usage dedup layer is gone, so the sync now appends the
+    // usage bucket row and nothing else — no canonical session-state
+    // observation trailing it.
     const queueLines = fs
       .readFileSync(path.join(home, ".tokentracker", "tracker", "queue.jsonl"), "utf8")
       .trim()
       .split("\n");
-    assert.equal(queueLines.length, 2, "bucket row then session state");
-    const states = readSessionStateRows(home);
-    assert.equal(states.length, 1);
-    assert.equal(states[0].source, "trae-cn");
-    assert.equal(states[0].session_id, "s1");
-    assert.equal(states[0].model, "doubao-pro");
-    assert.equal(states[0].bucket_start, halfHourBucket(usageTime));
-    assert.equal(states[0].total_tokens, 110);
-    assert.equal(
-      Date.parse(states[0].snapshot_verified_at),
-      NOW_MS,
-      "logical fetch stamp is the fixed sync clock, not the enqueue moment",
-    );
+    assert.equal(queueLines.length, 1, "bucket row only");
+    assert.equal(readSessionStateRows(home).length, 0, "no account session state rows");
 
     const cursors = readCursors(home);
     assert.equal(cursors.traeCn.version, 1);
@@ -234,9 +223,9 @@ test("repeated fixed-now sync is idempotent (no token growth / no new queue row)
     );
     assert.equal(traeRows.length, 1);
     assert.equal(traeRows[0].total_tokens, 110);
-    // The repeat re-appends nothing: unchanged sessions emit no session
-    // state observation, so the queue stays byte-identical.
-    assert.equal(readSessionStateRows(home).length, 1);
+    // The repeat re-appends nothing, and no account session state rows exist
+    // at all now that the cloud dedup layer is gone.
+    assert.equal(readSessionStateRows(home).length, 0);
   });
 });
 
@@ -395,16 +384,8 @@ test("over-capacity TRAE CN window is split and the staggered halves import atom
     assert.equal(traeRows.length, 2, "both halves queue their row");
     const cursorSessions = readCursors(home).traeCn.sessions;
     assert.deepEqual(Object.keys(cursorSessions).sort(), ["split-left", "split-right"]);
-    // Both halves emit their canonical session observations (one per
-    // session), all stamped with the SAME logical fetch clock.
-    const states = readSessionStateRows(home);
-    assert.deepEqual(
-      states.map((r) => r.session_id).sort(),
-      ["split-left", "split-right"],
-    );
-    for (const state of states) {
-      assert.equal(Date.parse(state.snapshot_verified_at), NOW_MS);
-    }
+    // Neither half emits an account session-state observation any more.
+    assert.equal(readSessionStateRows(home).length, 0);
   });
 });
 

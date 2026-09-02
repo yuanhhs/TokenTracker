@@ -2,7 +2,6 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const fssync = require("node:fs");
-const cp = require("node:child_process");
 const readline = require("node:readline");
 
 const { resolveInstallPaths, resolveZcodeNativeDbPath, ensureFlatCursor } = require("../lib/install-resolver");
@@ -123,9 +122,6 @@ const {
 const { computeClaudeGroundTruthBuckets } = require("../lib/claude-categorizer");
 const { createProgress, renderBar, formatNumber } = require("../lib/progress");
 const {
-  parseRetryAfterMs,
-} = require("../lib/upload-throttle");
-const {
   isCursorInstalled,
   extractCursorSessionToken,
   fetchCursorUsageCsv,
@@ -186,7 +182,7 @@ const CLAUDE_MEM_OBSERVER_PATH_SEGMENT = "--claude-mem-observer-sessions";
 // represented in the on-disk logs is silently removed from queue.jsonl. On
 // the reporter's machine this wiped 2.17B claude tokens (-1.27B opus-4-7,
 // -474M opus-4-6, -376M sonnet-4-5, -48M haiku, -6M sonnet-4-6). The
-// upload-offset reset also propagated the damage to the cloud.
+// the queue rewrite also propagated the damage into persisted aggregates.
 // 0.26.4 HALTS back at v4 so the buggy atomic-rewrite path stops auto-firing
 // on existing installs. The dedup fixes in parseClaudeFile /
 // categorizeSessionFile / computeClaudeGroundTruthBuckets are KEPT — they are
@@ -194,22 +190,12 @@ const CLAUDE_MEM_OBSERVER_PATH_SEGMENT = "--claude-mem-observer-sessions";
 // for whatever data is actually on disk. A targeted, log-gap-safe mimo
 // migration will ship later under its own key.
 const CLAUDE_GROUND_TRUTH_REPAIR_KEY = "claudeGroundTruthRepair_2026_05_v4";
-// One-time full re-upload: the cloud ingest dropped `conversation_count` to 0
-// from 2026-04-18 until the 2026-06-10 field-mapping fix (it read
-// `b.conversations`; queue rows carry `conversation_count`). Historical cloud
-// rows can only be repaired from each user's local queue.jsonl — resetting the
-// upload offset replays the full queue and the ingest's whole-row upsert
-// overwrites every historical bucket with the correct conversation counts
-// (token columns replay to the same final values: last emission per key wins,
-// exactly how the cloud rows were built the first time).
-const CLOUD_CONVERSATIONS_BACKFILL_KEY = "cloudConversationsBackfill_2026_06";
 // One-time repair (#187): until the codexHashes event-dedup landed, a Codex
 // session file rewritten with a new inode (Codex-Manager atomically rewrites
 // sessions/ files to patch the provider on every account switch) was re-scanned
 // from offset 0 and its tokens re-added to the persistent hourly buckets. This
 // rebuilds the codex buckets from disk (event-deduped), atomically drops the
-// inflated codex rows from queue.jsonl, and resets the upload offset so the
-// corrected values overwrite the cloud. GUARDED: skips if any codex session
+// inflated codex rows from queue.jsonl. GUARDED: skips if any codex session
 // file that previously contributed is no longer on disk (deleted, or moved to
 // ~/.codex/archived_sessions/ which sync does not scan) — clearing its bucket
 // would lose that history (ref the v6 ground-truth-repair data-loss incident).
@@ -222,8 +208,8 @@ const CODEX_RESCAN_DEDUP_REPAIR_KEY = "codexRescanDedupRepair_2026_06";
 // inflated history. This re-runs the exact #187 guarded rebuild under a new key
 // — the rebuild re-parses every codex file with the CURRENT (fork-aware)
 // parser, so replay rows are excluded — and inherits all its safety properties
-// (unreproducible-session skip, atomic throwaway rebuild, queue strip, upload
-// offset reset for the cloud overwrite). Pre-gated: installs with no forked
+// (unreproducible-session skip, atomic throwaway rebuild, queue strip).
+// Pre-gated: installs with no forked
 // rollout on disk carry no fork phantom and mark done without the rebuild.
 const CODEX_FORK_REPLAY_REPAIR_KEY = "codexForkReplayRepair_2026_07";
 // One-time repair for Codex rollouts that contain token counters from multiple
@@ -368,7 +354,7 @@ async function acquireSyncLock(
     priorityPollMs = PRIORITY_LOCK_POLL_MS,
   } = {},
 ) {
-  const waitsForPriority = Boolean(opts.waitForLock || opts.drain || opts.publishAccount);
+  const waitsForPriority = Boolean(opts.waitForLock);
   let lock = await openLock(lockPath, {
     quietIfLocked: opts.auto || waitsForPriority,
   });
@@ -448,9 +434,6 @@ async function clearSyncSkip(trackerDir) {
 
 async function cmdSync(argv, context = {}) {
   const opts = parseArgs(argv);
-  // Cloud publication and account linking are retired. Keep the internal
-  // option shape for compatibility with older callers, but never enable it.
-  opts.publishAccount = false;
   const diagnostics = context && typeof context === "object" ? context.diagnostics : null;
   const cursorStoreOptions = context && typeof context === "object"
     ? context.cursorStoreOptions
@@ -502,13 +485,6 @@ async function cmdSync(argv, context = {}) {
     const projectQueueStatePath = path.join(trackerDir, "project.queue.state.json");
     const grokSignalPath = path.join(trackerDir, "grok-last-session.json");
     const legacyGrokSignalPath = path.join(trackerDir, "tracker", "grok-last-session.json");
-
-    // Native publication owns backlog and failure-backoff retries on its next
-    // five-minute tick. Remove any legacy detached retry marker immediately so
-    // an already-sleeping retry process observes the missing marker and exits.
-    if (opts.publishAccount) {
-      await clearAutoRetry(trackerDir);
-    }
 
     let config = await readJson(configPath);
     // Accounts and cloud publication were removed. Scrub credentials and
@@ -1749,12 +1725,6 @@ async function cmdSync(argv, context = {}) {
               onProgress: makeProviderProgress("TRAE Work CN"),
               windowStartMs: startTime * 1000,
               windowEndMs: endTime * 1000,
-              // The LOGICAL fetch stamp carried into every session state's
-              // snapshot_verified_at: the same clock that produced the query
-              // range, not the later enqueue moment (append-only queue
-              // replays it verbatim, so transport retries never fake
-              // freshness).
-              snapshotVerifiedAtMs: nowMs,
             });
             // A partially malformed snapshot throws inside the parser (fail
             // closed - it must not become the authoritative window state);
@@ -2825,7 +2795,6 @@ function parseArgs(argv) {
     fromRetry: false,
     fromOpenclaw: false,
     source: null,
-    drain: false,
     waitForLock: false,
     background: false,
     allLocalSources: false,
@@ -2842,7 +2811,6 @@ function parseArgs(argv) {
       i += 1;
     }
     else if (a.startsWith("--source=")) out.source = normalizeSyncSource(a.slice("--source=".length));
-    else if (a === "--drain") out.drain = true;
     else if (a === "--wait-for-lock") out.waitForLock = true;
     else if (a === "--background" || a === "--lightweight") out.background = true;
     else if (a === "--all-local-sources") out.allLocalSources = true;
@@ -2929,8 +2897,6 @@ function recordCodexColdScanAudit(
 module.exports = {
   cmdSync,
   acquireSyncLock,
-  readQueueBatch,
-  drainQueueToCloud,
   migrateCursorUnknownBuckets,
   migrateRolloutCumulativeDeltaBuckets,
   repairCodebuddyLogJsonlOverlap,
@@ -2946,9 +2912,6 @@ module.exports = {
   repairZcodeNativeUsageMigration,
   reincludeClaudeMemObserverFiles,
   repairGrokQueueFromSessionSnapshots,
-  applyCloudConversationsBackfill,
-  scheduleAutoRetry,
-  buildAutoRetryScript,
   isCodexColdScanAuditDue,
   recordCodexColdScanAudit,
   CURSOR_UNKNOWN_MIGRATION_KEY,
@@ -2960,7 +2923,6 @@ module.exports = {
   DROID_DUP_SESSION_REPAIR_KEY,
   CLAUDE_MEM_OBSERVER_REINCLUDE_KEY,
   GROK_APPEND_ONLY_REPAIR_MIGRATION_KEY,
-  CLOUD_CONVERSATIONS_BACKFILL_KEY,
 };
 
 // The pre-merge Harness prototype briefly emitted source="deepseek" before
@@ -3082,6 +3044,17 @@ function normalizeString(value) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+// Local "last OpenClaw-triggered sync" marker. Purely on-disk: `status` and
+// `doctor` read it back from the tracker dir to report trigger freshness.
+async function writeOpenclawSignal(trackerDir) {
+  const openclawSignalPath = path.join(trackerDir, "openclaw.signal");
+  try {
+    await fs.writeFile(openclawSignalPath, new Date().toISOString(), "utf8");
+  } catch (_e) {
+    // best-effort marker
+  }
 }
 
 function resolveOpenclawSignal({ env } = {}) {
@@ -3254,329 +3227,6 @@ function normalizeIsoOrEpoch(value) {
   const dt = new Date(ms);
   if (Number.isNaN(dt.getTime())) return null;
   return dt.toISOString();
-}
-
-async function safeStatSize(p) {
-  try {
-    const st = await fs.stat(p);
-    return st && st.isFile() ? st.size : 0;
-  } catch (_e) {
-    return 0;
-  }
-}
-
-function deriveAutoSkipReason({ decision, state }) {
-  if (!decision || decision.reason !== "throttled") return decision?.reason || "unknown";
-  const backoffUntilMs = Number(state?.backoffUntilMs || 0);
-  const nextAllowedAtMs = Number(state?.nextAllowedAtMs || 0);
-  if (backoffUntilMs > 0 && backoffUntilMs >= nextAllowedAtMs) return "backoff";
-  return "throttled";
-}
-
-async function scheduleAutoRetry({
-  trackerDir,
-  retryAtMs,
-  reason,
-  pendingBytes,
-  source,
-  syncSource,
-  autoRetryNoSpawn,
-}) {
-  const retryMs = coerceRetryMs(retryAtMs);
-  if (!retryMs) return { scheduled: false, retryAtMs: 0 };
-
-  const retryPath = path.join(trackerDir, AUTO_RETRY_FILENAME);
-  const nowMs = Date.now();
-  const existing = await readJson(retryPath);
-  const existingMs = coerceRetryMs(existing?.retryAtMs);
-  const normalizedSyncSource = normalizeSyncSource(syncSource);
-  if (existingMs && existingMs >= retryMs - 1000) {
-    const existingSyncSource = normalizeSyncSource(existing?.syncSource);
-    if (existingSyncSource !== normalizedSyncSource) {
-      await writeJson(
-        retryPath,
-        buildAutoRetryPayload({
-          retryMs: existingMs,
-          nowMs,
-          reason,
-          pendingBytes,
-          source,
-          syncSource: normalizedSyncSource,
-        }),
-      );
-    }
-    return { scheduled: false, retryAtMs: existingMs };
-  }
-
-  const payload = buildAutoRetryPayload({
-    retryMs,
-    nowMs,
-    reason,
-    pendingBytes,
-    source,
-    syncSource: normalizedSyncSource,
-  });
-
-  await writeJson(retryPath, payload);
-
-  const delayMs = Math.min(AUTO_RETRY_MAX_DELAY_MS, Math.max(0, retryMs - nowMs));
-  if (delayMs <= 0) return { scheduled: false, retryAtMs: retryMs };
-  if (autoRetryNoSpawn) {
-    return { scheduled: false, retryAtMs: retryMs };
-  }
-
-  spawnAutoRetryProcess({
-    retryPath,
-    trackerBinPath: path.join(trackerDir, "app", "bin", "tracker.js"),
-    fallbackPkg: "tokentracker-cli",
-    delayMs,
-  });
-  return { scheduled: true, retryAtMs: retryMs };
-}
-
-function buildAutoRetryPayload({ retryMs, nowMs, reason, pendingBytes, source, syncSource }) {
-  const payload = {
-    version: 1,
-    retryAtMs: retryMs,
-    retryAt: new Date(retryMs).toISOString(),
-    reason: typeof reason === "string" && reason.length > 0 ? reason : "throttled",
-    pendingBytes: Math.max(0, Number(pendingBytes || 0)),
-    scheduledAt: new Date(nowMs).toISOString(),
-    source: typeof source === "string" ? source : "auto",
-  };
-  if (syncSource) payload.syncSource = syncSource;
-  return payload;
-}
-
-async function clearAutoRetry(trackerDir) {
-  const retryPath = path.join(trackerDir, AUTO_RETRY_FILENAME);
-  await fs.unlink(retryPath).catch(() => {});
-}
-
-function spawnAutoRetryProcess({ retryPath, trackerBinPath, fallbackPkg, delayMs }) {
-  const script = buildAutoRetryScript({ retryPath, trackerBinPath, fallbackPkg, delayMs });
-  try {
-    const child = cp.spawn(process.execPath, ["-e", script], {
-      detached: true,
-      stdio: "ignore",
-      env: process.env,
-    });
-    child.unref();
-  } catch (_e) {}
-}
-
-function buildAutoRetryScript({ retryPath, trackerBinPath, fallbackPkg, delayMs }) {
-  return (
-    `'use strict';\n` +
-    `const fs = require('node:fs');\n` +
-    `const cp = require('node:child_process');\n` +
-    `const retryPath = ${JSON.stringify(retryPath)};\n` +
-    `const trackerBinPath = ${JSON.stringify(trackerBinPath)};\n` +
-    `const fallbackPkg = ${JSON.stringify(fallbackPkg)};\n` +
-    `const delayMs = ${Math.max(0, Math.floor(delayMs || 0))};\n` +
-    `setTimeout(() => {\n` +
-    `  let payload = null;\n` +
-    `  let retryAtMs = 0;\n` +
-    `  try {\n` +
-    `    const raw = fs.readFileSync(retryPath, 'utf8');\n` +
-    `    payload = JSON.parse(raw);\n` +
-    `    retryAtMs = Number(payload.retryAtMs || 0);\n` +
-    `  } catch (_) {}\n` +
-    `  if (!retryAtMs || Date.now() + 1000 < retryAtMs) process.exit(0);\n` +
-    `  const argv = ['sync', '--auto', '--from-retry'];\n` +
-    `  if (payload && typeof payload.syncSource === 'string' && payload.syncSource.trim()) {\n` +
-    `    argv.push('--source', payload.syncSource.trim());\n` +
-    `  }\n` +
-    `  const cmd = fs.existsSync(trackerBinPath)\n` +
-    `    ? [process.execPath, trackerBinPath, ...argv]\n` +
-    `    : ['npx', '--yes', fallbackPkg, ...argv];\n` +
-    `  try {\n` +
-    `    const child = cp.spawn(cmd[0], cmd.slice(1), { detached: true, stdio: 'ignore', env: process.env });\n` +
-    `    child.unref();\n` +
-    `  } catch (_) {}\n` +
-    `}, delayMs);\n`
-  );
-}
-
-function coerceRetryMs(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.floor(n);
-}
-
-async function writeOpenclawSignal(trackerDir) {
-  const openclawSignalPath = path.join(trackerDir, "openclaw.signal");
-  try {
-    await fs.writeFile(openclawSignalPath, new Date().toISOString(), "utf8");
-  } catch (_e) {
-    // best-effort marker
-  }
-}
-
-const AUTO_RETRY_FILENAME = "auto.retry.json";
-const AUTO_RETRY_MAX_DELAY_MS = 2 * 60 * 60 * 1000;
-
-const INGEST_SLUG = "tokentracker-ingest";
-const MAX_INGEST_BUCKETS = 500;
-
-async function drainQueueToCloud({ baseUrl, deviceToken, queuePath, queueStatePath, maxBatches = 5, batchSize = 200 }) {
-  const state = (await readJson(queueStatePath)) || { offset: 0 };
-  let offset = Number(state.offset || 0);
-  let inserted = 0;
-  let skipped = 0;
-  let batches = 0;
-
-  const queueSize = await safeStatSize(queuePath);
-  const limit = Math.min(Math.max(1, Math.floor(Number(batchSize || 200))), MAX_INGEST_BUCKETS);
-
-  for (let batch = 0; batch < maxBatches; batch++) {
-    if (offset >= queueSize) break;
-    const result = await readQueueBatch(queuePath, offset, limit);
-    // A states-only tail (e.g. a retry batch whose bucket rows already
-    // uploaded) is still a meaningful upload: it advances the canonical
-    // session corrections cloud-side.
-    if (result.buckets.length === 0 && result.sessionStates.length === 0) break;
-
-    const root = baseUrl.replace(/\/$/, "");
-    const anonKey = process.env.TOKENTRACKER_INSFORGE_ANON_KEY || "";
-    const headers = {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${deviceToken}`,
-    };
-    if (anonKey) headers.apikey = anonKey;
-    const res = await fetch(`${root}/functions/${INGEST_SLUG}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        hourly: result.buckets,
-        ...(result.sessionStates.length > 0
-          ? { account_session_states: result.sessionStates }
-          : {}),
-      }),
-    });
-
-    const rawText = await res.text().catch(() => "");
-    let data = {};
-    try { data = JSON.parse(rawText); } catch { data = {}; }
-    if (!res.ok) {
-      const err = new Error(`HTTP ${res.status}: ${rawText.substring(0, 500)}`);
-      err.status = res.status;
-      const retryAfter = res.headers?.get?.("Retry-After") ?? null;
-      const retryAfterMs = parseRetryAfterMs(retryAfter);
-      if (retryAfterMs !== null) err.retryAfterMs = retryAfterMs;
-      throw err;
-    }
-
-    inserted += Number(data?.inserted || 0);
-    skipped += Number(data?.skipped || 0);
-    batches += 1;
-
-    offset = result.nextOffset;
-    state.offset = offset;
-    state.updatedAt = new Date().toISOString();
-    await writeJson(queueStatePath, state);
-  }
-
-  return { inserted, skipped, batches };
-}
-
-async function readQueueBatch(queuePath, startOffset, maxBuckets) {
-  const st = await fs.stat(queuePath).catch(() => null);
-  if (!st || !st.isFile()) return { buckets: [], nextOffset: startOffset };
-  if (startOffset >= st.size) return { buckets: [], nextOffset: startOffset };
-
-  const stream = fssync.createReadStream(queuePath, { encoding: "utf8", start: startOffset });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-
-  const bucketMap = new Map();
-  // Account session states (kind: "account_session_state") are queue
-  // control records, not usage rows: collect them separately so they ride
-  // the same upload (after the bucket rows in file order) without entering
-  // the bucket stream. Keyed by (source, session_id) LAST-WINS: the
-  // append-only queue writes a session's newer observation after its older
-  // one, and only the latest per session may reach the ingest batch (a
-  // duplicate would make the cloud ON CONFLICT affect one row twice).
-  // snapshot_verified_at rides along verbatim from the ORIGINAL fetch, so a
-  // transport retry never fakes logical freshness.
-  //
-  // Batching: session-state records count toward the SAME per-batch record
-  // cap (maxBuckets) as bucket rows. The ingest edge rejects a request with
-  // more than 500 states (HTTP 400); before they counted, a states-heavy
-  // queue (a fresh device's first 30-day TRAE sync appends one record per
-  // observed session) was read in ONE uncapped batch - the 400 left the
-  // queue offset untouched and every retry re-read the identical oversized
-  // request, a permanent upload failure. With the default batchSize of 200
-  // (and the MAX_INGEST_BUCKETS=500 clamp above), every request stays under
-  // the edge cap while batching follows the existing design.
-  const sessionStateMap = new Map();
-  let offset = startOffset;
-  let linesRead = 0;
-  for await (const line of rl) {
-    const bytes = Buffer.byteLength(line, "utf8") + 1;
-    offset += bytes;
-    if (!line.trim()) continue;
-    let bucket;
-    try {
-      bucket = JSON.parse(line);
-    } catch (_e) {
-      continue;
-    }
-    if (bucket?.kind === "account_session_state") {
-      if (typeof bucket.source === "string" && typeof bucket.session_id === "string" && bucket.session_id.trim()) {
-        const ssSource = bucket.source.trim().toLowerCase();
-        sessionStateMap.set(ssSource + "|" + bucket.session_id.trim(), {
-          source: ssSource,
-          session_id: bucket.session_id.trim(),
-          model: typeof bucket.model === "string" ? bucket.model : "",
-          bucket_start: typeof bucket.bucket_start === "string" ? bucket.bucket_start : "",
-          input_tokens: Number(bucket.input_tokens) || 0,
-          output_tokens: Number(bucket.output_tokens) || 0,
-          cached_input_tokens: Number(bucket.cached_input_tokens) || 0,
-          cache_creation_input_tokens: Number(bucket.cache_creation_input_tokens) || 0,
-          reasoning_output_tokens: Number(bucket.reasoning_output_tokens) || 0,
-          total_tokens: Number(bucket.total_tokens) || 0,
-          ...(typeof bucket.snapshot_verified_at === "string" && bucket.snapshot_verified_at
-            ? { snapshot_verified_at: bucket.snapshot_verified_at }
-            : {}),
-        });
-        // Counted like a bucket row: the record rides THIS batch and its
-        // bytes are covered by nextOffset, so the next batch resumes right
-        // after it.
-        linesRead += 1;
-        if (linesRead >= maxBuckets) break;
-      }
-      continue;
-    }
-    // Pre-release watermark records from this feature branch's dev queues
-    // are obsolete control records: drop them instead of letting them enter
-    // the bucket stream (they carry no hour_start and would be skipped
-    // downstream anyway, but be explicit).
-    if (bucket?.kind === "account_sync_watermark") continue;
-    const hourStart = typeof bucket?.hour_start === "string" ? bucket.hour_start : null;
-    if (!hourStart) continue;
-    const source = (typeof bucket?.source === "string" ? bucket.source.trim().toLowerCase() : "") || "codex";
-    const model = (typeof bucket?.model === "string" ? bucket.model.trim() : "") || "unknown";
-    bucket.source = source;
-    bucket.model = model;
-    // Apply the same legacy-row corrections every local reader applies
-    // (local-api readQueueData / project queue / wrapped aggregator). Without
-    // this the cloud permanently kept the RAW legacy values — e.g. old Codex
-    // rows whose input_tokens still include cached tokens (6-7x inflated) —
-    // while the local dashboard showed corrected numbers.
-    bucket = require("../lib/local-api").normalizeQueueRow(bucket);
-    bucketMap.set(`${source}|${model}|${hourStart}`, bucket);
-    linesRead += 1;
-    if (linesRead >= maxBuckets) break;
-  }
-
-  rl.close();
-  stream.close?.();
-  return {
-    buckets: Array.from(bucketMap.values()),
-    sessionStates: Array.from(sessionStateMap.values()),
-    nextOffset: offset,
-  };
 }
 
 function normalizeGrokRepairSource(value) {
@@ -4179,32 +3829,6 @@ async function repairGrokQueueFromSessionSnapshots({ cursors, queuePath, queueSt
     queueStateBackupPath,
   };
   return true;
-}
-
-async function applyCloudConversationsBackfill({ cursors, queueStatePath }) {
-  if (!cursors || typeof cursors !== "object") return false;
-  cursors.migrations = cursors.migrations || {};
-  if (cursors.migrations[CLOUD_CONVERSATIONS_BACKFILL_KEY]) return false;
-
-  // Reset ONLY the cloud upload offset. The queue file itself is untouched;
-  // ingest upserts are idempotent per (user, device, hour, source, model),
-  // so replaying the whole queue is safe — it costs upload batches, not
-  // correctness. Project queue is never uploaded and is not touched.
-  let prevOffset = 0;
-  try {
-    const st = (await readJson(queueStatePath)) || {};
-    prevOffset = Number(st.offset || 0);
-  } catch (_e) {
-    /* missing state file — nothing to reset */
-  }
-  if (prevOffset > 0) {
-    await writeJson(queueStatePath, { offset: 0, updatedAt: new Date().toISOString() });
-  }
-  cursors.migrations[CLOUD_CONVERSATIONS_BACKFILL_KEY] = {
-    appliedAt: new Date().toISOString(),
-    previousOffset: prevOffset,
-  };
-  return prevOffset > 0;
 }
 
 async function migrateCursorUnknownBuckets({ cursors, queuePath }) {

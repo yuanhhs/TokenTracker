@@ -1,11 +1,8 @@
 # Token Tracker LLMs Index
 
 Token Tracker is a free, open-source, local-first AI coding usage and cost
-tracker for 34 tools. Its desktop experience includes four desktop widgets and
-achievements. The
-same data powers a cross-platform CLI, a native macOS menu bar app, a native
-Windows system tray app, and a dashboard. It records token counts and
-timestamps, never prompts, responses, or source code.
+tracker for 34 tools. The Windows system tray app embeds a local dashboard and
+records token counts and timestamps, never prompts, responses, or source code.
 
 ## Canonical URL
 - [Homepage](https://www.tokentracker.cc/)
@@ -17,7 +14,6 @@ timestamps, never prompts, responses, or source code.
 
 ## Product
 - Install command: `npx tokentracker-cli`
-- macOS app: `brew install --cask xiufengsun/tokentracker/tokentracker`
 - Windows app: `TokenTracker-Setup.exe` from the latest GitHub Release
 - [npm package](https://www.npmjs.com/package/tokentracker-cli)
 - [Latest release](https://github.com/xiufengsun/TokenTracker/releases/latest)
@@ -59,17 +55,15 @@ timestamps, never prompts, responses, or source code.
 - TRAE Work CN
 
 ## Capabilities
-- Four desktop widgets: usage, activity heatmap, top models, and usage limits
-- Achievement system with local milestones
 - Unified local usage dashboard and cost analysis across 2,200+ models
 - Project attribution, activity heatmap, trends, and usage-limit monitoring
 - Provider-aware deduplication for overlapping and mirrored session sources
 - Local-only operation with no account, sign-in, or cloud sync
 
 ## Post-install local views
-After running `npx tokentracker-cli`, the private dashboard is available at
+After running `npx tokentracker-cli` on Windows, the private dashboard is available at
 http://localhost:7680 on the user's own machine. It includes usage, cost,
-limits, projects, heatmap, skills, achievements, widgets, and settings.
+limits, projects, heatmap, skills, and settings.
 
 ## Policy and discovery
 - [llms.txt](https://www.tokentracker.cc/llms.txt)

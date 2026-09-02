@@ -17,16 +17,27 @@ test("DashboardPage declares timeZone before use in range computation", () => {
   );
 });
 
-test("DashboardPage declares mockEnabled before link code effect uses it", () => {
+test("DashboardPage declares mockEnabled before every effect that reads it", () => {
   const filePath = path.join(__dirname, "..", "dashboard", "src", "pages", "DashboardPage.jsx");
   const src = fs.readFileSync(filePath, "utf8");
   const mockEnabledDeclIndex = src.search(/\bconst\s+mockEnabled\b/);
-  const effectUseIndex = src.indexOf("if (!signedIn || mockEnabled)");
 
   assert.ok(mockEnabledDeclIndex !== -1, "mockEnabled declaration not found");
-  assert.ok(effectUseIndex !== -1, "mockEnabled usage in effect not found");
-  assert.ok(
-    mockEnabledDeclIndex < effectUseIndex,
-    "mockEnabled should be declared before useEffect references it",
-  );
+
+  // The account link-code effect that used to guard on `signedIn` is gone, but
+  // the temporal-dead-zone contract still holds: no reference may precede the
+  // declaration, or the effect throws on first render.
+  const usages = [];
+  const pattern = /\bmockEnabled\b/g;
+  let match;
+  while ((match = pattern.exec(src)) !== null) usages.push(match.index);
+
+  assert.ok(usages.length > 1, "expected mockEnabled to be read somewhere after declaration");
+  for (const usageIndex of usages) {
+    assert.ok(
+      usageIndex >= mockEnabledDeclIndex,
+      `mockEnabled read at index ${usageIndex} precedes its declaration`,
+    );
+  }
+  assert.doesNotMatch(src, /\bsignedIn\b/, "DashboardPage must carry no sign-in state");
 });

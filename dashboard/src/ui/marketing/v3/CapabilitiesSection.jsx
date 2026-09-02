@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useRef } from "react";
 import { SpotlightCard } from "../components/SpotlightCard.jsx";
 import { gsap } from "./gsap.js";
 
-const CARD_KEYS = ["limits", "heatmap", "devices"];
+const CARD_KEYS = ["limits", "heatmap"];
 
 function LimitsGlyph() {
   return (
@@ -29,17 +29,7 @@ function HeatmapGlyph() {
   );
 }
 
-function DevicesGlyph() {
-  return (
-    <svg viewBox="0 0 48 24" className="h-6 w-12" fill="none" stroke="var(--lv3-accent-soft)" strokeWidth="2" aria-hidden="true">
-      <rect x="2" y="3" width="24" height="15" rx="2" />
-      <path d="M10 21h8" strokeLinecap="round" />
-      <rect x="33" y="6" width="12" height="16" rx="2.5" stroke="var(--lv3-accent)" />
-    </svg>
-  );
-}
-
-const GLYPHS = { limits: LimitsGlyph, heatmap: HeatmapGlyph, devices: DevicesGlyph };
+const GLYPHS = { limits: LimitsGlyph, heatmap: HeatmapGlyph };
 
 /**
  * Capability cards with a large, perspective-tilted product screenshot that

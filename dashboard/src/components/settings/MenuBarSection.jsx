@@ -1,6 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { Activity, ArrowUpRight, Download, RefreshCw } from "lucide-react";
+import { Activity, Download, RefreshCw } from "lucide-react";
 import { useNativeSettings } from "../../hooks/use-native-settings.js";
 import { useLocale } from "../../hooks/useLocale.js";
 import { ConfirmModal } from "../../ui/components";
@@ -14,9 +13,7 @@ export function MenuBarSection() {
   const { available, settings, setSetting, runAction } = useNativeSettings();
   if (!available) return null;
 
-  // showStats + animatedIcon live on the Widgets page (Menu Bar section) where
-  // they sit next to the live preview. This section keeps only the system-level
-  // toggles + actions that don't have a visual analogue.
+  // Keep only Windows tray controls and system-level actions in this section.
   const launchAtLogin = Boolean(settings?.launchAtLogin);
   const toastOnReset = settings?.toastOnReset !== false;
   const confettiOnReset = settings?.confettiOnReset !== false;
@@ -28,19 +25,6 @@ export function MenuBarSection() {
 
   return (
     <SectionCard title={copy("settings.section.menubar")}>
-      <SettingsRow
-        label={copy("settings.menubar.appearance")}
-        hint={copy("settings.menubar.appearanceHint")}
-        control={
-          <Link
-            to="/widgets"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-oai-gray-200 px-3 text-xs font-medium text-oai-gray-700 no-underline transition-colors hover:bg-oai-gray-100 dark:border-oai-gray-800 dark:text-oai-gray-300 dark:hover:bg-oai-gray-800"
-          >
-            {copy("settings.menubar.appearanceLink")}
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        }
-      />
       <SettingsRow
         label={copy("settings.menubar.toastOnReset")}
         hint={copy("settings.menubar.toastOnResetHint")}

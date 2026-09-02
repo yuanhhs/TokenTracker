@@ -109,11 +109,6 @@ test("DashboardPage wires install panel gating through helper", () => {
   const viewSrc = readFile(viewPath);
   assert.ok(containerSrc.includes("shouldShowInstallCard"), "expected install status helper usage");
   assert.ok(
-    containerSrc.includes("has_active_device_token"),
-    "expected snake_case install token field usage",
-  );
-  assert.ok(containerSrc.includes("hasActiveDeviceToken"), "expected camelCase fallback usage");
-  assert.ok(
     containerSrc.includes("const shouldShowInstall = shouldShowInstallCard({"),
     "expected helper-based install gate assignment",
   );
@@ -125,16 +120,21 @@ test("DashboardPage wires install panel gating through helper", () => {
     installStatusSrc.includes("if (forceInstall) return true"),
     "expected helper to honor forceInstall",
   );
-  assert.ok(installStatusSrc.includes("accessEnabled"), "expected helper to check accessEnabled");
   assert.ok(
     installStatusSrc.includes("!heatmapLoading"),
     "expected helper to check heatmapLoading",
   );
   assert.ok(installStatusSrc.includes("activeDays === 0"), "expected helper to gate on activeDays");
-  assert.ok(
-    installStatusSrc.includes("!hasActiveDeviceToken"),
-    "expected helper to hide card for active device token",
-  );
+  // The install card is gated on local usage only; the cloud device token that
+  // used to hide it is gone and must not come back through either surface.
+  for (const [label, src] of [
+    ["install-status helper", installStatusSrc],
+    ["DashboardPage", containerSrc],
+  ]) {
+    assert.ok(!src.includes("hasActiveDeviceToken"), `${label} must not read a device token`);
+    assert.ok(!src.includes("has_active_device_token"), `${label} must not read a device token`);
+  }
+  assert.ok(!installStatusSrc.includes("accessEnabled"), "helper must not gate on cloud access");
   assert.ok(
     viewSrc.includes("installCopy: shouldShowInstall"),
     "expected install panel to use shouldShowInstall",
@@ -144,17 +144,27 @@ test("DashboardPage wires install panel gating through helper", () => {
 
 test("DashboardView does not prune async quality-per-dollar while loading", () => {
   const src = readFile(viewPath);
+  // The macOS app banner and the widget onboarding card were the only
+  // permanently dismissible cards, and both are gone with the macOS build, so
+  // the prunable set is now empty. The guard itself must stay: async cards
+  // still have to survive an empty render while their data loads.
   assert.match(
     src,
-    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\(\[\s*"macAppBanner",\s*"widgetOnboarding"\s*\]\)/,
-    "expected only permanently dismissible cards to be pruned when empty",
+    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\(\)/,
+    "expected the prunable-card set to stay empty after the macOS cards were removed",
   );
   assert.ok(src.includes("if (!EMPTY_PRUNABLE_CARD_IDS.has(id)) return"));
-  assert.doesNotMatch(
-    src,
-    /EMPTY_PRUNABLE_CARD_IDS\s*=\s*new Set\([^)]*"qualityPerDollar"/,
-    "quality-per-dollar can be empty while async outcomes data loads",
-  );
+  for (const asyncCardId of ["qualityPerDollar", "sessionInsights"]) {
+    assert.doesNotMatch(
+      src,
+      new RegExp(`EMPTY_PRUNABLE_CARD_IDS\\s*=\\s*new Set\\([^)]*"${asyncCardId}"`),
+      `${asyncCardId} can be empty while its async data loads`,
+    );
+  }
+  // The deleted cards must not linger in the layout either.
+  for (const removedCardId of ["macAppBanner", "widgetOnboarding"]) {
+    assert.ok(!src.includes(removedCardId), `${removedCardId} should be gone from the layout`);
+  }
 });
 
 test("DashboardPage only uses the full skeleton before dashboard content is first shown", () => {

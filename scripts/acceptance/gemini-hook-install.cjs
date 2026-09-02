@@ -46,10 +46,7 @@ async function main() {
       path.join(repoRoot, "bin", "tracker.js"),
       "init",
       "--yes",
-      "--no-auth",
       "--no-open",
-      "--base-url",
-      "https://example.invalid",
     ],
     { env, stdio: "inherit" },
   );

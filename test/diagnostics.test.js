@@ -64,27 +64,9 @@ test("diagnostics redacts device token and home paths", async () => {
       "utf8",
     );
 
-    const retryAtMs = Date.now() + 60_000;
     await fs.writeFile(
       path.join(trackerDir, "openclaw.signal"),
       "2026-02-12T00:00:00.000Z\n",
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(trackerDir, "auto.retry.json"),
-      JSON.stringify(
-        {
-          version: 1,
-          retryAtMs,
-          retryAt: new Date(retryAtMs).toISOString(),
-          reason: "throttled",
-          pendingBytes: 123,
-          scheduledAt: "2025-12-23T00:00:00.000Z",
-          source: "auto",
-        },
-        null,
-        2,
-      ) + "\n",
       "utf8",
     );
 
@@ -101,7 +83,10 @@ test("diagnostics redacts device token and home paths", async () => {
     assert.ok(!out.includes(tmp), "expected home path to be redacted");
 
     const data = JSON.parse(out);
-    assert.equal(data?.config?.device_token, "set");
+    // A legacy config.json may still carry cloud fields after an upgrade;
+    // diagnostics must neither echo nor report them.
+    assert.equal(data?.config?.device_token, undefined);
+    assert.equal(data?.auto_retry, undefined);
     assert.equal(data?.notify?.last_openclaw_triggered_sync, "2026-02-12T00:00:00.000Z");
     assert.equal(data?.notify?.openclaw_session_plugin_conversation_access, false);
     assert.equal(data?.notify?.grok_hook_configured, true);
@@ -110,9 +95,6 @@ test("diagnostics redacts device token and home paths", async () => {
     assert.ok(String(data.paths.codex_home).startsWith("~"));
     assert.equal(typeof data?.paths?.grok_home, "string");
     assert.ok(String(data.paths.grok_home).startsWith("~"));
-    assert.equal(data?.auto_retry?.reason, "throttled");
-    assert.equal(data?.auto_retry?.pending_bytes, 123);
-    assert.equal(data?.auto_retry?.next_retry_at, new Date(retryAtMs).toISOString());
   } finally {
     process.stdout.write = prevWrite;
     restoreHome();

@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  Award,
   BarChart3,
   Gauge,
   History,
-  LayoutGrid,
   Globe,
   Puzzle,
   Activity,
@@ -38,23 +36,15 @@ export function getNavGroups() {
         { id: "usage", to: "/dashboard", icon: BarChart3, label: copy("nav.usage") },
         { id: "sessions", to: "/sessions", icon: History, label: copy("nav.sessions") },
         { id: "limits", to: "/limits", icon: Gauge, label: copy("nav.limits") },
-        { id: "achievements", to: "/achievements", icon: Award, label: copy("nav.achievements") },
       ],
     },
     {
       id: "tools",
       label: copy("nav.group.tools"),
       items: [
-        { id: "widgets", to: "/widgets", icon: LayoutGrid, label: copy("nav.widgets") },
         { id: "skills", to: "/skills", icon: Puzzle, label: copy("nav.skills") },
         { id: "ip-check", to: "/ip-check", icon: Globe, label: copy("nav.ip_check") },
         { id: "service-status", to: "/service-status", icon: Activity, label: copy("nav.service_status") },
-      ],
-    },
-    {
-      id: "account",
-      label: copy("nav.group.account"),
-      items: [
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },
       ],
     },
@@ -338,11 +328,7 @@ function SidebarBody({ collapsed, onToggleCollapsed, onItemClick, showCloseButto
           <div key={group.id} className="flex flex-col">
             <NavGroupLabel label={group.label} collapsed={collapsed} first={groupIdx === 0} />
             <div className="flex flex-col gap-0.5">
-              {group.items
-                // Widgets is a macOS-only feature (system widget gallery); hide it in
-                // the Windows tray app per the upstream author's request.
-                .filter((item) => !(item.to === "/widgets" && isNativeWindowsApp()))
-                .map((item) => (
+              {group.items.map((item) => (
                   <NavItem
                     key={item.id}
                     item={item}

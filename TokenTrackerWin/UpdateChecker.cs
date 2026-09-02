@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace TokenTrackerWin;
 
 /// <summary>
-/// Windows counterpart of <c>TokenTrackerBar/Services/UpdateChecker.swift</c>.
+/// Checks GitHub Releases for Windows app updates.
 ///
 /// Checks the GitHub "latest release" for a newer version, downloads the
 /// <c>TokenTracker-Setup.exe</c> asset, and runs it fully silently. Because a

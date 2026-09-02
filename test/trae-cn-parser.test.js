@@ -657,55 +657,25 @@ test("window prune drops pre-window sessions monotonically and never rewinds", a
   assert.ok(cursors.traeCn.sessions["new-s"]);
 });
 
-test("session state records carry the canonical observation + snapshot_verified_at (logical freshness)", async (t) => {
-  const { dir, queuePath } = tempQueue();
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const cursors = {};
-  const T_LATE = 1_700_003_500; // 23:05:00Z -> 23:00 bucket
-  const verifiedAt = 1_700_010_000_000;
-  await parseTraeCnApiIncremental({
-    sessions: [sessionRow(), sessionRow({ session_id: "s2", usage_time: T_LATE })],
-    cursors,
-    queuePath,
-    windowStartMs: 1_699_000_000_000,
-    windowEndMs: 1_700_010_000_000,
-    snapshotVerifiedAtMs: verifiedAt,
-  });
-  const states = queueRows(queuePath).filter((r) => r.kind === "account_session_state");
-  assert.equal(states.length, 2, "one canonical observation per session in the snapshot");
-  const byId = new Map(states.map((r) => [r.session_id, r]));
-  const s1 = byId.get("s1");
-  assert.ok(s1, "s1 observation queued");
-  assert.equal(s1.source, "trae-cn");
-  assert.equal(s1.model, "doubao-pro");
-  assert.equal(s1.bucket_start, B1, "bucket_start is the session's half-hour floor (22:00)");
-  assert.equal(s1.input_tokens, 100, "token columns mirror the session totals");
-  assert.equal(s1.total_tokens, 110);
-  assert.equal(
-    s1.snapshot_verified_at,
-    new Date(verifiedAt).toISOString(),
-    "logical fetch stamp is the injected real-fetch time",
-  );
-  assert.equal(byId.get("s2").bucket_start, "2023-11-14T23:00:00.000Z");
-});
 
-test("transport retry replays the ORIGINAL session state record verbatim (append-only queue)", async (t) => {
+// The cloud account-usage dedup layer (account_session_state /
+// account_sync_watermark rows and their snapshot_verified_at stamps) is gone.
+// The parser must queue plain local usage rows only.
+test("parser emits no cloud account bookkeeping rows", async (t) => {
   const { dir, queuePath } = tempQueue();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const cursors = {};
-  const verifiedAt = 1_700_010_000_000;
   await parseTraeCnApiIncremental({
-    sessions: [sessionRow()],
+    sessions: [sessionRow(), sessionRow({ session_id: "s2", usage_time: 1_700_003_500 })],
     cursors,
     queuePath,
     windowStartMs: 1_699_000_000_000,
     windowEndMs: 1_700_010_000_000,
-    snapshotVerifiedAtMs: verifiedAt,
   });
-  const first = fs.readFileSync(queuePath, "utf8").trim().split("\n").at(-1);
-  // A "retry" re-reads the same append-only record: the bytes - including
-  // snapshot_verified_at - are identical, so no new logical version exists.
-  const replayed = fs.readFileSync(queuePath, "utf8").trim().split("\n").at(-1);
-  assert.equal(replayed, first, "re-delivery carries the original logical fetch stamp");
-  assert.ok(JSON.parse(first).snapshot_verified_at);
+  const rows = queueRows(queuePath);
+  assert.ok(rows.length > 0, "usage rows are still queued");
+  for (const row of rows) {
+    assert.equal(row.kind, undefined, `unexpected bookkeeping row kind: ${row.kind}`);
+    assert.equal(row.snapshot_verified_at, undefined, "no cloud snapshot stamp");
+  }
 });

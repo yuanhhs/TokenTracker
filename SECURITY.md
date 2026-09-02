@@ -30,8 +30,7 @@ TokenTracker is a local-first tool that reads AI CLI tool logs from your home di
 - **`src/lib/rollout.js`** — parses logs from 8 different AI CLI tools. Privacy rule: only token counts and timestamps may be extracted, never prompt or response content.
 - **`src/lib/cursor-config.js`** — reads Cursor's local SQLite to extract auth tokens for the Cursor usage API. Tokens must never leave the user's machine.
 - **`src/lib/local-api.js`** — local HTTP server bound to `127.0.0.1`. Should not accept connections from other hosts.
-- **`TokenTrackerBar/`** — macOS app, ad-hoc signed. Has filesystem access via macOS TCC permissions; should never write outside its own data directories or the documented snapshot/queue paths.
-- **`insforge/`** — optional cloud edge functions. Only used if the user opts into the leaderboard.
+- **`TokenTrackerWin/`** — Windows tray application and WebView2 host. It should launch only the bundled loopback server and write only to documented application data paths.
 
 ## Out of Scope
 

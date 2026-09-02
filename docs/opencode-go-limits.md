@@ -77,4 +77,4 @@ npm run ci:local
 
 ## Release impact
 
-The implementation changes `src/`, so it follows the release workflow documented in `CLAUDE.md`: maintainers bump the shared package version and ship the updated CLI through npm and the macOS, Windows, and Linux bundles.
+The implementation changes `src/`, so it follows the Windows release workflow documented in `CLAUDE.md`: maintainers bump the shared package version and ship the updated CLI inside the Windows bundle.

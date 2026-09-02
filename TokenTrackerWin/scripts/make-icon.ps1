@@ -1,10 +1,8 @@
 # ──────────────────────────────────────────────
 # make-icon.ps1
 # Generates assets/trayicon.ico — the official TokenTracker app mark: a black
-# rounded square with the white lightning bolt, rendered from the real
-# AppIcon path (TokenTrackerBar/.../AppIcon.icon/Assets/02-bolt.svg, bg #000000).
-# Used as the Windows app icon (exe + window/taskbar). The tray uses the
-# separate Clawd mascot icons (see make-tray-mascot.ps1).
+# rounded square with the white lightning bolt. Used as the Windows app icon
+# (exe + window/taskbar and system tray).
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\make-icon.ps1
 # ──────────────────────────────────────────────
@@ -15,7 +13,7 @@ $AssetsDir = Join-Path (Split-Path -Parent $ScriptDir) 'assets'
 New-Item -ItemType Directory -Force -Path $AssetsDir | Out-Null
 $OutPath = Join-Path $AssetsDir 'trayicon.ico'
 
-# White bolt path from AppIcon.icon/Assets/02-bolt.svg (viewBox 0 0 1024 1024).
+# White bolt path (viewBox 0 0 1024 1024).
 $boltPath = 'M297.714 590.108 C257.738 590.108 235.231 544.152 259.741 512.570 L468.978 242.978 C483.016 224.891 511.998 234.818 511.998 257.714 L511.998 433.891 L726.279 433.891 C766.256 433.891 788.761 479.848 764.251 511.428 L555.015 781.022 C540.977 799.109 511.998 789.181 511.998 766.285 L511.998 590.108 L297.714 590.108 Z'
 
 function New-Pt([single]$x, [single]$y) { New-Object System.Drawing.PointF($x, $y) }
@@ -45,7 +43,7 @@ function New-IconBitmap([int]$size) {
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.Clear([System.Drawing.Color]::Transparent)
 
-    # Black rounded-square background (macOS masks the square; we round it for Windows).
+    # Black rounded-square background.
     $radius = [math]::Round($size * 0.22)
     $d = $radius * 2
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath

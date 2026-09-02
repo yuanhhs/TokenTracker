@@ -81,7 +81,7 @@ const {
   promptMenu,
   createSpinner,
 } = require("../lib/cli-ui");
-const { renderLocalReport, renderSuccessBox } = require("../lib/init-flow");
+const { renderLocalReport } = require("../lib/init-flow");
 const { maybeShowStarCta } = require("../lib/star-cta");
 
 const ASCII_LOGO = [
@@ -2031,14 +2031,14 @@ async function safeRealpath(p) {
 const FIRST_SYNC_TIMEOUT_MS = 15_000;
 
 async function runFirstSyncAndRead({ trackerBinPath, trackerDir, packageName }) {
-  // Test-only escape hatch: skip spawning a real `sync --drain` subprocess when
+  // Test-only escape hatch: skip spawning a real sync subprocess when
   // a test only exercises init wiring. Returns the same shape derived from an
   // (empty) queue so callers behave identically without the ~1s spawn per case.
   if (process.env.TOKENTRACKER_SKIP_FIRST_SYNC === "1") {
     return readFirstSyncTotals(trackerDir);
   }
   const fallbackPkg = packageName || "tokentracker-cli";
-  const argv = ["sync", "--drain"];
+  const argv = ["sync"];
   const hasLocalRuntime = typeof trackerBinPath === "string" && fssync.existsSync(trackerBinPath);
   const cmd = hasLocalRuntime
     ? [process.execPath, trackerBinPath, ...argv]

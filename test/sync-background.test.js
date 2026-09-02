@@ -184,24 +184,6 @@ test("background auto sync skips deep Codex archives", async () => {
   });
 });
 
-test("background drain skips deep Codex archives while retaining drain semantics", async () => {
-  await withTempSyncEnv(async (home) => {
-    const codexHome = process.env.CODEX_HOME;
-    await writeCodexRollout(codexHome, "2026-06-30", "019f16bd-1002-7000-8000-aaaaaaaaaaaa", 53);
-    await writeArchivedCodexRollout(codexHome, "2026-06-30", "019f16bd-1003-7000-8000-aaaaaaaaaaaa", 59);
-
-    const archiveRoot = path.join(codexHome, "archived_sessions");
-    const archiveReads = await countReaddir(
-      () => cmdSync(["--auto", "--background", "--drain"]),
-      (target) => target === archiveRoot || target.startsWith(`${archiveRoot}${path.sep}`),
-    );
-
-    assert.equal(archiveReads, 0);
-    const queue = await readQueue(home);
-    assert.match(queue, /"total_tokens":53/);
-    assert.doesNotMatch(queue, /"total_tokens":59/);
-  });
-});
 
 test("Codex notify sync catches up after an overlapping background sync releases the lock", async () => {
   await withTempSyncEnv(async (home) => {
@@ -234,36 +216,6 @@ test("Codex notify sync catches up after an overlapping background sync releases
   });
 });
 
-test("native account publication waits for an overlapping sync instead of reporting success", async () => {
-  await withTempSyncEnv(async (home) => {
-    const codexHome = process.env.CODEX_HOME;
-    await writeCodexRollout(
-      codexHome,
-      "2026-06-30",
-      "019f16bd-1010-7000-8000-aaaaaaaaaaaa",
-      79,
-    );
-
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    const active = await openLock(path.join(trackerDir, "sync.lock"), {
-      quietIfLocked: true,
-    });
-    assert.ok(active);
-
-    const publicationSync = cmdSync(
-      ["--auto", "--background", "--publish-account"],
-      { lockWaitOptions: { priorityWaitMs: 500, priorityPollMs: 10 } },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    await active.release();
-    await publicationSync;
-
-    const queue = await readQueue(home);
-    assert.match(queue, /"source":"codex"/);
-    assert.match(queue, /"total_tokens":79/);
-  });
-});
 
 test("explicit wait-for-lock fails instead of reporting success when the lock stays busy", async () => {
   await withTempSyncEnv(async (home) => {
@@ -289,34 +241,6 @@ test("explicit wait-for-lock fails instead of reporting success when the lock st
   });
 });
 
-test("manual drain fails explicitly when the sync lock stays busy", async () => {
-  await withTempSyncEnv(async (home) => {
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    const active = await openLock(path.join(trackerDir, "sync.lock"), {
-      quietIfLocked: true,
-    });
-    assert.ok(active);
-
-    try {
-      await assert.rejects(
-        cmdSync(
-          ["--drain"],
-          { lockWaitOptions: { priorityWaitMs: 40, priorityPollMs: 5 } },
-        ),
-        (error) => {
-          assert.equal(error.code, "SYNC_BUSY");
-          assert.match(error.message, /no refresh was performed/);
-          return true;
-        },
-      );
-    } finally {
-      await active.release();
-    }
-
-    await assert.rejects(readQueue(home), { code: "ENOENT" });
-  });
-});
 
 test("Codex notify sync accepts an explicit null context", async () => {
   await withTempSyncEnv(async () => {
@@ -518,146 +442,8 @@ test("background auto sync does not upload with cloud credentials", async () => 
   });
 });
 
-test("explicit account publication uploads after bounded background parsing", async () => {
-  await withTempSyncEnv(async (home) => {
-    const codexHome = process.env.CODEX_HOME;
-    await writeCodexRollout(codexHome, "2026-06-30", "019f16bd-1007-7000-8000-aaaaaaaaaaaa", 64);
-    process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
-    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
-    const originalFetch = global.fetch;
-    let ingestCalls = 0;
-    global.fetch = async (url) => {
-      if (String(url).endsWith("/functions/tokentracker-ingest")) {
-        ingestCalls += 1;
-        return {
-          ok: true,
-          status: 200,
-          headers: { get() { return null; } },
-          text: async () => JSON.stringify({ inserted: 1, skipped: 0 }),
-        };
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    };
 
-    try {
-      await cmdSync(["--auto", "--background", "--publish-account"]);
-    } finally {
-      global.fetch = originalFetch;
-    }
 
-    assert.equal(ingestCalls, 1);
-    const queueState = JSON.parse(
-      await fs.readFile(path.join(home, ".tokentracker", "tracker", "queue.state.json"), "utf8"),
-    );
-    assert.ok(queueState.offset > 0);
-  });
-});
-
-test("background account publication respects persisted upload failure backoff", async () => {
-  await withTempSyncEnv(async (home) => {
-    const codexHome = process.env.CODEX_HOME;
-    await writeCodexRollout(codexHome, "2026-06-30", "019f16bd-1008-7000-8000-aaaaaaaaaaaa", 65);
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    await fs.writeFile(
-      path.join(trackerDir, "upload.throttle.json"),
-      JSON.stringify({
-        version: 1,
-        nextAllowedAtMs: Date.now() + 60_000,
-        backoffUntilMs: Date.now() + 60_000,
-      }),
-      "utf8",
-    );
-    await fs.writeFile(
-      path.join(trackerDir, "auto.retry.json"),
-      JSON.stringify({ version: 1, retryAtMs: Date.now() + 60_000 }),
-      "utf8",
-    );
-    process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
-    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
-    const originalFetch = global.fetch;
-    let ingestCalls = 0;
-    global.fetch = async (url) => {
-      if (String(url).endsWith("/functions/tokentracker-ingest")) ingestCalls += 1;
-      throw new Error(`unexpected fetch ${url}`);
-    };
-
-    try {
-      await cmdSync(["--auto", "--background", "--publish-account"]);
-    } finally {
-      global.fetch = originalFetch;
-    }
-
-    assert.equal(ingestCalls, 0);
-    assert.equal(
-      await fs.stat(path.join(trackerDir, "queue.state.json")).catch(() => null),
-      null,
-    );
-    assert.equal(
-      await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null),
-      null,
-    );
-  });
-});
-
-test("bounded native publication leaves backlog for the next native tick without spawning full retry", async () => {
-  await withTempSyncEnv(async (home) => {
-    const trackerDir = path.join(home, ".tokentracker", "tracker");
-    const queuePath = path.join(trackerDir, "queue.jsonl");
-    await fs.mkdir(trackerDir, { recursive: true });
-    await fs.writeFile(
-      path.join(trackerDir, "auto.retry.json"),
-      JSON.stringify({ version: 1, retryAtMs: Date.now() + 60_000 }),
-      "utf8",
-    );
-    const rows = Array.from({ length: 1_001 }, (_, index) => ({
-      source: "codex",
-      model: `benchmark-model-${index}`,
-      hour_start: "2026-06-30T00:00:00.000Z",
-      input_tokens: 1,
-      cached_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-      output_tokens: 0,
-      reasoning_output_tokens: 0,
-      total_tokens: 1,
-      billable_total_tokens: 1,
-      conversation_count: 1,
-    }));
-    await fs.writeFile(queuePath, `${rows.map(JSON.stringify).join("\n")}\n`, "utf8");
-    process.env.TOKENTRACKER_DEVICE_TOKEN = "test-device-token";
-    process.env.TOKENTRACKER_INSFORGE_BASE_URL = "https://cloud.example";
-    const originalFetch = global.fetch;
-    let ingestCalls = 0;
-    global.fetch = async (url) => {
-      if (String(url).endsWith("/functions/tokentracker-ingest")) {
-        ingestCalls += 1;
-        return {
-          ok: true,
-          status: 200,
-          headers: { get() { return null; } },
-          text: async () => JSON.stringify({ inserted: 200, skipped: 0 }),
-        };
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    };
-
-    try {
-      await cmdSync(["--auto", "--background", "--publish-account"]);
-    } finally {
-      global.fetch = originalFetch;
-    }
-
-    const queueState = JSON.parse(
-      await fs.readFile(path.join(trackerDir, "queue.state.json"), "utf8"),
-    );
-    assert.equal(ingestCalls, 5);
-    assert.ok(queueState.offset < (await fs.stat(queuePath)).size);
-    assert.equal(
-      await fs.stat(path.join(trackerDir, "auto.retry.json")).catch(() => null),
-      null,
-    );
-  });
-});
 
 test("lightweight flag aliases bounded background sync", async () => {
   await withTempSyncEnv(async (home) => {
@@ -671,4 +457,16 @@ test("lightweight flag aliases bounded background sync", async () => {
     assert.match(queue, /"total_tokens":36/);
     assert.doesNotMatch(queue, /"total_tokens":58/);
   });
+});
+
+// Sync is local-only. The cloud upload path is gone, so its flags must be
+// rejected outright rather than silently ignored by a future parser change.
+test("sync rejects the removed cloud upload flags", async () => {
+  for (const flag of ["--drain", "--publish-account", "--device-token", "--insforge-base-url"]) {
+    await assert.rejects(
+      () => cmdSync(["--auto", flag]),
+      new RegExp(`Unknown option: ${flag}`),
+      `${flag} must not be accepted by sync`,
+    );
+  }
 });

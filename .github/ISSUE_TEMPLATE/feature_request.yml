@@ -34,8 +34,7 @@ body:
       options:
         - New AI tool integration
         - Dashboard / web UI
-        - macOS menu bar app
-        - Desktop widget
+        - Windows desktop app
         - CLI command
         - Documentation
         - Other

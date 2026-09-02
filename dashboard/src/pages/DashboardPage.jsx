@@ -47,7 +47,6 @@ const DETAILS_PAGED_PERIODS = new Set(["day", "total", "custom"]);
 // Default Overview card order — each column is dragged/persisted independently.
 const LEFT_CARD_ORDER_DEFAULTS = [
   "statsPanel",
-  "widgetOnboarding",
   "installCopy",
   "activityHeatmap",
   "trendMonitor",
@@ -857,10 +856,8 @@ export function DashboardPage({
     publicMode,
     screenshotMode,
     forceInstall,
-    accessEnabled: true,
     heatmapLoading,
     activeDays,
-    hasActiveDeviceToken: false,
   });
   const installPrompt = copy("dashboard.install.prompt");
 

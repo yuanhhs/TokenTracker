@@ -9,12 +9,12 @@ body:
       label: Where is the issue?
       options:
         - README (English)
-        - README translations (zh-CN / ja / ko)
+        - README translations (zh / ja / ko)
         - CONTRIBUTING.md
         - SECURITY.md
         - Website (tokentracker.cc)
         - CLI help / output
-        - In-app text (macOS / Windows)
+        - In-app text (Windows)
         - Other
     validations:
       required: true

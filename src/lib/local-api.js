@@ -527,104 +527,6 @@ function scopedQueueRows(queuePath, url) {
   };
 }
 
-// ── Local achievements ───────────────────────────────────────────────────────
-// Local-only badges (the cloud nine live in scripts/ops/user-badges.sql).
-// Thresholds are ordered bronze → silver → gold → diamond. This module is the
-// single server-side home for LOCAL thresholds; the dashboard renders whatever
-// the payload says and embeds none of these numbers.
-const LOCAL_BADGE_THRESHOLDS = {
-  project_hopper: [3, 5, 10, 20], // distinct projects
-  project_devotion: [1000000, 10000000, 100000000, 1000000000], // max tokens in one project
-  night_owl: [5, 20, 60, 150], // active hour buckets between 00:00–05:59 local
-};
-
-const LOCAL_TIER_KEYS = ["bronze", "silver", "gold", "diamond"];
-
-/**
- * Compute the local badge set from deduped queue rows.
- * Rows are replayed in hour_start order so each tier's `achieved` timestamp is
- * the hour at which the running metric first crossed that threshold. Local
- * time (night_owl) follows the caller's tz query params like every other
- * usage endpoint.
- */
-function computeLocalAchievements(queueRows, projectRows, { timeZoneContext } = {}) {
-  const sortByHour = (rows) =>
-    rows
-      .filter((row) => row && row.hour_start)
-      .slice()
-      .sort((a, b) => String(a.hour_start).localeCompare(String(b.hour_start)));
-
-  const trackers = {
-    project_hopper: { value: 0, achieved: {}, meta: {} },
-    project_devotion: { value: 0, achieved: {}, meta: {} },
-    night_owl: { value: 0, achieved: {}, meta: {} },
-  };
-
-  const bump = (badgeId, newValue, atIso, meta) => {
-    const tracker = trackers[badgeId];
-    if (newValue <= tracker.value) return;
-    tracker.value = newValue;
-    if (meta) tracker.meta = meta;
-    const thresholds = LOCAL_BADGE_THRESHOLDS[badgeId];
-    for (let i = 0; i < thresholds.length; i += 1) {
-      const tierKey = LOCAL_TIER_KEYS[i];
-      if (newValue >= thresholds[i] && !tracker.achieved[tierKey]) {
-        tracker.achieved[tierKey] = atIso;
-      }
-    }
-  };
-
-  const seenProjects = new Set();
-  const perProjectTokens = new Map();
-  for (const row of sortByHour(projectRows || [])) {
-    const projectKey = row.project_key;
-    const tokens = Number(row.total_tokens || 0);
-    if (!projectKey || tokens <= 0) continue;
-    if (!seenProjects.has(projectKey)) {
-      seenProjects.add(projectKey);
-      bump("project_hopper", seenProjects.size, row.hour_start);
-    }
-    const running = (perProjectTokens.get(projectKey) || 0) + tokens;
-    perProjectTokens.set(projectKey, running);
-    if (running > trackers.project_devotion.value) {
-      bump("project_devotion", running, row.hour_start, { project_key: projectKey });
-    }
-  }
-
-  const nightHours = new Set();
-  for (const row of sortByHour(queueRows || [])) {
-    if (Number(row.total_tokens || 0) <= 0) continue;
-    if (nightHours.has(row.hour_start)) continue;
-    const parts = getZonedParts(new Date(row.hour_start), timeZoneContext || {});
-    if (!parts || parts.hour >= 6) continue;
-    nightHours.add(row.hour_start);
-    bump("night_owl", nightHours.size, row.hour_start);
-  }
-
-  return Object.entries(LOCAL_BADGE_THRESHOLDS).map(([badgeId, thresholds]) => {
-    const tracker = trackers[badgeId];
-    let tier = 0;
-    for (let i = 0; i < thresholds.length; i += 1) {
-      if (tracker.value >= thresholds[i]) tier = i + 1;
-    }
-    return {
-      id: badgeId,
-      tier,
-      metric_value: tracker.value,
-      thresholds: thresholds.slice(),
-      lower_is_better: false,
-      next_threshold: tier >= 4 ? null : thresholds[tier],
-      achieved: {
-        bronze: tracker.achieved.bronze || null,
-        silver: tracker.achieved.silver || null,
-        gold: tracker.achieved.gold || null,
-        diamond: tracker.achieved.diamond || null,
-      },
-      meta: tracker.meta,
-    };
-  });
-}
-
 function getTimeZoneContext(url) {
   const tz = String(url.searchParams.get("tz") || "").trim();
   const rawOffset = Number(url.searchParams.get("tz_offset_minutes"));
@@ -835,9 +737,7 @@ function runSyncCommand(extraEnv = {}, opts = {}) {
     const args = [TRACKER_BIN, "sync"];
     if (opts.auto === true) args.push("--auto");
     if (opts.background === true) args.push("--background");
-    if (opts.publishAccount === true) args.push("--publish-account");
     if (opts.allLocalSources === true) args.push("--all-local-sources");
-    if (opts.drain === true) args.push("--drain");
     if (opts.waitForLock === true) args.push("--wait-for-lock");
     const child = spawn(process.execPath, args, {
       env: { ...process.env, ...extraEnv },
@@ -1108,15 +1008,16 @@ function createLocalApiHandler({ queuePath }) {
     const p = url.pathname;
 
     // The product is local-only. Never proxy or accept the retired account,
-    // OAuth, device-login, or pet APIs, even when an old WebView still calls
-    // one of their paths after an upgrade.
+    // OAuth, device-login, pet, or achievement APIs, even when an old WebView
+    // still calls one of their paths after an upgrade.
     if (
       p.startsWith("/api/auth/") ||
       p === "/api/auth-bridge/verifier" ||
       p.startsWith("/api/pets/") ||
       p === "/functions/tokentracker-pets" ||
       p === "/functions/tokentracker-cloud-sync-pref" ||
-      p === "/functions/tokentracker-machine-id"
+      p === "/functions/tokentracker-machine-id" ||
+      p === "/functions/tokentracker-achievements"
     ) {
       json(res, { ok: false, error: "This local-only feature has been removed" }, 410);
       return true;
@@ -1333,10 +1234,8 @@ function createLocalApiHandler({ queuePath }) {
       try {
         const body = await readJsonBody(req).catch(() => ({}));
         const result = await runSyncCommand({}, {
-          drain: false,
           auto: body?.auto === true,
           background: body?.background === true || body?.lightweight === true,
-          publishAccount: false,
           allLocalSources: body?.allLocalSources === true,
           waitForLock: false,
         });
@@ -2340,18 +2239,6 @@ function createLocalApiHandler({ queuePath }) {
       return true;
     }
 
-    // --- achievements (local badges) ---
-    if (p === "/functions/tokentracker-achievements") {
-      const timeZoneContext = getTimeZoneContext(url);
-      const queueRows = readQueueData(qp);
-      const { projectRows } = readProjectUsageContext(qp, url);
-      json(res, {
-        generated_at: new Date().toISOString(),
-        achievements: computeLocalAchievements(queueRows, projectRows, { timeZoneContext }),
-      });
-      return true;
-    }
-
     // --- usage-limits ---
     if (p === "/functions/tokentracker-usage-limits") {
       const { getUsageLimits, resetUsageLimitsCache } = require("./usage-limits");
@@ -2391,7 +2278,4 @@ module.exports = {
   // Shared legacy-row correction so every queue reader (main queue, project
   // queue, wrapped aggregator) reports the same numbers for the same data.
   normalizeQueueRow,
-  // Local achievement compute — exported for test/local-achievements.test.js.
-  computeLocalAchievements,
-  LOCAL_BADGE_THRESHOLDS,
 };

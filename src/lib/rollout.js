@@ -17914,72 +17914,6 @@ function assertTraeCnBucketCovers(bucketTotals, previousTotals) {
   }
 }
 
-// Account session state: a queue record (kind: "account_session_state")
-// carrying the CANONICAL observation of ONE provider-side TRAE CN session.
-// Cloud truth for trae-cn lives at the session level
-// (tokentracker_account_session_states; ingest edge upserts via
-// tokentracker_upsert_account_session_states): identity is
-// (user_id, source, session_id) - device_id is NOT identity (the usage API
-// request carries no device discriminator). Evidence split (2026-08-17, one
-// account, three real fetches 137 -> 141 -> 164): repeated-fetch id
-// stability VERIFIED (137/137 persisted, corrections KEPT ids), cross-window
-// stability VERIFIED (exact subsets), no duplicate ids OBSERVED. Cross-device
-// same-account id stability is NOT DIRECTLY VERIFIED - no device
-// discriminator in the request body is necessary but not sufficient (a
-// device/login context could ride inside the JWT / server auth context), and
-// no second independent device/auth experiment was run.
-//
-// The three correction classes collapse into ONE whole-row replace:
-//   downward  S tokens 100 -> 60
-//   model     S model A -> B
-//   bucket    S bucket 10:00 -> 10:30
-// A fresh device with no cursor history uploads every session it observes;
-// the cloud LWW guard reconciles versions. ABSENCE is NOT PROVEN to mean
-// deletion, so nothing is ever emitted for sessions missing from a
-// non-empty snapshot, and an empty payload emits nothing at all.
-//
-// snapshot_verified_at is the CLIENT logical fetch stamp (the API exposes no
-// provider-side ordering signal - headers carry only CDN trace ids, rows
-// carry no revision). It is stamped once per real fetch and replayed
-// verbatim by this append-only queue; the cloud upsert applies strictly
-// newer (>) stamps only, so replays are idempotent and a transport retry of
-// an older observation cannot displace a newer one. Cross-device ordering
-// under clock skew is a documented residual risk, NOT strict correctness.
-//
-// Appended AFTER the bucket rows of the same sync (queue order guarantees a
-// device's rows land before the states describing them). Bucket-row readers
-// skip this record via its kind field (it carries no hour_start and is not
-// a usage row).
-async function appendTraeCnSessionStates({ queuePath, observations, verifiedAtMs }) {
-  if (!Array.isArray(observations) || observations.length === 0) return 0;
-  if (!Number.isFinite(verifiedAtMs)) {
-    throw new Error("Trae CN session states require a finite verification stamp.");
-  }
-  const verifiedAt = new Date(verifiedAtMs).toISOString();
-  const lines = [];
-  for (const obs of observations) {
-    const t = obs.totals;
-    lines.push(
-      JSON.stringify({
-        kind: "account_session_state",
-        source: TRAE_CN_SOURCE,
-        session_id: obs.sessionId,
-        model: obs.model,
-        bucket_start: obs.bucketStart,
-        input_tokens: t.input_tokens,
-        output_tokens: t.output_tokens,
-        cached_input_tokens: t.cached_input_tokens,
-        cache_creation_input_tokens: t.cache_creation_input_tokens,
-        reasoning_output_tokens: t.reasoning_output_tokens,
-        total_tokens: t.total_tokens,
-        snapshot_verified_at: verifiedAt,
-      }),
-    );
-  }
-  await fs.appendFile(queuePath, lines.join("\n") + "\n", "utf8");
-  return lines.length;
-}
-
 async function parseTraeCnApiIncremental({
   sessions,
   cursors,
@@ -17987,7 +17921,6 @@ async function parseTraeCnApiIncremental({
   onProgress,
   windowStartMs,
   windowEndMs,
-  snapshotVerifiedAtMs,
 } = {}) {
   if (!Array.isArray(sessions)) {
     throw new Error("Trae CN sessions must be an array.");
@@ -18099,11 +18032,8 @@ async function parseTraeCnApiIncremental({
     traeCnState.prunedBeforeMs = windowStartMs;
   }
 
-  // Deterministic: process unique session ids in sorted order. Sessions
-  // whose canonical observation changed (or that were never seen) are also
-  // collected for the account_session_state queue records.
+  // Deterministic: process unique session ids in sorted order.
   const sessionIds = [...bySession.keys()].sort();
-  const changedObservations = [];
   for (const sessionId of sessionIds) {
     const current = bySession.get(sessionId);
     const previousEntry = traeCnState.sessions[sessionId];
@@ -18141,31 +18071,12 @@ async function parseTraeCnApiIncremental({
       totals: { ...current.totals },
       updatedAt: new Date().toISOString(),
     };
-    changedObservations.push({
-      sessionId,
-      model: current.model,
-      bucketStart: current.bucketStart,
-      totals: current.totals,
-    });
     eventsAggregated += 1;
     index += 1;
     if (cb) cb({ index, total, eventsAggregated, bucketsQueued: touchedBuckets.size });
   }
 
   const bucketsQueued = await enqueueTouchedBuckets({ queuePath, hourlyState, touchedBuckets });
-  // Emit canonical session observations only after the reconciled bucket
-  // rows are durably queued; a failure here aborts before cursor commit, so
-  // the next sync replays the (idempotent) reconciliation and re-appends
-  // both. snapshot_verified_at is stamped once per real fetch; the
-  // append-only queue replays it verbatim, so transport retries never fake
-  // freshness. Unchanged sessions emit nothing - a fixed-now no-change sync
-  // stays byte-identical.
-  const verifiedAtMs = Number.isFinite(snapshotVerifiedAtMs) ? snapshotVerifiedAtMs : Date.now();
-  await appendTraeCnSessionStates({
-    queuePath,
-    observations: changedObservations,
-    verifiedAtMs,
-  });
   const updatedAt = new Date().toISOString();
   hourlyState.updatedAt = updatedAt;
   traeCnState.updatedAt = updatedAt;

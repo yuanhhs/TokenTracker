@@ -14,7 +14,7 @@ function runSql(dbPath, sql) {
   });
 }
 
-test("status prints last upload timestamps from upload.throttle.json", async () => {
+test("status prints local sync markers and no cloud upload state", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-status-"));
   const prevHome = process.env.HOME;
   const prevUserProfile = process.env.USERPROFILE;
@@ -64,6 +64,8 @@ test("status prints last upload timestamps from upload.throttle.json", async () 
 
     const lastSuccessMs = 1766053145522; // 2025-12-18T10:19:05.522Z
     const nextAllowedAtMs = lastSuccessMs + 1000;
+    // A leftover upload throttle file from a pre-local-only install. Status
+    // must ignore it rather than resurrect the upload report.
     await fs.writeFile(
       path.join(trackerDir, "upload.throttle.json"),
       JSON.stringify(
@@ -83,10 +85,15 @@ test("status prints last upload timestamps from upload.throttle.json", async () 
 
     await cmdStatus();
 
-    assert.match(out, /- Base URL: https:\/\/config\.example/);
-    assert.match(out, /- Last upload: 2025-12-18T10:19:05\.522Z/);
     assert.match(out, /- Last OpenClaw-triggered sync: 2026-02-12T00:00:00.000Z/);
-    assert.match(out, /- Next upload after: 2025-12-18T10:19:06\.522Z/);
+
+    // The cloud endpoint and upload throttle are gone. Neither the legacy
+    // config.json above nor upload.throttle.json may leak back into status.
+    assert.doesNotMatch(out, /Base URL/);
+    assert.doesNotMatch(out, /https:\/\/config\.example/);
+    assert.doesNotMatch(out, /Last upload/);
+    assert.doesNotMatch(out, /Next upload after/);
+    assert.doesNotMatch(out, /2025-12-18T10:19:0[56]\./);
   } finally {
     process.stdout.write = prevWrite;
     if (prevHome === undefined) delete process.env.HOME;
@@ -359,8 +366,10 @@ test("status does not migrate legacy tracker directory", async () => {
 
     await cmdStatus();
 
-    assert.match(out, /- Base URL: unset/);
-    assert.match(out, /- Last upload: never/);
+    // Status ran against the default tracker dir …
+    assert.match(out, /^TokenTracker v/);
+    assert.match(out, /- Queue: \d+ bytes/);
+    // … and left the legacy root alone instead of migrating it.
     const newTrackerDir = path.join(tmp, ".tokentracker", "tracker");
     await assert.rejects(fs.stat(newTrackerDir));
     await fs.stat(legacyTrackerDir);

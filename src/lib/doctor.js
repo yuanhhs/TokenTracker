@@ -6,7 +6,6 @@ const { readJsonStrict } = require("./fs");
 async function buildDoctorReport({
   runtime = {},
   diagnostics = null,
-  fetch = globalThis.fetch,
   now = () => new Date(),
   paths = {},
 } = {}) {
@@ -50,7 +49,6 @@ function buildRuntimeChecks(runtime = {}) {
     ? Number(runtime.httpTimeoutMs)
     : null;
   const debug = Boolean(runtime.debug);
-  const autoRetryNoSpawn = Boolean(runtime.autoRetryNoSpawn);
 
   checks.push({
     id: "runtime.dashboard_url",
@@ -82,17 +80,6 @@ function buildRuntimeChecks(runtime = {}) {
     meta: {
       debug,
       source: runtime?.sources?.debug || null,
-    },
-  });
-
-  checks.push({
-    id: "runtime.auto_retry_no_spawn",
-    status: "ok",
-    detail: autoRetryNoSpawn ? "auto retry spawn disabled" : "auto retry spawn enabled",
-    critical: false,
-    meta: {
-      auto_retry_no_spawn: autoRetryNoSpawn,
-      source: runtime?.sources?.autoRetryNoSpawn || null,
     },
   });
 

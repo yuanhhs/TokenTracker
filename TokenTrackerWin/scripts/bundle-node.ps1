@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# bundle-node.ps1  (Windows counterpart of TokenTrackerBar/scripts/bundle-node.sh)
+# bundle-node.ps1
 #
 # Downloads the pinned Node.js win-x64 binary and bundles the tokentracker CLI
 # source + built dashboard into EmbeddedServer/, so the .exe is self-contained.
@@ -7,15 +7,13 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\bundle-node.ps1
 #   ... -Clean       # wipe EmbeddedServer\ and exit
 #
-# Build the dashboard first, WITH the floating-pet entry (off by default so the
-# macOS/web builds stay byte-identical):
-#   $env:TOKENTRACKER_BUILD_PET = "1"; npm run dashboard:build   (from the repo root)
+# Build the dashboard first with: npm run dashboard:build
 # ──────────────────────────────────────────────
 param([switch]$Clean)
 
 $ErrorActionPreference = 'Stop'
 
-# Keep this pinned version in sync with TokenTrackerBar/scripts/bundle-node.sh.
+# Pinned runtime shipped with the Windows app.
 $ExpectedNodeVersion = '22.22.2'
 $NodeVersion = if ($env:NODE_VERSION) { $env:NODE_VERSION } else { $ExpectedNodeVersion }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "../../lib/cn";
 import { getDashboardEntryPath } from "../../lib/host-mode";
@@ -16,8 +16,8 @@ import { DownloadSection } from "./v3/DownloadSection.jsx";
 /**
  * Landing v3 — "token galaxy". A dark, deep-space purple marketing page:
  * WebGL particle hero, GSAP ScrollTrigger storytelling, and live community
- * stats. Section markup lives under ./v3/; this file orchestrates them plus
- * the auth-aware header and the footer.
+ * Section markup lives under ./v3/; this file orchestrates the Windows
+ * download experience and the footer.
  */
 export function MarketingLanding({
   copy,
@@ -39,9 +39,6 @@ export function MarketingLanding({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const stats = useMemo(() => ({ status: "idle", tokenFloor: 0, totalEntries: 0, top: [] }), []);
-  const tokenFallback = Number(copy("landing.v3.stats.fallback_tokens")) || 0;
-  const devsFallback = Number(copy("landing.v3.stats.fallback_devs")) || 0;
   const githubLabel = copy("landing.cta.secondary");
 
   return (
@@ -91,9 +88,6 @@ export function MarketingLanding({
           copy={copy}
           animate={animate}
           effectsReady={effectsReady}
-          stats={stats}
-          tokenFallback={tokenFallback}
-          devsFallback={devsFallback}
           installCommand={installCommand}
           installCopied={installCopied}
           onCopyInstallCommand={onCopyInstallCommand}

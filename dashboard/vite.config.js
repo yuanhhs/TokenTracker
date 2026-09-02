@@ -1131,10 +1131,7 @@ function localDataApiPlugin() {
         // app on :7680 would 404 the drill-down modal.
         const isRepoProjectUsageApi =
           url.pathname === "/functions/tokentracker-project-usage-summary"
-          || url.pathname === "/functions/tokentracker-project-usage-detail"
-          // Achievements ship with this checkout too — a stale packaged app
-          // on :7680 would 404 the local badges.
-          || url.pathname === "/functions/tokentracker-achievements";
+          || url.pathname === "/functions/tokentracker-project-usage-detail";
         // Session efficiency, context health, and automatic Git outcomes are
         // implemented together in this checkout. Keep them on the same code
         // version as the dashboard; an older app listening on :7680 does not

@@ -20,7 +20,6 @@ import { UsageOverview } from "../components/UsageOverview.jsx";
 import { TrendMonitor } from "../components/TrendMonitor.jsx";
 import { SortableCard } from "../components/SortableCard.jsx";
 import { FadeIn } from "../../foundation/FadeIn.jsx";
-import { WidgetOnboardingCard } from "../components/WidgetOnboardingCard.jsx";
 import { QualityPerDollarCard } from "../components/QualityPerDollarCard.jsx";
 import { SessionInsightsCard } from "../components/SessionInsightsCard.jsx";
 import { DashboardSkeleton } from "../../../components/DashboardSkeleton.jsx";
@@ -30,7 +29,7 @@ import { cn } from "../../../lib/cn";
 const STEP = 0.06;
 const D_LEFT_BASE = 0.11;
 const D_RIGHT_BASE = 0.05;
-const EMPTY_PRUNABLE_CARD_IDS = new Set(["widgetOnboarding"]);
+const EMPTY_PRUNABLE_CARD_IDS = new Set();
 
 export function DashboardView(props) {
 
@@ -123,7 +122,7 @@ export function DashboardView(props) {
   const footer = null;
 
   // Cards that are permanently hidden after mount (dismissed native banners,
-  // widget onboarding) get dropped from sortable `items` entirely. Async cards
+  // native banners) get dropped from sortable `items` entirely. Async cards
   // such as QualityPerDollarCard must stay mounted while their data loads.
   const [emptyCardIds, setEmptyCardIds] = useState(() => new Set());
   const handleCardEmptyChange = useCallback((id, isEmpty) => {
@@ -139,7 +138,6 @@ export function DashboardView(props) {
 
   const leftVisible = {
     statsPanel: true,
-    widgetOnboarding: isLocalMode,
     installCopy: shouldShowInstall,
     activityHeatmap: Boolean(activityHeatmapBlock),
     trendMonitor: !screenshotMode,
@@ -176,9 +174,6 @@ export function DashboardView(props) {
             />
           </FadeIn>
         );
-      }
-      case "widgetOnboarding": {
-        return <WidgetOnboardingCard enterDelay={delay} />;
       }
       case "installCopy": {
         return (

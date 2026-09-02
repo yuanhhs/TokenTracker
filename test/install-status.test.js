@@ -9,30 +9,59 @@ async function loadShouldShowInstallCard() {
   return mod.shouldShowInstallCard;
 }
 
-test("active token hides install card when activeDays is zero", async () => {
+const BASE = {
+  publicMode: false,
+  screenshotMode: false,
+  forceInstall: false,
+  heatmapLoading: false,
+  activeDays: 0,
+};
+
+test("install card shows when no local usage has been recorded yet", async () => {
   const shouldShowInstallCard = await loadShouldShowInstallCard();
-  const actual = shouldShowInstallCard({
-    publicMode: false,
-    screenshotMode: false,
-    forceInstall: false,
-    accessEnabled: true,
-    heatmapLoading: false,
-    activeDays: 0,
-    hasActiveDeviceToken: true,
-  });
-  assert.equal(actual, false);
+
+  assert.equal(shouldShowInstallCard({ ...BASE }), true);
 });
 
-test("forceInstall shows install card even with active token", async () => {
+test("install card hides once local usage exists", async () => {
   const shouldShowInstallCard = await loadShouldShowInstallCard();
-  const actual = shouldShowInstallCard({
-    publicMode: false,
-    screenshotMode: false,
-    forceInstall: true,
-    accessEnabled: true,
-    heatmapLoading: false,
-    activeDays: 0,
-    hasActiveDeviceToken: true,
-  });
-  assert.equal(actual, true);
+
+  assert.equal(shouldShowInstallCard({ ...BASE, activeDays: 3 }), false);
+});
+
+test("install card stays hidden while the heatmap is still loading", async () => {
+  const shouldShowInstallCard = await loadShouldShowInstallCard();
+
+  assert.equal(shouldShowInstallCard({ ...BASE, heatmapLoading: true }), false);
+});
+
+test("public and screenshot modes always hide the install card", async () => {
+  const shouldShowInstallCard = await loadShouldShowInstallCard();
+
+  assert.equal(shouldShowInstallCard({ ...BASE, publicMode: true }), false);
+  assert.equal(shouldShowInstallCard({ ...BASE, screenshotMode: true }), false);
+  // Even forceInstall must not override public/screenshot mode.
+  assert.equal(shouldShowInstallCard({ ...BASE, publicMode: true, forceInstall: true }), false);
+  assert.equal(shouldShowInstallCard({ ...BASE, screenshotMode: true, forceInstall: true }), false);
+});
+
+test("forceInstall shows the install card even with recorded usage", async () => {
+  const shouldShowInstallCard = await loadShouldShowInstallCard();
+
+  assert.equal(shouldShowInstallCard({ ...BASE, forceInstall: true, activeDays: 12 }), true);
+});
+
+// The install card used to be gated on a cloud device token. That identity is
+// gone, so leftover callers passing those fields must not change the outcome.
+test("removed cloud identity inputs no longer gate the install card", async () => {
+  const shouldShowInstallCard = await loadShouldShowInstallCard();
+
+  assert.equal(
+    shouldShowInstallCard({ ...BASE, accessEnabled: true, hasActiveDeviceToken: true }),
+    true,
+  );
+  assert.equal(
+    shouldShowInstallCard({ ...BASE, activeDays: 3, accessEnabled: false, hasActiveDeviceToken: false }),
+    false,
+  );
 });

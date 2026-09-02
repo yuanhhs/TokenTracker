@@ -24,10 +24,7 @@
     <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <script>
-      // ES2022 built-in polyfills for WebKit < 15.4 (macOS 12.0 Monterey ships Safari 15.0).
-      // Base UI uses Object.hasOwn and TrendMonitor uses Array.prototype.at — both land in
-      // Safari 15.4; esbuild down-levels syntax but never polyfills built-ins, so without this
-      // the dashboard crashes with "Object.hasOwn is not a function". Run before the bundle.
+      // ES2022 built-in polyfills for older embedded WebView2 runtimes.
       (function () {
         try {
           if (typeof Object.hasOwn !== "function") {
@@ -50,7 +47,7 @@
         } catch (e) {}
       })();
       document.documentElement.classList.add("js");
-      // TokenTrackerBar WKWebView: mark before first paint so inline CSS below can clear html/body (NSVisualEffectView shows through).
+      // Windows WebView2: mark before first paint so native chrome styles apply.
       (function () {
         try {
           if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nativeBridge) {
@@ -114,7 +111,7 @@
             "@type": "SoftwareApplication",
             "name": "Token Tracker",
             "applicationCategory": "DeveloperApplication",
-            "operatingSystem": "macOS, Linux, Windows",
+            "operatingSystem": "Windows",
             "url": "https://www.tokentracker.cc/",
             "downloadUrl": "https://www.npmjs.com/package/tokentracker-cli",
             "installUrl": "https://www.npmjs.com/package/tokentracker-cli",
@@ -123,7 +120,7 @@
               "price": "0",
               "priceCurrency": "USD"
             },
-            "description": "Local-first AI coding usage tracker for 34 tools, with four widgets, achievements, native macOS and Windows apps, accurate cross-provider deduplication, and no prompt collection."
+            "description": "Local-first AI coding usage tracker for 34 tools with a Windows system tray app, accurate cross-provider deduplication, and no prompt collection."
           },
           {
             "@type": "WebSite",
@@ -218,7 +215,7 @@
                 "name": "Is Token Tracker free and open source?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes. Token Tracker is free and open source on GitHub at https://github.com/xiufengsun/TokenTracker and published on npm as tokentracker-cli. The macOS menu bar app is also available via Homebrew tap xiufengsun/tokentracker."
+                  "text": "Yes. Token Tracker is free and open source on GitHub at https://github.com/xiufengsun/TokenTracker and published on npm as tokentracker-cli. The Windows installer is available from GitHub Releases."
                 }
               },
               {
@@ -264,9 +261,8 @@
       <h1>Token Tracker: monitor AI token usage and cost with a local dashboard and desktop companion</h1>
       <p>
         Token Tracker is a free, open-source, local-first dashboard that automatically tracks and monitors token usage
-        and cost across 34 AI coding tools — including Claude Code, OpenAI Codex, Cursor, Gemini CLI, DeepSeek Harness, and TRAE Work CN. Four desktop widgets
-        keep usage visible, and achievements turn coding history into progress. Native macOS and Windows apps
-        sit on top of accurate cross-provider deduplication. Token counts only — never prompts or conversations.
+        and cost across 34 AI coding tools — including Claude Code, OpenAI Codex, Cursor, Gemini CLI, DeepSeek Harness, and TRAE Work CN. The Windows system tray app
+        sits on top of accurate cross-provider deduplication. Token counts only — never prompts or conversations.
       </p>
 
       <h2>Install in one command</h2>
@@ -274,8 +270,7 @@
       <p>
         On first run, the CLI auto-detects installed AI coding tools, installs the appropriate hooks
         (SessionEnd hooks, TOML notify arrays, plugins, or passive log readers depending on the tool), and
-        starts a local dashboard at <code>http://localhost:7680</code>. macOS users can also install the
-        native menu bar app via <code>brew install --cask xiufengsun/tokentracker/tokentracker</code>.
+        starts a local dashboard at <code>http://localhost:7680</code> inside the Windows app.
       </p>
 
       <h2>What you get after installing</h2>
@@ -285,8 +280,6 @@
         and your data stays on your device.
       </p>
       <ul>
-        <li><strong>Four desktop widgets</strong> — usage, activity heatmap, top models, and limits at a glance.</li>
-        <li><strong>Achievements</strong> — unlock milestones from your local activity.</li>
         <li><strong>Unified usage dashboard</strong> — input, output, cached, and cache-creation tokens across 34 AI coding tools.</li>
         <li><strong>Cost analysis</strong> — per-model pricing across 2,200+ models with an offline snapshot.</li>
         <li><strong>Usage limits view</strong> — live quota and subscription status for 13 providers, with last-good caching for local providers such as Antigravity and Qoder.</li>
@@ -294,7 +287,7 @@
         <li><strong>Project attribution</strong> — see which repository or workspace consumed which tokens.</li>
         <li><strong>Activity heatmap & trend charts</strong> — GitHub-style contribution calendar plus day / week / month / total / custom-range charts.</li>
         <li><strong>Skills browser</strong> — discover and install agent skills from the open ecosystem.</li>
-        <li><strong>Native desktop apps</strong> — a macOS menu bar app and Windows system tray app.</li>
+        <li><strong>Windows desktop app</strong> — a native system tray app with an embedded local dashboard.</li>
       </ul>
       <p><em>Privacy by design</em>: token counts only, never prompts or conversation content. Everything stays local.</p>
 

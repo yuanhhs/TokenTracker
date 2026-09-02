@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 import { gsap, ScrollTrigger } from "./gsap.js";
 import { InstallCommand } from "./InstallCommand.jsx";
 import { DownloadButtons } from "./DownloadButtons.jsx";
-import { CountUp } from "../../components/CountUp.jsx";
 
 // three.js (~150KB gzip) is decorative and below the hero copy — keep it out
 // of the landing critical path and hydrate the galaxy right after first paint.
@@ -20,18 +19,13 @@ export function galaxyStageClassName(animate) {
 /**
  * Split-stage hero: the copy (headline, install command, CTAs) sits on clean
  * black in the upper half; the token galaxy is a fully visible top-down
- * vortex rising from the bottom edge, with the live community counter
- * floating directly over its bright core — every provider stream visibly
- * feeds that number. A scrubbed ScrollTrigger writes 0..1 into `progressRef`
+ * vortex rising from the bottom edge. A scrubbed ScrollTrigger writes 0..1 into `progressRef`
  * so scrolling dives the camera into the vortex while the copy drifts away.
  */
 export function HeroSection({
   copy,
   animate,
   effectsReady,
-  stats,
-  tokenFallback,
-  devsFallback,
   installCommand,
   installCopied,
   onCopyInstallCommand,
@@ -39,7 +33,6 @@ export function HeroSection({
 }) {
   const sectionRef = useRef(null);
   const copyRef = useRef(null);
-  const statRef = useRef(null);
   const progressRef = useRef(0);
 
   useLayoutEffect(() => {
@@ -55,9 +48,7 @@ export function HeroSection({
           progressRef.current = st.progress;
         },
       });
-      // One smoothed exit timeline for the whole hero: copy leaves first,
-      // the counter dissolves last, and the section unpins the moment the
-      // stage is empty — no dead scroll at the tail.
+      // One smoothed exit timeline for the whole hero.
       const tl = gsap.timeline({
         defaults: { ease: "none" },
         scrollTrigger: {
@@ -68,18 +59,11 @@ export function HeroSection({
         },
       });
       tl.to(copyRef.current, { yPercent: -16, autoAlpha: 0, duration: 0.30 }, 0.08);
-      tl.to(statRef.current, { y: -28, scale: 0.94, autoAlpha: 0, duration: 0.22 }, 0.45);
       tl.to({}, { duration: 0.1 });
     }, sectionRef);
     return () => ctx.revert();
   }, [animate]);
 
-  const tokenTotal = stats.status === "ready" ? stats.tokenFloor : tokenFallback;
-  const devsTotal = stats.status === "ready" ? stats.totalEntries : devsFallback;
-  // Estimated live feed: ~0.4% community growth per day, spread across the
-  // seconds — enough to keep the trailing digits visibly spinning. The real
-  // fetch calibrates the base on every page load.
-  const tokensPerSec = (tokenTotal * 0.004) / 86400;
   const galaxyMode = animate && effectsReady ? "full" : "static";
 
   return (
@@ -140,63 +124,6 @@ export function HeroSection({
           <React.Suspense fallback={null}>
             <TokenGalaxy mode={galaxyMode} progressRef={progressRef} />
           </React.Suspense>
-
-          {/* Outer div owns the centering; GSAP animates the inner one so the
-              -50% translate never gets clobbered by the tween's transform. */}
-          <div className="pointer-events-none absolute left-1/2 top-[68vh] z-10 -translate-x-1/2 -translate-y-1/2">
-            <div ref={statRef} className="flex flex-col items-center gap-2">
-            {/* Frosted dark pad: blurs the particles directly behind the
-                counter and dims them, with a radial mask so it melts into the
-                galaxy with no visible edge. */}
-            <div
-              className="absolute -inset-x-28 -inset-y-12 -z-10"
-              style={{
-                backdropFilter: "blur(9px)",
-                WebkitBackdropFilter: "blur(9px)",
-                background: "radial-gradient(closest-side, var(--lv3-scrim), transparent 76%)",
-                maskImage: "radial-gradient(closest-side, black 55%, transparent 100%)",
-                WebkitMaskImage: "radial-gradient(closest-side, black 55%, transparent 100%)",
-              }}
-              aria-hidden="true"
-            />
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-oai-gray-300">
-              {copy("landing.v3.hero.stat_label")}
-            </p>
-            <p
-              className="whitespace-nowrap font-mono text-4xl font-bold tabular-nums leading-none text-white sm:tall:text-5xl"
-              style={{
-                textShadow:
-                  "0 2px 24px rgba(0, 0, 0, 0.9), 0 0 90px var(--lv3-accent-faint), 0 0 30px var(--lv3-accent-ghost)",
-              }}
-            >
-              <CountUp
-                value={tokenTotal}
-                animate={animate}
-                ratePerSec={tokensPerSec}
-                format={(v) =>
-                  Math.round(v)
-                    .toLocaleString("en-US")
-                    .split(",")
-                    .map((part, index) => (
-                      <React.Fragment key={`${index}-${part}`}>
-                        {index !== 0 ? (
-                          <span className="-mx-[0.14em] inline-block sm:mx-0">
-                            ,
-                          </span>
-                        ) : null}
-                        {part}
-                      </React.Fragment>
-                    ))
-                }
-              />
-            </p>
-              <p className="font-mono text-sm text-oai-gray-300">
-                {copy("landing.v3.stats.devs_syncing", {
-                  count: (Number(devsTotal) || 0).toLocaleString("en-US"),
-                })}
-              </p>
-            </div>
-          </div>
 
           {/* Fade the vortex into the page background at the bottom edge. */}
           <div

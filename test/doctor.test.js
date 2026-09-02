@@ -8,55 +8,41 @@ const { buildDoctorReport } = require("../src/lib/doctor");
 const { cmdDoctor } = require("../src/commands/doctor");
 const { withHome } = require("./helpers/with-home");
 
-test("doctor treats any HTTP response as reachable", async () => {
-  const report = await buildDoctorReport({
-    runtime: { baseUrl: "https://example" },
-    fetch: async () => ({ status: 401 }),
-  });
-  const check = report.checks.find((c) => c.id === "network.base_url");
-
-  assert.equal(check.status, "ok");
-  assert.equal(check.meta.status_code, 401);
-});
-
-test("doctor warns when base_url is missing", async () => {
-  const report = await buildDoctorReport({
-    runtime: {},
-    fetch: async () => ({ status: 200 }),
-  });
-  const check = report.checks.find((c) => c.id === "network.base_url");
-
-  assert.equal(check.status, "warn");
-  assert.equal(report.summary.warn, 2);
-  assert.equal(report.summary.fail, 1);
-  assert.equal(report.ok, true);
-});
-
-test("doctor marks network errors as fail", async () => {
-  const report = await buildDoctorReport({
-    runtime: { baseUrl: "https://example" },
-    fetch: async () => {
-      throw new Error("nope");
-    },
-  });
-  const check = report.checks.find((c) => c.id === "network.base_url");
-
-  assert.equal(check.status, "fail");
-  assert.equal(report.summary.fail, 1);
-  assert.equal(report.summary.warn, 1);
-  assert.equal(report.ok, true);
-});
-
 test("doctor reports runtime config status", async () => {
   const report = await buildDoctorReport({
-    runtime: { baseUrl: "https://example", deviceToken: "token" },
-    fetch: async () => ({ status: 200 }),
+    runtime: {
+      dashboardUrl: "https://example",
+      httpTimeoutMs: 20_000,
+      debug: false,
+      sources: { dashboardUrl: "config", httpTimeoutMs: "default", debug: "default" },
+    },
   });
-  const baseCheck = report.checks.find((c) => c.id === "runtime.base_url");
-  const tokenCheck = report.checks.find((c) => c.id === "runtime.device_token");
+  const dashboardCheck = report.checks.find((c) => c.id === "runtime.dashboard_url");
+  const timeoutCheck = report.checks.find((c) => c.id === "runtime.http_timeout_ms");
+  const debugCheck = report.checks.find((c) => c.id === "runtime.debug");
 
-  assert.equal(baseCheck.status, "ok");
-  assert.equal(tokenCheck.status, "ok");
+  assert.equal(dashboardCheck.status, "ok");
+  assert.equal(dashboardCheck.meta.dashboard_url, "https://example");
+  assert.equal(dashboardCheck.meta.source, "config");
+  assert.equal(timeoutCheck.status, "ok");
+  assert.equal(timeoutCheck.meta.http_timeout_ms, 20_000);
+  assert.equal(debugCheck.status, "ok");
+});
+
+// Doctor is local-only now: the cloud base_url, device token, upload-error and
+// network reachability checks were removed with the rest of the cloud stack.
+test("doctor emits no cloud or network checks", async () => {
+  const report = await buildDoctorReport({
+    runtime: { dashboardUrl: "https://example" },
+    diagnostics: { notify: {} },
+  });
+  const ids = report.checks.map((c) => c.id);
+
+  assert.equal(ids.includes("runtime.base_url"), false);
+  assert.equal(ids.includes("runtime.device_token"), false);
+  assert.equal(ids.includes("runtime.auto_retry_no_spawn"), false);
+  assert.equal(ids.includes("network.base_url"), false);
+  assert.equal(ids.includes("upload.last_error"), false);
 });
 
 test("doctor marks invalid config.json as critical", async () => {
@@ -67,8 +53,7 @@ test("doctor marks invalid config.json as critical", async () => {
   await fs.writeFile(configPath, "{bad", "utf8");
 
   const report = await buildDoctorReport({
-    runtime: { baseUrl: "https://example" },
-    fetch: async () => ({ status: 200 }),
+    runtime: {},
     paths: { trackerDir, configPath },
   });
   const configCheck = report.checks.find((c) => c.id === "fs.config_json");
@@ -81,7 +66,6 @@ test("doctor --out writes json to file and stdout", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-doctor-"));
   let restoreHome = () => {};
   const prevCwd = process.cwd();
-  const prevFetch = globalThis.fetch;
   const prevWrite = process.stdout.write;
   const prevErr = process.stderr.write;
   const prevExit = process.exitCode;
@@ -89,7 +73,6 @@ test("doctor --out writes json to file and stdout", async () => {
   try {
     restoreHome = withHome(tmp);
     process.chdir(tmp);
-    globalThis.fetch = async () => ({ status: 204 });
     const outCapture = createWriteCapture();
     const errCapture = createWriteCapture();
     process.stdout.write = outCapture.write;
@@ -110,7 +93,6 @@ test("doctor --out writes json to file and stdout", async () => {
     process.stderr.write = prevErr;
     restoreHome();
     process.chdir(prevCwd);
-    globalThis.fetch = prevFetch;
     process.exitCode = prevExit;
     await fs.rm(tmp, { recursive: true, force: true });
   }
@@ -119,7 +101,6 @@ test("doctor --out writes json to file and stdout", async () => {
 test("doctor sets exitCode on critical failures", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-doctor-"));
   let restoreHome = () => {};
-  const prevFetch = globalThis.fetch;
   const prevWrite = process.stdout.write;
   const prevErr = process.stderr.write;
   const prevExit = process.exitCode;
@@ -129,7 +110,6 @@ test("doctor sets exitCode on critical failures", async () => {
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
     await fs.mkdir(trackerDir, { recursive: true });
     await fs.writeFile(path.join(trackerDir, "config.json"), "{bad", "utf8");
-    globalThis.fetch = async () => ({ status: 200 });
     const outCapture = createWriteCapture();
     const errCapture = createWriteCapture();
     process.stdout.write = outCapture.write;
@@ -143,55 +123,21 @@ test("doctor sets exitCode on critical failures", async () => {
     process.stdout.write = prevWrite;
     process.stderr.write = prevErr;
     restoreHome();
-    globalThis.fetch = prevFetch;
     process.exitCode = prevExit;
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
 
-test("doctor supports CLI base-url override", async () => {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-doctor-"));
-  let restoreHome = () => {};
-  const prevFetch = globalThis.fetch;
-  const prevWrite = process.stdout.write;
-  const prevErr = process.stderr.write;
-  const prevExit = process.exitCode;
-
-  try {
-    restoreHome = withHome(tmp);
-    const trackerDir = path.join(tmp, ".tokentracker", "tracker");
-    await fs.mkdir(trackerDir, { recursive: true });
-    await fs.writeFile(
-      path.join(trackerDir, "config.json"),
-      JSON.stringify({ baseUrl: "https://config.example", deviceToken: "t" }),
-      "utf8",
-    );
-    globalThis.fetch = async () => ({ status: 200 });
-    const outCapture = createWriteCapture();
-    const errCapture = createWriteCapture();
-    process.stdout.write = outCapture.write;
-    process.stderr.write = errCapture.write;
-    process.exitCode = 0;
-
-    await cmdDoctor(["--json", "--base-url", "https://override.example"]);
-
-    const payload = JSON.parse(outCapture.read());
-    const baseCheck = payload.checks.find((c) => c.id === "runtime.base_url");
-    assert.equal(baseCheck.meta.base_url, "https://override.example");
-  } finally {
-    process.stdout.write = prevWrite;
-    process.stderr.write = prevErr;
-    restoreHome();
-    globalThis.fetch = prevFetch;
-    process.exitCode = prevExit;
-    await fs.rm(tmp, { recursive: true, force: true });
-  }
+test("doctor rejects the removed cloud --base-url flag", async () => {
+  await assert.rejects(
+    () => cmdDoctor(["--json", "--base-url", "https://override.example"]),
+    /Unknown option: --base-url/,
+  );
 });
 
 test("doctor tolerates null config.json payload", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tokentracker-doctor-"));
   let restoreHome = () => {};
-  const prevFetch = globalThis.fetch;
   const prevWrite = process.stdout.write;
   const prevErr = process.stderr.write;
   const prevExit = process.exitCode;
@@ -201,7 +147,6 @@ test("doctor tolerates null config.json payload", async () => {
     const trackerDir = path.join(tmp, ".tokentracker", "tracker");
     await fs.mkdir(trackerDir, { recursive: true });
     await fs.writeFile(path.join(trackerDir, "config.json"), "null", "utf8");
-    globalThis.fetch = async () => ({ status: 200 });
     const outCapture = createWriteCapture();
     const errCapture = createWriteCapture();
     process.stdout.write = outCapture.write;
@@ -216,7 +161,6 @@ test("doctor tolerates null config.json payload", async () => {
     process.stdout.write = prevWrite;
     process.stderr.write = prevErr;
     restoreHome();
-    globalThis.fetch = prevFetch;
     process.exitCode = prevExit;
     await fs.rm(tmp, { recursive: true, force: true });
   }

@@ -42,7 +42,7 @@ npm run validate:copy                        # Validate copy registry completene
 
 - [ ] Tests pass (`npm test`)
 - [ ] If you added user-facing strings, add them to `dashboard/src/content/copy.csv`
-- [ ] If you changed Swift, run `xcodegen generate` after editing `TokenTrackerBar/project.yml`
+- [ ] If you changed the Windows app, run its .NET tests and Release build
 - [ ] Conventional commit style: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `ci:`, `test:`
 - [ ] PR description explains *why*, not just *what*
 
@@ -62,7 +62,7 @@ Look at how Claude Code, Codex, or Gemini are wired in for reference — they're
 
 - **CLI (`src/`)**: CommonJS, Node 20+, no transpilation. Match the existing style.
 - **Dashboard (`dashboard/`)**: TypeScript strict, React 18, ESM, Tailwind. Match the existing style.
-- **macOS (`TokenTrackerBar/`)**: Swift 5.9, SwiftUI + AppKit. Match the existing style.
+- **Windows (`TokenTrackerWin/`)**: C# / .NET 8, WinForms + WPF + WebView2. Match the existing style.
 - No linter wars. Be reasonable.
 
 ## Privacy Rule (non-negotiable)

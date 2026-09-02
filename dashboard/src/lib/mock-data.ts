@@ -555,64 +555,6 @@ export function getMockProjectUsageDetail({ projectKey, from, to }: AnyRecord = 
   };
 }
 
-/** Local achievements payload for dashboard:dev — mixed tiers + progress. */
-export function getMockAchievements() {
-  const now = Date.now();
-  const iso = (daysAgo: number) => new Date(now - daysAgo * 86400000).toISOString();
-  const make = (
-    id: string,
-    tier: number,
-    value: number,
-    thresholds: number[],
-    meta: AnyRecord = {},
-  ) => {
-    const isCloud = !["project_hopper", "project_devotion", "night_owl"].includes(id);
-    return {
-      id,
-      tier,
-      metric_value: value,
-      thresholds,
-      lower_is_better: id === "podium",
-      next_threshold: tier >= 4 ? null : thresholds[tier],
-      achieved: {
-        bronze: tier >= 1 ? iso(90) : null,
-        silver: tier >= 2 ? iso(45) : null,
-        gold: tier >= 3 ? iso(12) : null,
-        diamond: tier >= 4 ? iso(2) : null,
-      },
-      serials: isCloud
-        ? {
-            bronze: tier >= 1 ? 127 + id.length : null,
-            silver: tier >= 2 ? 64 + id.length : null,
-            gold: tier >= 3 ? 18 + id.length : null,
-            diamond: tier >= 4 ? 3 + id.length : null,
-          }
-        : undefined,
-      meta,
-    };
-  };
-  return {
-    generated_at: new Date(now).toISOString(),
-    achievements: [
-      make("token_titan", 3, 24_500_000_000, [100_000_000, 1_000_000_000, 10_000_000_000, 100_000_000_000]),
-      make("big_day", 1, 92_000_000, [10_000_000, 100_000_000, 500_000_000, 3_000_000_000], { date: iso(12).slice(0, 10) }),
-      make("wordsmith", 2, 31_000_000, [5_000_000, 25_000_000, 100_000_000, 300_000_000]),
-      make("marathoner", 2, 61, [7, 30, 100, 365]),
-      make("streak", 1, 5, [3, 7, 30, 100]),
-      make("weekend_warrior", 2, 26, [5, 20, 50, 100]),
-      make("momentum", 0, 1.2, [2, 6, 15, 40]),
-      make("polyglot", 1, 11, [5, 15, 30, 60], { favorite_model: "claude-opus-4-7" }),
-      make("trendsetter", 2, 7, [2, 5, 10, 20]),
-      make("multitool", 3, 7, [2, 4, 6, 10]),
-      make("podium", 1, 42, [100, 30, 10, 3]),
-      make("veteran", 2, 132, [30, 90, 180, 365], { first_day: iso(132).slice(0, 10) }),
-      make("project_hopper", 2, 6, [3, 5, 10, 20]),
-      make("project_devotion", 3, 240_000_000, [1_000_000, 10_000_000, 100_000_000, 1_000_000_000], { project_key: "mock" }),
-      make("night_owl", 1, 9, [5, 20, 60, 150]),
-    ],
-  };
-}
-
 export function getMockUsageHeatmap({
   weeks = 52,
   to,
