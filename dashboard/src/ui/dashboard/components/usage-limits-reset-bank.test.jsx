@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, setCopyLocale } from "../../../lib/copy";
-import { EN_LOCALE, JA_LOCALE, KO_LOCALE } from "../../../lib/locale";
+import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
 import { UsageLimitsPanel } from "./UsageLimitsPanel.jsx";
 import { buildResetBankRows } from "./usage-limits-reset-bank.js";
 
@@ -180,50 +180,34 @@ describe("UsageLimitsPanel Codex Reset Bank", () => {
     expect(codexGroup.queryByText(/\b2030\b/)).not.toBeInTheDocument();
   });
 
-  it("localizes Codex Reset Bank labels for Japanese and Korean users", () => {
+  it("localizes Codex Reset Bank labels for Chinese users", () => {
     const resetCredits = {
       available_count: 1,
       total_earned_count: 1,
       credits: [credit("2030-01-01T10:45:00.000Z", "2030-01-11T10:45:00.000Z")],
     };
 
-    setCopyLocale(JA_LOCALE);
-    const { unmount } = render(usageLimitsPanelElement(resetCredits));
-    let codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
-    expect(codexGroup.getByText(copy("limits.codex_reset_bank.title"))).toBeInTheDocument();
-    expect(codexGroup.getByText(copy("limits.codex_reset_bank.row_label", { index: 1 }))).toBeInTheDocument();
-    expect(codexGroup.queryByText("Resets")).not.toBeInTheDocument();
-    expect(codexGroup.queryByText("Reset 1")).not.toBeInTheDocument();
-    unmount();
-
-    setCopyLocale(KO_LOCALE);
+    setCopyLocale(ZH_CN_LOCALE);
     render(usageLimitsPanelElement(resetCredits));
-    codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
+    const codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
     expect(codexGroup.getByText(copy("limits.codex_reset_bank.title"))).toBeInTheDocument();
     expect(codexGroup.getByText(copy("limits.codex_reset_bank.row_label", { index: 1 }))).toBeInTheDocument();
-    expect(codexGroup.getByText(formatExpiry(resetCredits.credits[0].expires_at, KO_LOCALE))).toBeInTheDocument();
-    expect(codexGroup.queryByText(/오전|오후/)).not.toBeInTheDocument();
     expect(codexGroup.queryByText("Resets")).not.toBeInTheDocument();
     expect(codexGroup.queryByText("Reset 1")).not.toBeInTheDocument();
+    expect(codexGroup.getByText(formatExpiry(resetCredits.credits[0].expires_at, ZH_CN_LOCALE))).toBeInTheDocument();
+    expect(codexGroup.queryByText(/上午|下午/)).not.toBeInTheDocument();
   });
 
-  it("localizes Codex Reset Bank count-only fallback for Japanese and Korean users", () => {
+  it("localizes Codex Reset Bank count-only fallback for Chinese users", () => {
     const resetCredits = {
       available_count: 2,
       total_earned_count: 2,
       credits: [credit("2030-01-01T10:45:00.000Z", "not-a-date")],
     };
 
-    setCopyLocale(JA_LOCALE);
-    const { unmount } = render(usageLimitsPanelElement(resetCredits));
-    let codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
-    expect(codexGroup.getByText(copy("limits.codex_reset_bank.count_only", { count: 2 }))).toBeInTheDocument();
-    expect(codexGroup.queryByText(/Reset Bank/)).not.toBeInTheDocument();
-    unmount();
-
-    setCopyLocale(KO_LOCALE);
+    setCopyLocale(ZH_CN_LOCALE);
     render(usageLimitsPanelElement(resetCredits));
-    codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
+    const codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
     expect(codexGroup.getByText(copy("limits.codex_reset_bank.count_only", { count: 2 }))).toBeInTheDocument();
     expect(codexGroup.queryByText(/Reset Bank/)).not.toBeInTheDocument();
   });

@@ -12,9 +12,6 @@ internal static partial class NativeLocalization
     public const string SystemPreference = "system";
     public const string EnglishLocale = "en";
     public const string ChineseLocale = "zh-CN";
-    public const string TraditionalChineseLocale = "zh-TW";
-    public const string JapaneseLocale = "ja";
-    public const string KoreanLocale = "ko";
 
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -90,24 +87,10 @@ internal static partial class NativeLocalization
 
     private static string Classify(string tag)
     {
-        if (ZhRegex().IsMatch(tag))
-        {
-            return TraditionalZhRegex().IsMatch(tag) ? TraditionalChineseLocale : ChineseLocale;
-        }
-        if (JaRegex().IsMatch(tag)) return JapaneseLocale;
-        if (KoRegex().IsMatch(tag)) return KoreanLocale;
+        if (ZhRegex().IsMatch(tag)) return ChineseLocale;
         return EnglishLocale;
     }
 
     [GeneratedRegex(@"^zh([-_]|$)", RegexOptions.IgnoreCase)]
     private static partial Regex ZhRegex();
-
-    [GeneratedRegex(@"^zh[-_](hant|tw|hk|mo)([-_]|$)", RegexOptions.IgnoreCase)]
-    private static partial Regex TraditionalZhRegex();
-
-    [GeneratedRegex(@"^ja([-_]|$)", RegexOptions.IgnoreCase)]
-    private static partial Regex JaRegex();
-
-    [GeneratedRegex(@"^ko([-_]|$)", RegexOptions.IgnoreCase)]
-    private static partial Regex KoRegex();
 }

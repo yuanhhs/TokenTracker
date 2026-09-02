@@ -23,27 +23,6 @@ const LABELS = {
     noLimits: "暂未读取到已配置的 Provider 额度", openDashboard: "打开仪表盘", settings: "灵动岛菜单",
     hide: "隐藏灵动岛", collapse: "收起", offline: "本地服务未连接",
   },
-  "zh-TW": {
-    today: "今日", sevenDays: "近 7 天", thirtyDays: "近 30 天", dailyAverage: "日均 Token",
-    activeDays: "活躍天數", conversations: "次會話", limits: "Provider 額度", overview: "用量概覽", total: "累計",
-    tokens: "Token", cost: "花費", sevenDayCost: "7 天花費", thirtyDaysShort: "30 天", totalCost: "累計花費",
-    noLimits: "暫未讀取到已設定的 Provider 額度", openDashboard: "開啟儀表盤", settings: "靈動島選單",
-    hide: "隱藏靈動島", collapse: "收起", offline: "本地服務未連線",
-  },
-  ja: {
-    today: "今日", sevenDays: "過去 7 日", thirtyDays: "過去 30 日", dailyAverage: "1 日平均",
-    activeDays: "アクティブ日", conversations: "会話", limits: "プロバイダー上限", overview: "使用状況の概要", total: "合計",
-    tokens: "トークン", cost: "コスト", sevenDayCost: "7日コスト", thirtyDaysShort: "30日", totalCost: "総コスト",
-    noLimits: "設定済みプロバイダーの上限はまだありません", openDashboard: "ダッシュボードを開く", settings: "アイランドメニュー",
-    hide: "ダイナミックアイランドを隠す", collapse: "折りたたむ", offline: "ローカルサービスはオフラインです",
-  },
-  ko: {
-    today: "오늘", sevenDays: "최근 7일", thirtyDays: "최근 30일", dailyAverage: "일일 평균",
-    activeDays: "활동일", conversations: "대화", limits: "공급자 한도", overview: "사용량 개요", total: "전체",
-    tokens: "토큰", cost: "비용", sevenDayCost: "7일 비용", thirtyDaysShort: "30일", totalCost: "전체 비용",
-    noLimits: "설정된 공급자 한도가 아직 없습니다", openDashboard: "대시보드 열기", settings: "아일랜드 메뉴",
-    hide: "다이나믹 아일랜드 숨기기", collapse: "접기", offline: "로컬 서비스 오프라인",
-  },
 };
 
 function post(message) {
@@ -52,10 +31,7 @@ function post(message) {
 
 function normalizeLocale(value) {
   const locale = String(value || "en").toLowerCase();
-  if (locale.startsWith("zh-tw") || locale.startsWith("zh-hk")) return "zh-TW";
   if (locale.startsWith("zh")) return "zh-CN";
-  if (locale.startsWith("ja")) return "ja";
-  if (locale.startsWith("ko")) return "ko";
   return "en";
 }
 

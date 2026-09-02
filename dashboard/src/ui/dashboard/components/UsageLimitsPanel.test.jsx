@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { copy, setCopyLocale } from "../../../lib/copy";
-import { DE_LOCALE, EN_LOCALE, JA_LOCALE, KO_LOCALE, ZH_CN_LOCALE, ZH_TW_LOCALE } from "../../../lib/locale";
+import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
 import { UsageLimitsPanel } from "./UsageLimitsPanel.jsx";
 
 function formatExpiry(iso) {
@@ -301,11 +301,8 @@ describe("UsageLimitsPanel", () => {
   });
 
   it.each([
+    [EN_LOCALE, "Live", "Stale"],
     [ZH_CN_LOCALE, "实时", "过期"],
-    [ZH_TW_LOCALE, "即時", "過期"],
-    [JA_LOCALE, "最新", "古い"],
-    [KO_LOCALE, "실시간", "오래됨"],
-    [DE_LOCALE, "Live", "Veraltet"],
   ])("localizes live and stale status labels for %s", (locale, liveLabel, staleLabel) => {
     setCopyLocale(locale);
 

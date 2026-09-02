@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
-import { enUS, zhCN, zhTW, ja, ko } from "date-fns/locale";
+import { enUS, zhCN } from "date-fns/locale";
 import { Button } from "../../components";
 import { copy, getCopyLocale } from "../../../lib/copy";
 
@@ -11,12 +11,9 @@ import { copy, getCopyLocale } from "../../../lib/copy";
 const DATE_FNS_LOCALES = {
   en: enUS,
   "zh-CN": zhCN,
-  "zh-TW": zhTW,
-  ja,
-  ko,
 };
 
-/** Resolve a dashboard locale (en/zh-CN/zh-TW/ja/ko) to a date-fns Locale. */
+/** Resolve a dashboard locale (en/zh-CN) to a date-fns Locale. */
 export function getDateFnsLocale(resolvedLocale) {
   return DATE_FNS_LOCALES[resolvedLocale] || enUS;
 }

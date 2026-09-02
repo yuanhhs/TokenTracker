@@ -19,15 +19,6 @@ internal sealed record TrayStrings(
         NativeLocalization.ChineseLocale => new(
             "Microsoft YaHei UI", "今日", "暂无数据", "tokens", "打开仪表盘", "关闭仪表盘",
             "立即同步", "显示灵动岛", "隐藏灵动岛", "开机时启动", "在 GitHub 上 Star", "退出"),
-        NativeLocalization.TraditionalChineseLocale => new(
-            "Microsoft JhengHei UI", "今日", "暫無資料", "tokens", "開啟儀表盤", "關閉儀表盤",
-            "立即同步", "顯示靈動島", "隱藏靈動島", "開機時啟動", "在 GitHub 上 Star", "退出"),
-        NativeLocalization.JapaneseLocale => new(
-            "Yu Gothic UI", "今日", "データなし", "tokens", "ダッシュボードを開く", "ダッシュボードを閉じる",
-            "今すぐ同期", "ダイナミックアイランドを表示", "ダイナミックアイランドを隠す", "ログイン時に起動", "GitHub で Star", "終了"),
-        NativeLocalization.KoreanLocale => new(
-            "Malgun Gothic", "오늘", "데이터 없음", "tokens", "대시보드 열기", "대시보드 닫기",
-            "지금 동기화", "다이나믹 아일랜드 표시", "다이나믹 아일랜드 숨기기", "로그인 시 실행", "GitHub에서 Star", "종료"),
         _ => new(
             "Segoe UI Variable Text", "Today", "No data", "tokens", "Open Dashboard", "Close Dashboard",
             "Sync Now", "Show Dynamic Island", "Hide Dynamic Island", "Launch at Startup", "Star on GitHub", "Quit"),

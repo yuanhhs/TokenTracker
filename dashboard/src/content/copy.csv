@@ -743,10 +743,6 @@ settings.appearance.language.hint,ui,SettingsPage,SettingsPage,language_hint,Use
 settings.appearance.language.system,ui,SettingsPage,SettingsPage,language_system,System,,active
 settings.appearance.language.english,ui,SettingsPage,SettingsPage,language_english,English,,active
 settings.appearance.language.chinese,ui,SettingsPage,SettingsPage,language_chinese,Simplified Chinese,,active
-settings.appearance.language.traditional_chinese,ui,SettingsPage,SettingsPage,language_traditional_chinese,Traditional Chinese,,active
-settings.appearance.language.japanese,ui,SettingsPage,SettingsPage,language_japanese,Japanese,,active
-settings.appearance.language.korean,ui,SettingsPage,SettingsPage,language_korean,Korean,,active
-settings.appearance.language.german,ui,SettingsPage,SettingsPage,language_german,German,,active
 dashboard.context_breakdown.heading,dashboard,DashboardPage,UsageOverview,heading,"Context Breakdown",,active
 dashboard.context_breakdown.heading_claude,dashboard,DashboardPage,UsageOverview,heading_claude,"Claude Context Breakdown",,active
 dashboard.context_breakdown.heading_codex,dashboard,DashboardPage,UsageOverview,heading_codex,"Codex Context Breakdown",,active

@@ -33,12 +33,9 @@ test("Codex Spark usage limit labels use copy keys with compact defaults", () =>
   assert.match(providerSpecs, /{ key: "spark-7d", labelKey: "limits\.label\.codex_spark_7d", window: data\.spark_secondary_window, windowSecondsField: "limit_window_seconds" }/);
   assert.doesNotMatch(providerSpecs, /label: "Spark [57][hd]"/);
 
-  for (const locale of ["zh", "zh-TW", "ja", "ko"]) {
-    const core = JSON.parse(read(`dashboard/src/content/i18n/${locale}/core.json`));
-
-    assert.equal(core["limits.label.codex_spark_5h"], "Spark 5h");
-    assert.equal(core["limits.label.codex_spark_7d"], "Spark 7d");
-  }
+  const core = JSON.parse(read("dashboard/src/content/i18n/zh/core.json"));
+  assert.equal(core["limits.label.codex_spark_5h"], "Spark 5h");
+  assert.equal(core["limits.label.codex_spark_7d"], "Spark 7d");
 });
 
 test("Codex Spark usage limit row labels stay on one line", () => {
@@ -47,19 +44,9 @@ test("Codex Spark usage limit row labels stay on one line", () => {
   assert.match(usageLimitsPanel, /data-limit-label[\s\S]*?\bwhitespace-nowrap\b[\s\S]*?var\(--tt-limits-label-w\)/);
 });
 
-test("profile footer labels the start date instead of a leaderboard rank", () => {
-  const expectedLabels = {
-    zh: "开始使用",
-    "zh-TW": "開始使用",
-    ja: "開始日",
-    ko: "시작일",
-    de: "Beginn",
-  };
-
-  for (const [locale, expectedLabel] of Object.entries(expectedLabels)) {
-    const core = JSON.parse(read(`dashboard/src/content/i18n/${locale}/core.json`));
-    assert.equal(core["identity_card.rank_label"], expectedLabel);
-  }
+test("Chinese profile footer labels the start date instead of a leaderboard rank", () => {
+  const core = JSON.parse(read("dashboard/src/content/i18n/zh/core.json"));
+  assert.equal(core["identity_card.rank_label"], "开始使用");
 });
 
 test("zh locale uses reviewed natural copy for settings and dashboard", () => {
@@ -73,23 +60,20 @@ test("zh locale uses reviewed natural copy for settings and dashboard", () => {
   assert.doesNotMatch(dashboard, /型号分解|动态的|复制的|编码剂|2025 包裹/);
 });
 
-test("language selector localizes the German option in every translated locale", () => {
-  const expectedLabels = {
-    zh: "德语",
-    "zh-TW": "德語",
-    ja: "ドイツ語",
-    ko: "독일어",
-    de: "Deutsch",
-  };
+test("language selector exposes only English and Simplified Chinese", () => {
+  const appearanceSection = read("dashboard/src/components/settings/AppearanceSection.jsx");
+  const i18nRoot = path.join(__dirname, "..", "dashboard", "src", "content", "i18n");
 
-  for (const [locale, expectedLabel] of Object.entries(expectedLabels)) {
-    const core = JSON.parse(read(`dashboard/src/content/i18n/${locale}/core.json`));
-    assert.equal(core["settings.appearance.language.german"], expectedLabel);
-  }
+  assert.match(appearanceSection, /EN_LOCALE/);
+  assert.match(appearanceSection, /ZH_CN_LOCALE/);
+  assert.doesNotMatch(appearanceSection, /ZH_TW_LOCALE|JA_LOCALE|KO_LOCALE|DE_LOCALE/);
+  const localeDirectories = fs.readdirSync(i18nRoot)
+    .filter((locale) => fs.existsSync(path.join(i18nRoot, locale, "core.json")))
+    .sort();
+  assert.deepEqual(localeDirectories, ["zh"]);
 });
 
-test("token number display setting is localized in every translated locale", () => {
-  const localeFiles = ["zh", "zh-TW", "ja", "ko", "de"];
+test("token number display setting is localized in Simplified Chinese", () => {
   const keys = [
     "settings.appearance.token_format.label",
     "settings.appearance.token_format.hint",
@@ -97,11 +81,9 @@ test("token number display setting is localized in every translated locale", () 
     "settings.appearance.token_format.full",
   ];
 
-  for (const locale of localeFiles) {
-    const core = JSON.parse(read(`dashboard/src/content/i18n/${locale}/core.json`));
-    for (const key of keys) {
-      assert.equal(typeof core[key], "string", `${locale} missing ${key}`);
-      assert.ok(core[key].trim().length > 0, `${locale} has empty ${key}`);
-    }
+  const core = JSON.parse(read("dashboard/src/content/i18n/zh/core.json"));
+  for (const key of keys) {
+    assert.equal(typeof core[key], "string", `zh missing ${key}`);
+    assert.ok(core[key].trim().length > 0, `zh has empty ${key}`);
   }
 });
