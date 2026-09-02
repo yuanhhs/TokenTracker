@@ -1,6 +1,6 @@
 {
   "name": "tokentracker-cli",
-  "version": "0.94.1",
+  "version": "0.96.0",
   "description": "Local-first AI coding token usage and cost tracker for Windows.",
   "main": "src/cli.js",
   "bin": {
