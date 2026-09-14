@@ -496,7 +496,6 @@ shared.time.now,shared,*,Shared,time_now,"刚刚",,active
 shared.time.m_ago,shared,*,Shared,time_m_ago,"{{n}}分钟前",,active
 shared.time.h_ago,shared,*,Shared,time_h_ago,"{{n}}小时前",,active
 shared.time.d_ago,shared,*,Shared,time_d_ago,"{{n}}天前",,active
-nav.ip_check,shared,*,Sidebar,nav_ip_check,"Claude IP 检查",,active
 nav.sessions,shared,*,Sidebar,nav_sessions,"会话",,active
 hint.dismiss,ui,shared,DismissibleHint,hint_dismiss,"关闭提示",,active
 hint.dismissible_aria,ui,shared,DismissibleHint,hint_dismissible_aria,"可关闭的提示",,active
@@ -589,117 +588,6 @@ heatmap.3d.voxel.level3,ui,ActivityHeatmap3D,ActivityHeatmap3D,voxel_level3,"⚡
 heatmap.3d.voxel.level2,ui,ActivityHeatmap3D,ActivityHeatmap3D,voxel_level2,"🌱 渐入佳境（{{value}} tokens）！稳步产出，每一次敲击键盘都是在为大厦添砖加瓦。",,active
 heatmap.3d.voxel.level1,ui,ActivityHeatmap3D,ActivityHeatmap3D,voxel_level1,"🍃 聚沙成塔（{{value}} tokens）。微小的提交也是对未来的投资，保持复利的力量！",,active
 heatmap.3d.voxel.level0,ui,ActivityHeatmap3D,ActivityHeatmap3D,voxel_level0,"💤 养精蓄锐。在不写代码的日子里，灵感也在悄悄生长。",,active
-ipcheck.page.title,ui,IpCheckPage,IpCheckPage,page_title,"Claude IP 检测",,active
-ipcheck.page.subtitle,ui,IpCheckPage,IpCheckPage,page_subtitle,"查看当前访问 Claude 的出口 IP、纯净度、地理与风险信号，识别可能影响登录或触发风控的因素。",,active
-ipcheck.mask.toggle,ui,IpCheckPage,IpCheckPage,mask_toggle,"隐藏 IP",,active
-ipcheck.ipv6.warn,ui,IpCheckPage,IpCheckPage,ipv6_warn,"当前为 IPv6 环境，不建议用 IPv6 访问 Claude Code，部分检测结果可能不完整。",,active
-ipcheck.ip.cn,ui,IpCheckPage,IpCheckPage,ip_cn,"中国出口 IPv4",,active
-ipcheck.ip.cloudflare,ui,IpCheckPage,IpCheckPage,ip_cloudflare,"Cloudflare 出口",,active
-ipcheck.ip.claude,ui,IpCheckPage,IpCheckPage,ip_claude,"Claude 出口",,active
-ipcheck.ip.failed,ui,IpCheckPage,IpCheckPage,ip_failed,"获取失败",,active
-ipcheck.ip.loading,ui,IpCheckPage,IpCheckPage,ip_loading,"加载中...",,active
-ipcheck.trust.title,ui,IpCheckPage,IpCheckPage,trust_title,"信任评分",,active
-ipcheck.trust.subtitle,ui,IpCheckPage,IpCheckPage,trust_subtitle,"Claude 风控视角下的 IP 纯净度",,active
-ipcheck.trust.no_data,ui,IpCheckPage,IpCheckPage,trust_no_data,"无数据",,active
-ipcheck.trust.no_ip,ui,IpCheckPage,IpCheckPage,trust_no_ip,"未获取到 Claude 出口 IP，无法评分",,active
-ipcheck.trust.no_score,ui,IpCheckPage,IpCheckPage,trust_no_score,"该 IP 暂无评分数据",,active
-ipcheck.trust.gauge.low,ui,IpCheckPage,IpCheckPage,trust_gauge_low,"0 高危",,active
-ipcheck.trust.gauge.high,ui,IpCheckPage,IpCheckPage,trust_gauge_high,"100 可信",,active
-ipcheck.trust.label.pristine,ui,IpCheckPage,IpCheckPage,trust_label_pristine,"极度纯净",,active
-ipcheck.trust.label.clean,ui,IpCheckPage,IpCheckPage,trust_label_clean,"纯净",,active
-ipcheck.trust.label.good,ui,IpCheckPage,IpCheckPage,trust_label_good,"良好",,active
-ipcheck.trust.label.neutral,ui,IpCheckPage,IpCheckPage,trust_label_neutral,"中性",,active
-ipcheck.trust.label.suspicious,ui,IpCheckPage,IpCheckPage,trust_label_suspicious,"可疑",,active
-ipcheck.trust.label.unreachable,ui,IpCheckPage,IpCheckPage,trust_label_unreachable,"不可访问",,active
-ipcheck.trust.text.excellent,ui,IpCheckPage,IpCheckPage,trust_text_excellent,"该 IP 信誉极好",,active
-ipcheck.trust.text.great,ui,IpCheckPage,IpCheckPage,trust_text_great,"该 IP 信誉优异",,active
-ipcheck.trust.text.minor,ui,IpCheckPage,IpCheckPage,trust_text_minor,"该 IP 存在轻微风险",,active
-ipcheck.trust.text.moderate,ui,IpCheckPage,IpCheckPage,trust_text_moderate,"该 IP 存在一定风险",,active
-ipcheck.trust.text.severe,ui,IpCheckPage,IpCheckPage,trust_text_severe,"该 IP 风险极高",,active
-ipcheck.trust.text.restricted,ui,IpCheckPage,IpCheckPage,trust_text_restricted,"处于不可访问区域，Claude 会严格风控",,active
-ipcheck.trust.region_warn.title,ui,IpCheckPage,IpCheckPage,region_warn_title,"Claude 出口 IP 位于 {{region}}",,active
-ipcheck.trust.region_warn.body,ui,IpCheckPage,IpCheckPage,region_warn_body,"不建议登录 Claude，容易触发封号风控。",,active
-ipcheck.trust.region_support,ui,IpCheckPage,IpCheckPage,region_support,"Claude 支持地区",,active
-ipcheck.trust.region.accessible,ui,IpCheckPage,IpCheckPage,region_accessible,"可访问",,active
-ipcheck.common.unknown,ui,IpCheckPage,IpCheckPage,common_unknown,"未知",,active
-ipcheck.props.title,ui,IpCheckPage,IpCheckPage,props_title,"IP 属性",,active
-ipcheck.props.region,ui,IpCheckPage,IpCheckPage,props_region,"地区",,active
-ipcheck.props.city,ui,IpCheckPage,IpCheckPage,props_city,"城市",,active
-ipcheck.props.type,ui,IpCheckPage,IpCheckPage,props_type,"类型",,active
-ipcheck.props.asn,ui,IpCheckPage,IpCheckPage,props_asn,"ASN",,active
-ipcheck.props.org,ui,IpCheckPage,IpCheckPage,props_org,"运营商",,active
-ipcheck.props.residential,ui,IpCheckPage,IpCheckPage,props_residential,"家庭住宅",,active
-ipcheck.props.datacenter,ui,IpCheckPage,IpCheckPage,props_datacenter,"机房",,active
-ipcheck.security.title,ui,IpCheckPage,IpCheckPage,sec_title,"安全检测",,active
-ipcheck.security.vpn,ui,IpCheckPage,IpCheckPage,sec_vpn,"VPN",,active
-ipcheck.security.proxy,ui,IpCheckPage,IpCheckPage,sec_proxy,"代理 (Proxy)",,active
-ipcheck.security.tor,ui,IpCheckPage,IpCheckPage,sec_tor,"Tor",,active
-ipcheck.security.crawler,ui,IpCheckPage,IpCheckPage,sec_crawler,"机器人 (Crawler)",,active
-ipcheck.security.abuser,ui,IpCheckPage,IpCheckPage,sec_abuser,"滥用记录",,active
-ipcheck.security.proxy_flag,ui,IpCheckPage,IpCheckPage,sec_proxy_flag,"代理",,active
-ipcheck.security.crawler_yes,ui,IpCheckPage,IpCheckPage,sec_crawler_yes,"是",,active
-ipcheck.security.crawler_no,ui,IpCheckPage,IpCheckPage,sec_crawler_no,"否",,active
-ipcheck.security.abuser_yes,ui,IpCheckPage,IpCheckPage,sec_abuser_yes,"有记录",,active
-ipcheck.security.abuser_no,ui,IpCheckPage,IpCheckPage,sec_abuser_no,"无记录",,active
-ipcheck.security.clean,ui,IpCheckPage,IpCheckPage,sec_clean,"未检测到",,active
-ipcheck.dns.title,ui,IpCheckPage,IpCheckPage,dns_title,"DNS 泄露检测",,active
-ipcheck.dns.status,ui,IpCheckPage,IpCheckPage,dns_status,"状态",,active
-ipcheck.dns.outlet,ui,IpCheckPage,IpCheckPage,dns_outlet,"DNS 出口",,active
-ipcheck.dns.outlet_ip,ui,IpCheckPage,IpCheckPage,dns_outlet_ip,"DNS 出口 IP",,active
-ipcheck.dns.isp,ui,IpCheckPage,IpCheckPage,dns_isp,"服务商",,active
-ipcheck.dns.leaked,ui,IpCheckPage,IpCheckPage,dns_leaked,"可能泄露",,active
-ipcheck.dns.no_leak,ui,IpCheckPage,IpCheckPage,dns_no_leak,"未检测到泄露",,active
-ipcheck.dns.encrypted,ui,IpCheckPage,IpCheckPage,dns_encrypted,"DNS 加密或未暴露",,active
-ipcheck.dns.cn_tag,ui,IpCheckPage,IpCheckPage,dns_cn_tag,"中国 DNS",,active
-ipcheck.udp.title,ui,IpCheckPage,IpCheckPage,udp_title,"WebRTC UDP 泄露",,active
-ipcheck.udp.status,ui,IpCheckPage,IpCheckPage,udp_status,"状态",,active
-ipcheck.udp.outlet,ui,IpCheckPage,IpCheckPage,udp_outlet,"UDP 出口",,active
-ipcheck.udp.outlet_ip,ui,IpCheckPage,IpCheckPage,udp_outlet_ip,"UDP 出口 IP",,active
-ipcheck.udp.origin,ui,IpCheckPage,IpCheckPage,udp_origin,"归属地",,active
-ipcheck.udp.disabled,ui,IpCheckPage,IpCheckPage,udp_disabled,"WebRTC 已禁用",,active
-ipcheck.udp.no_leak,ui,IpCheckPage,IpCheckPage,udp_no_leak,"未检测到泄露",,active
-ipcheck.udp.leaked,ui,IpCheckPage,IpCheckPage,udp_leaked,"可能泄露",,active
-ipcheck.udp.anomaly,ui,IpCheckPage,IpCheckPage,udp_anomaly,"异常",,active
-ipcheck.device.title,ui,IpCheckPage,IpCheckPage,dev_title,"设备信息",,active
-ipcheck.device.tz,ui,IpCheckPage,IpCheckPage,dev_tz,"时区",,active
-ipcheck.device.lang,ui,IpCheckPage,IpCheckPage,dev_lang,"语言",,active
-ipcheck.device.os,ui,IpCheckPage,IpCheckPage,dev_os,"操作系统 / 浏览器",,active
-ipcheck.device.touch,ui,IpCheckPage,IpCheckPage,dev_touch,"触屏",,active
-ipcheck.device.net,ui,IpCheckPage,IpCheckPage,dev_net,"网络类型",,active
-ipcheck.device.dnt,ui,IpCheckPage,IpCheckPage,dev_dnt,"请勿追踪",,active
-ipcheck.device.webgl_render,ui,IpCheckPage,IpCheckPage,dev_webgl_render,"WebGL 渲染器",,active
-ipcheck.device.canvas_fp,ui,IpCheckPage,IpCheckPage,dev_canvas_fp,"Canvas 指纹",,active
-ipcheck.device.webgl_fp,ui,IpCheckPage,IpCheckPage,dev_webgl_fp,"WebGL 指纹",,active
-ipcheck.device.match,ui,IpCheckPage,IpCheckPage,dev_match,"一致",,active
-ipcheck.device.mismatch,ui,IpCheckPage,IpCheckPage,dev_mismatch,"不一致",,active
-ipcheck.device.local,ui,IpCheckPage,IpCheckPage,dev_local,"本地",,active
-ipcheck.device.estimate_suffix,ui,IpCheckPage,IpCheckPage,dev_est_suffix,"（估算）",,active
-ipcheck.device.diff_equal,ui,IpCheckPage,IpCheckPage,dev_diff_eq,"偏移略有差异",,active
-ipcheck.device.diff_ahead,ui,IpCheckPage,IpCheckPage,dev_diff_ahead,"Claude 快 {{h}} 小时",,active
-ipcheck.device.diff_behind,ui,IpCheckPage,IpCheckPage,dev_diff_behind,"Claude 慢 {{h}} 小时",,active
-ipcheck.device.lang_expected,ui,IpCheckPage,IpCheckPage,dev_lang_expected,"Claude 出口常用",,active
-ipcheck.device.touch_yes,ui,IpCheckPage,IpCheckPage,dev_touch_yes,"是",,active
-ipcheck.device.touch_no,ui,IpCheckPage,IpCheckPage,dev_touch_no,"否",,active
-ipcheck.device.dnt_on,ui,IpCheckPage,IpCheckPage,dev_dnt_on,"已开启",,active
-ipcheck.device.dnt_off,ui,IpCheckPage,IpCheckPage,dev_dnt_off,"已关闭",,active
-ipcheck.device.dnt_unset,ui,IpCheckPage,IpCheckPage,dev_dnt_unset,"未设置",,active
-ipcheck.device.net_unsupported,ui,IpCheckPage,IpCheckPage,dev_net_unsup,"不支持检测",,active
-ipcheck.device.unsupported,ui,IpCheckPage,IpCheckPage,dev_unsupported,"不支持",,active
-ipcheck.history.title,ui,IpCheckPage,IpCheckPage,hist_title,"Claude 出口 IP 历史",,active
-ipcheck.history.subtitle,ui,IpCheckPage,IpCheckPage,hist_subtitle,"仅本地存储于浏览器，最多保留 6 条",,active
-ipcheck.history.clear,ui,IpCheckPage,IpCheckPage,hist_clear,"清除",,active
-ipcheck.history.empty,ui,IpCheckPage,IpCheckPage,hist_empty,"暂无历史记录",,active
-ipcheck.history.current,ui,IpCheckPage,IpCheckPage,hist_current,"当前",,active
-ipcheck.region.CN,ui,IpCheckPage,IpCheckPage,region_cn,"中国大陆",,active
-ipcheck.region.HK,ui,IpCheckPage,IpCheckPage,region_hk,"香港",,active
-ipcheck.region.MO,ui,IpCheckPage,IpCheckPage,region_mo,"澳门",,active
-ipcheck.region.RU,ui,IpCheckPage,IpCheckPage,region_ru,"俄罗斯",,active
-ipcheck.region.KP,ui,IpCheckPage,IpCheckPage,region_kp,"朝鲜",,active
-ipcheck.region.IR,ui,IpCheckPage,IpCheckPage,region_ir,"伊朗",,active
-ipcheck.region.SY,ui,IpCheckPage,IpCheckPage,region_sy,"叙利亚",,active
-ipcheck.region.CU,ui,IpCheckPage,IpCheckPage,region_cu,"古巴",,active
-ipcheck.region.BY,ui,IpCheckPage,IpCheckPage,region_by,"白俄罗斯",,active
-ipcheck.region.VE,ui,IpCheckPage,IpCheckPage,region_ve,"委内瑞拉",,active
 local_only.title,dashboard,LocalOnlyNotice,LocalOnlyNotice,title,"请在客户端内使用",,active
 local_only.body,dashboard,LocalOnlyNotice,LocalOnlyNotice,body,"此页面读取你电脑上的本地数据，因此只能在 Windows App 或本地 CLI 仪表盘中使用。",,active
 local_only.download,dashboard,LocalOnlyNotice,LocalOnlyNotice,download,"下载 Windows App",,active
@@ -952,3 +840,22 @@ clipboard.error.timeout,ui,ClipboardPage,ClipboardPage,timeout,"剪贴板服务�
 clipboard.error.permission,ui,ClipboardPage,ClipboardPage,permission,"浏览器未允许访问剪贴板，请在此页直接按 Ctrl + V 保存内容。",,active
 clipboard.error.file_copy,ui,ClipboardPage,ClipboardPage,file_copy,"请在 Windows 应用中复制文件；浏览器中可使用另存为文件。",,active
 clipboard.error.operation_failed,ui,ClipboardPage,ClipboardPage,operation_failed,"操作未完成，请重试。",,active
+floating.title,ui,FloatingApp,FloatingApp,title,"随行面板",,active
+floating.subtitle,ui,FloatingApp,FloatingApp,subtitle,"复制随手可用，用量一眼可见",,active
+floating.ball_label,ui,FloatingApp,BallButton,label,"打开悬浮面板",,active
+floating.ball_hint,ui,FloatingApp,BallButton,hint,"单击打开面板，长按或拖动移动位置",,active
+floating.open_dashboard,ui,FloatingApp,FloatingApp,open_dashboard,"打开仪表板",,active
+floating.hide,ui,FloatingApp,FloatingApp,hide,"隐藏悬浮球",,active
+floating.hide_hint,ui,FloatingApp,FloatingApp,hide_hint,"隐藏悬浮球，可从托盘菜单恢复",,active
+floating.collapse,ui,FloatingApp,FloatingApp,collapse,"收起为悬浮球",,active
+floating.today_tokens,ui,FloatingApp,FloatingApp,tokens,"今日 Token",,active
+floating.today_cost,ui,FloatingApp,FloatingApp,cost,"今日预估花费",,active
+floating.refresh_usage,ui,FloatingApp,FloatingApp,refresh,"刷新用量",,active
+floating.waiting_usage,ui,FloatingApp,FloatingApp,waiting,"等待本地用量统计",,active
+floating.usage_updated,ui,FloatingApp,FloatingApp,updated,"更新于 {{time}} · 按本地日期统计",,active
+floating.unavailable_value,ui,FloatingApp,FloatingApp,unavailable,"—",,active
+floating.click_to_copy,ui,FloatingApp,FloatingApp,copy_hint,"点击即复制",,active
+floating.copy_record,ui,FloatingApp,RecordButton,copy_record,"复制{{type}}：{{content}}",,active
+floating.empty_hint,ui,FloatingApp,FloatingApp,empty_hint,"复制文本、截图或文件后，就能在这里找到，也可以点击加号保存。",,active
+floating.all_records,ui,FloatingApp,FloatingApp,all_records,"全部记录",,active
+floating.separator,ui,FloatingApp,RecordButton,separator,"·",,active

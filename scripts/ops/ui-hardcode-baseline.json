@@ -6,8 +6,8 @@
     "rawText": "JSX text nodes containing letters or digits"
   },
   "totals": {
-    "colors": 234,
-    "rawText": 99
+    "colors": 235,
+    "rawText": 82
   },
   "files": {
     "dashboard/src/components/settings/MenuBarSection.jsx": {
@@ -38,28 +38,6 @@
       "colors": 1,
       "rawText": 0,
       "rawTextTokens": []
-    },
-    "dashboard/src/pages/IpCheckPage.jsx": {
-      "colors": 12,
-      "rawText": 17,
-      "rawTextTokens": [
-        "', ipAddrCN: ipHeroSkeleton(), ipGeoCN: ipGeoSkeleton(), ipAddr: ipHeroSkeleton(), ipGeo: ipGeoSkeleton(), ipAddrClaude: ipHeroSkeleton(), ipGeoClaude: ipGeoSkeleton(), propsContent: loadingRows([t.propsRegion, t.propsCity, t.propsType, t.propsAsn, t.propsOrg]), securityContent: loadingRows([t.secVpn, t.secProxy, t.secTor, t.secCrawler, t.secAbuser]), dnsLeakContent: row(t.dnsStatus, undefined, true) + row(t.dnsOutletIp, undefined, true), udpLeakContent: row(t.udpStatus, undefined, true) + row(t.udpOutletIp, undefined, true), deviceContent: loadingRows([t.devTz, t.devLang, t.devOs, t.devTouch, t.devNet, t.devDnt, t.devWebglRender, t.devCanvasFp]), ipHistoryContent: `",
-        "// via its user-agent stylesheet (Blink does not). Chrome looks fine, the // app does not.",
-        "25",
-        "50",
-        "75",
-        "= 0 ? \"+\" : \"\") + localOffset; const cr = state.claudeRisk; const _cc = (cr?.countryCode || \"\").toUpperCase(); const claudeTz = cr?.timezone || CC_TO_TZ[_cc] || \"\"; const tzIsExact = !!cr?.timezone; const claudeOffMin = currentOffsetMinutes(claudeTz); const localOffMin = -new Date().getTimezoneOffset(); let tzMatch = null; if (claudeTz && claudeOffMin != null) tzMatch = Math.abs(claudeOffMin - localOffMin)",
-        "`) + row(t.devCanvasFp, `",
-        "`) + row(t.devDnt, esc(dnt)) + row(t.devWebglRender, `",
-        "`) + row(t.devWebglFp, `",
-        "`; const safeIp = esc(ip); if (isIPv6(ip)) return `",
-        "`; else langHtml = `",
-        "`; return `",
-        "element: // macOS app's WKWebView (Safari) applies a 36px padding-top to",
-        "for the header row, NOT the semantic",
-        "setTimeout(r, 1500)); let dnsServers = []; for (let attempt = 0; attempt",
-        "sidesteps all UA semantics. return ("
-      ]
     },
     "dashboard/src/pages/SessionsPage.jsx": {
       "colors": 0,
@@ -359,6 +337,16 @@
         "The Token Tracker",
         "→ tokentracker.cc"
       ]
+    },
+    "dashboard/src/floating/bloub/decor.ts": {
+      "colors": 1,
+      "rawText": 0,
+      "rawTextTokens": []
+    },
+    "dashboard/src/floating/bloub/skins.ts": {
+      "colors": 12,
+      "rawText": 0,
+      "rawTextTokens": []
     }
   }
 }

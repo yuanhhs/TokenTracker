@@ -11,7 +11,8 @@ internal sealed class UsagePoller : IDisposable
 {
     public readonly record struct UsageStats(
         long TodayTokens,
-        decimal TodayCostUsd);
+        decimal TodayCostUsd,
+        string Date);
 
     // Local server only (127.0.0.1) — never route through a system/env proxy, or a
     // VPN/proxy user without a loopback bypass can't reach it (see ServerManager.Http).
@@ -76,7 +77,7 @@ internal sealed class UsagePoller : IDisposable
                 && decimal.TryParse(c.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
                 cost = parsed;
 
-            return new UsageStats(tokens, cost);
+            return new UsageStats(tokens, cost, today);
         }
         catch
         {

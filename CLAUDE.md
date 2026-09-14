@@ -58,6 +58,7 @@ Cost is computed from the individual categories, never from `total_tokens` alone
 - Windows native adaptations are gated by `isNativeWindowsApp()` in `dashboard/src/lib/native-bridge.js`.
 - `TokenTrackerWin/EmbeddedServer/` is generated and gitignored.
 - Clipboard history is owned by the tray's `ClipboardHistoryService` and persists through `ClipboardHistoryStore` under `%LOCALAPPDATA%\TokenTracker\Clipboard`; the dashboard uses a source-checked WebView2 bridge. Browser development uses explicit pastes/imports and IndexedDB. Preserve pins, atomic index writes, local file copies, and clipboard history exclusion formats.
+- The user-requested floating ball is a shortcut to clipboard history and today's usage. `FloatingWindow` hosts the standalone `dashboard/floating.html` entry, reuses the tray's clipboard service and `UsagePoller`, and shares `WebViewEnvironment` with the dashboard. Keep the 68px PicBoard ball SVG and its MIT notices. Floating bridge messages must come from the exact loopback origin and `/floating.html`; positions are saved in physical pixels and clamped to the monitor work area. This feature does not restore the retired Dynamic Island or widget system.
 
 ## Release
 

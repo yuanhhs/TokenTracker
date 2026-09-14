@@ -231,14 +231,7 @@ internal sealed class DashboardWindow : Window
         Environment.SetEnvironmentVariable("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
 
         // Keep local dashboard timers responsive while the window is occluded.
-        var options = new CoreWebView2EnvironmentOptions
-        {
-            AdditionalBrowserArguments =
-                "--disable-background-timer-throttling " +
-                "--disable-renderer-backgrounding " +
-                "--disable-backgrounding-occluded-windows",
-        };
-        var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
+        var env = await WebViewEnvironment.GetAsync();
         await _webView.EnsureCoreWebView2Async(env);
         _coreReady = true;
 
@@ -379,7 +372,7 @@ internal sealed class DashboardWindow : Window
 
         // ?app=1 → dashboard renders in native-app layout (Clawd companion, native
         // component treatment, transparent root + 28px drag strip), matching macOS.
-        NavigateWhenServerReady("/?app=1");
+        NavigateWhenServerReady(_pendingPathAndQuery);
     }
 
     private void OnServerStatusChanged(ServerManager.ServerStatus status)
@@ -599,6 +592,12 @@ internal sealed class DashboardWindow : Window
         NavigateWhenServerReady("/settings?app=1");
     }
 
+    public void ShowClipboard()
+    {
+        ShowDashboard();
+        NavigateWhenServerReady("/clipboard?app=1");
+    }
+
     /// <summary>Diagnostics → %LOCALAPPDATA%\TokenTracker\windows-host.log (shared with ServerManager).</summary>
     private static void Log(string message) => Diag.Log("dashboard", message);
 
@@ -608,7 +607,7 @@ internal sealed class DashboardWindow : Window
     /// </summary>
     public async Task<(string Symbol, decimal Rate)> ReadCurrencyAsync()
     {
-        if (!_coreReady) return ("$", 1m);
+        if (!_coreReady) return Currency.ReadPersisted() ?? ("$", 1m);
         try
         {
             var raw = await _webView.CoreWebView2.ExecuteScriptAsync(

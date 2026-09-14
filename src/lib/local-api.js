@@ -898,19 +898,6 @@ function json(res, data, status) {
   res.end(JSON.stringify(data));
 }
 
-// ---------------------------------------------------------------------------
-// IP check API proxy: dashboard/src/pages/IpCheckPage.jsx is a native React
-// page that calls ip.net.coffee's data endpoints (/api/iprisk, /api/geoip,
-// /api/dns/result, /favicons). Browser-side fetch can't
-// hit them cross-origin from the dashboard, so we reverse-proxy /proxy/ipcheck/*
-// to https://ip.net.coffee/* and strip embedding-hostile headers.
-// (Previously this proxy also served the upstream HTML page for an iframe;
-// the iframe and its HTML-rewrite path have been removed.)
-// ---------------------------------------------------------------------------
-
-const IP_CHECK_PROXY_PREFIX = "/proxy/ipcheck";
-const IP_CHECK_TARGET = "https://ip.net.coffee";
-
 // HTTP hop-by-hop headers (RFC 7230 §6.1) plus headers undici/fetch manages
 // internally. Forwarding any of these to `fetch(...)` either silently breaks
 // the request (host being wrong) or, on stricter undici versions like the
@@ -1039,77 +1026,6 @@ function createLocalApiHandler({ queuePath }) {
         "Cache-Control": "no-store",
       });
       res.end(JSON.stringify({ token: localAuthToken }));
-      return true;
-    }
-
-    // --- ip-check proxy: reverse-proxy ip.net.coffee (issue #81) ---
-    // Lock-down: GET/HEAD only, restricted path prefixes, do not forward
-    // browser credentials or fingerprintable headers. Without these limits
-    // /proxy/ipcheck is an open reverse-proxy any local process can abuse
-    // (exfiltrate dashboard cookies, anonymously POST through user IP).
-    if (p.startsWith(`${IP_CHECK_PROXY_PREFIX}/`) || p === IP_CHECK_PROXY_PREFIX) {
-      const method = String(req.method || "GET").toUpperCase();
-      if (method !== "GET" && method !== "HEAD") {
-        json(res, { error: "Method Not Allowed" }, 405);
-        return true;
-      }
-      const targetPath = p === IP_CHECK_PROXY_PREFIX
-        ? "/"
-        : p.slice(IP_CHECK_PROXY_PREFIX.length) || "/";
-      const ALLOWED_PREFIXES = [
-        "/api/geoip/",
-        "/api/geoip-batch",
-        "/api/iprisk/",
-        "/api/dns/result/",
-        "/favicons/",
-        "/ip/",
-      ];
-      if (!ALLOWED_PREFIXES.some((prefix) => targetPath.startsWith(prefix))) {
-        json(res, { error: "Path not allowed" }, 403);
-        return true;
-      }
-      const targetUrl = `${IP_CHECK_TARGET}${targetPath}${url.search || ""}`;
-      try {
-        // Whitelist forwarded headers — no cookies, no auth, no fingerprintable
-        // identity. Only what the upstream needs to negotiate content. Do not
-        // set `host` explicitly: undici derives it from the URL, and some
-        // versions reject a manual host header on fetch() (same forbidden-
-        // header family that broke /api/auth/* in 5/13).
-        const proxyHeaders = {
-          accept: req.headers["accept"] || "*/*",
-          "accept-language": req.headers["accept-language"] || "en",
-          "accept-encoding": req.headers["accept-encoding"] || "gzip",
-          "user-agent": "TokenTracker/IPCheck (https://www.tokentracker.cc)",
-          referer: `${IP_CHECK_TARGET}${targetPath}`,
-        };
-
-        const proxyRes = await fetch(targetUrl, {
-          method,
-          headers: proxyHeaders,
-          redirect: "manual",
-        });
-
-        const stripped = new Set([
-          "transfer-encoding",
-          "connection",
-          "content-length",
-          "content-encoding",
-          "x-frame-options",
-          "content-security-policy",
-          "cross-origin-opener-policy",
-          "cross-origin-embedder-policy",
-          "cross-origin-resource-policy",
-        ]);
-        const responseHeaders = [...proxyRes.headers.entries()].filter(
-          ([k]) => !stripped.has(k.toLowerCase()),
-        );
-
-        const resBody = Buffer.from(await proxyRes.arrayBuffer());
-        res.writeHead(proxyRes.status, Object.fromEntries(responseHeaders));
-        res.end(resBody);
-      } catch (e) {
-        json(res, { error: `IP check proxy error: ${e?.message || e}` }, 502);
-      }
       return true;
     }
 

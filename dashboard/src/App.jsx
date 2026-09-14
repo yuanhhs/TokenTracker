@@ -22,7 +22,6 @@ const CommandPalette = lazy(() =>
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage.jsx").then((m) => ({ default: m.DashboardPage })),
 );
-const IpCheckPage = lazy(() => import("./pages/IpCheckPage.jsx"));
 const LandingPage = lazy(() =>
   import("./pages/LandingPage.jsx").then((m) => ({ default: m.LandingPage })),
 );
@@ -46,7 +45,6 @@ const DASHBOARD_PATHS = new Set([
   "/limits",
   "/settings",
   "/sessions",
-  "/ip-check",
   "/clipboard",
 ]);
 
@@ -97,7 +95,6 @@ export default function App() {
   else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
-  else if (normalizedPath === "/ip-check") PageComponent = IpCheckPage;
   else if (normalizedPath === "/clipboard") PageComponent = ClipboardPage;
   else if (normalizedPath === "/wrapped") PageComponent = WrappedPage;
 

@@ -201,131 +201,6 @@ function richLinkMetaPlugin() {
   };
 }
 
-// Per-route static SEO/AEO pages. The dashboard is a single-page app that serves
-// one index.html for every route, with a canonical hardcoded to the homepage.
-// Google otherwise collapses /ip-check into "/" ("Page with redirect" /
-// "Alternate page with canonical"), so that route never ranks on its own. To
-// fix indexability without adding rollup inputs, clone the built dist/index.html
-// in closeBundle and rewrite its canonical, social meta, title, description,
-// JSON-LD, and crawlable aeo-seed-content block. Vercel rewrites map the clean
-// URL to this file (see vercel.json); runtime JS still boots the SPA.
-const ROUTE_SEO_PAGES = [
-  {
-    file: "ip-check.html",
-    url: "https://www.tokentracker.cc/ip-check",
-    title: "Claude IP 检测 — 出口 IP、归属地与风险评分",
-    description:
-      "查看访问 Claude Code 时使用的出口 IP、归属地、网络类型及纯净度和风险信息。",
-    jsonld: {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "Organization",
-          "@id": "https://www.tokentracker.cc/#organization",
-          name: "Token Tracker",
-          url: "https://www.tokentracker.cc/",
-        },
-        {
-          "@type": "WebPage",
-          "@id": "https://www.tokentracker.cc/ip-check#webpage",
-          url: "https://www.tokentracker.cc/ip-check",
-          name: "Claude IP 检测 — 出口 IP、归属地与风险评分",
-          isPartOf: { "@id": "https://www.tokentracker.cc/#website" },
-          description:
-            "检测访问 Claude Code 时使用的出口 IP，查看信誉、归属地和纯净度风险。",
-        },
-        {
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "首页", item: "https://www.tokentracker.cc/" },
-            { "@type": "ListItem", position: 2, name: "Claude IP 检测", item: "https://www.tokentracker.cc/ip-check" },
-          ],
-        },
-        {
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "Claude IP 检测是什么？",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Claude IP 检测展示访问 Claude Code 和 Claude.ai 时使用的公网出口 IP，并提供归属地、信誉和风险信息。",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "出口 IP 信誉有什么影响？",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "共享、机房、VPN 或曾被滥用的 IP 可能触发额外验证或访问限制。风险评分仅供排查网络问题时参考。",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "如何查看 Claude Code 使用的出口 IP？",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "打开 Token Tracker 的 IP 检测页，查看当前公网出口 IP、归属地、网络类型和风险信息。",
-              },
-            },
-          ],
-        },
-      ],
-    },
-    seed: `<main class="aeo-seed-content" aria-label="Claude IP 检测说明">
-      <h1>Claude IP 检测：出口 IP、归属地与风险评分</h1>
-      <p>检测访问 Claude Code 和 Claude.ai 时使用的公网出口 IP，查看网络类型、归属地、信誉和纯净度风险信息。</p>
-      <h2>检测内容</h2>
-      <ul>
-        <li>当前公网出口 IP。</li>
-        <li>归属地、网络类型和 IP 风险信息。</li>
-        <li>DNS 与 WebRTC 泄漏情况。</li>
-      </ul>
-      <h2>Token Tracker 本地仪表板</h2>
-      <p>Token Tracker 免费开源，支持 29 种 AI 编程工具的用量和花费统计，提供简体中文界面。可运行 <code>npx tokentracker-cli</code> 安装。</p>
-    </main>`,
-  },
-];
-
-function routeSeoPagesPlugin() {
-  return {
-    name: "tokentracker-route-seo-pages",
-    apply: "build",
-    closeBundle() {
-      const distDir = path.resolve(ROOT_DIR, "dist");
-      const indexPath = path.join(distDir, "index.html");
-      let base;
-      try {
-        base = fs.readFileSync(indexPath, "utf8");
-      } catch (error) {
-        console.warn("[tokentracker] route SEO: dist/index.html not found, skipping.", error.message);
-        return;
-      }
-      for (const route of ROUTE_SEO_PAGES) {
-        let html = base;
-        const title = escapeHtml(route.title);
-        const description = escapeHtml(route.description);
-        html = html
-          .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${route.url}$2`)
-          .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${route.url}$2`)
-          .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
-          .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
-          .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
-          .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
-          .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${description}$2`)
-          .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${description}$2`)
-          .replace(/<main class="aeo-seed-content"[\s\S]*?<\/main>/, () => route.seed);
-        if (route.jsonld) {
-          const ldMarkup = `<script type="application/ld+json">\n${JSON.stringify(route.jsonld, null, 2)}\n    </script>`;
-          html = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, () => ldMarkup);
-        }
-        fs.writeFileSync(path.join(distDir, route.file), html, "utf8");
-        console.log(`[tokentracker] route SEO page emitted: dist/${route.file}`);
-      }
-    },
-  };
-}
-
 // 本地数据 API 插件 - 直接读取 ~/.tokentracker/tracker/queue.jsonl
 // 本地 API 处理函数
 function trimCommandOutput(value, maxLength = 4000) {
@@ -1164,6 +1039,7 @@ export default defineConfig(({ mode }) => {
   const rollupInput = {
     main: path.resolve(ROOT_DIR, "index.html"),
     share: path.resolve(ROOT_DIR, "share.html"),
+    floating: path.resolve(ROOT_DIR, "floating.html"),
   };
 
   return {
@@ -1171,7 +1047,6 @@ export default defineConfig(({ mode }) => {
       copyRegistryPlugin(),
       react(),
       richLinkMetaPlugin(),
-      routeSeoPagesPlugin(),
       localDataApiPlugin(),
     ],
     ...(Object.keys(define).length ? { define } : {}),
@@ -1190,20 +1065,6 @@ export default defineConfig(({ mode }) => {
           { from: /^\/functions\/.*$/, to: (ctx) => ctx.parsedUrl.pathname }
         ]
       },
-      proxy: (() => {
-        const proxies = {
-          // IP-check page proxies ip.net.coffee API + assets. Without this,
-          // 5173 dev mode shows "无数据" because trust score / geoip endpoints
-          // are not part of the Vite mock — they live on ip.net.coffee.
-          "/proxy/ipcheck": {
-            target: "https://ip.net.coffee",
-            changeOrigin: true,
-            secure: true,
-            rewrite: (p) => p.replace(/^\/proxy\/ipcheck/, ""),
-          },
-        };
-        return proxies;
-      })(),
     },
   };
 });
