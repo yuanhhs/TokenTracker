@@ -47,6 +47,83 @@
       "cache_write": 1.25,
       "note": "Canonical undated alias emitted by Cursor. Pin to the same rates as claude-haiku-4-5-20251001 so local cost does not depend on which dated LiteLLM aliases are present in the current cache."
     },
+    "claude-haiku-4-5-20251001": {
+      "input": 1,
+      "output": 5,
+      "cache_read": 0.1,
+      "cache_write": 1.25,
+      "note": "Claude Haiku 4.5 dated snapshot."
+    },
+    "claude-opus-4-7": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "Claude Opus 4.7 standard tier: $5/$25 per MTok, cache_read 0.1x, cache_write 1.25x."
+    },
+    "claude-opus-4-6": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "Claude Opus 4.6 standard tier: $5/$25 per MTok, cache_read 0.1x, cache_write 1.25x."
+    },
+    "claude-sonnet-4-6": {
+      "input": 3,
+      "output": 15,
+      "cache_read": 0.3,
+      "cache_write": 3.75,
+      "note": "Claude Sonnet 4.6 standard tier: $3/$15 per MTok, cache_read 0.1x, cache_write 1.25x."
+    },
+    "claude-4.6-opus": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "Claude 4.6 Opus inverted version-first alias."
+    },
+    "AnthropicClaude47Opus": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "Anthropic Claude 4.7 Opus camelCase SDK identifier."
+    },
+    "anthropicclaude47opus": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "Anthropic Claude 4.7 Opus normalized lowercase."
+    },
+    "anthropicAtBedrockClaudeV4p6Opus": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "AWS Bedrock Claude Opus 4.6 camelCase identifier."
+    },
+    "anthropicatbedrockclaudev4p6opus": {
+      "input": 5,
+      "output": 25,
+      "cache_read": 0.5,
+      "cache_write": 6.25,
+      "note": "AWS Bedrock Claude Opus 4.6 normalized lowercase."
+    },
+    "anthropicAtBedrockClaudeV4p6Sonnet": {
+      "input": 3,
+      "output": 15,
+      "cache_read": 0.3,
+      "cache_write": 3.75,
+      "note": "AWS Bedrock Claude Sonnet 4.6 camelCase identifier."
+    },
+    "anthropicatbedrockclaudev4p6sonnet": {
+      "input": 3,
+      "output": 15,
+      "cache_read": 0.3,
+      "cache_write": 3.75,
+      "note": "AWS Bedrock Claude Sonnet 4.6 normalized lowercase."
+    },
     "gpt-5.6-sol": {
       "input": 5,
       "output": 30,
@@ -443,6 +520,30 @@
     {
       "match": "claude-opus-4-8",
       "ref": "claude-opus-4-8"
+    },
+    {
+      "match": "claude-opus-4-7",
+      "ref": "claude-opus-4-7"
+    },
+    {
+      "match": "claude-opus-4-6",
+      "ref": "claude-opus-4-6"
+    },
+    {
+      "match": "claude-sonnet-4-6",
+      "ref": "claude-sonnet-4-6"
+    },
+    {
+      "match": "anthropicclaude47opus",
+      "ref": "claude-opus-4-7"
+    },
+    {
+      "match": "anthropicatbedrockclaudev4p6opus",
+      "ref": "claude-opus-4-6"
+    },
+    {
+      "match": "anthropicatbedrockclaudev4p6sonnet",
+      "ref": "claude-sonnet-4-6"
     },
     {
       "match": "minimax-m3",

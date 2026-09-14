@@ -93,6 +93,18 @@ function normalizeClaudeModel(model) {
     return m.replace(/^claude-(\d+)[.-](\d+)-(sonnet|opus|haiku)/, "claude-$3-$1-$2");
   }
 
+  // Bedrock / camelCase format variants:
+  // e.g. anthropicAtBedrockClaudeV4p6Opus -> claude-opus-4-6
+  // e.g. anthropicAtBedrockClaudeV4p6Sonnet -> claude-sonnet-4-6
+  // e.g. AnthropicClaude47Opus -> claude-opus-4-7
+  const bedrockMatch = /^anthropic(?:atbedrock)?claude(?:-?v?(\d+)p(\d+)|-?(\d)(\d))-?(sonnet|opus|haiku)$/i.exec(m);
+  if (bedrockMatch) {
+    const major = bedrockMatch[1] || bedrockMatch[3];
+    const minor = bedrockMatch[2] || bedrockMatch[4];
+    const tier = bedrockMatch[5];
+    return `claude-${tier}-${major}-${minor}`;
+  }
+
   return m;
 }
 
