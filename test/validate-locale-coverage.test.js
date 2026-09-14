@@ -7,8 +7,9 @@ const { test } = require("node:test");
 const {
   findTerminologyViolations,
   hasUnlocalizedUiTerm,
-  isAllowedSourceIdentical,
+  isLanguageNeutral,
   readCopyRegistry,
+  validateChineseCopy,
 } = require("../scripts/validate-locale-coverage.cjs");
 
 const HEADER = "key,module,page,component,slot,text\n";
@@ -26,11 +27,11 @@ test("locale coverage rejects a copy registry without records", () => {
 
 test("product glossary preserves developer-facing English terms by copy key", () => {
   assert.deepEqual(
-    findTerminologyViolations({ key: "nav.skills" }, "\u6280\u80fd"),
+    findTerminologyViolations({ key: "dashboard.context_breakdown.category.skills" }, "\u6280\u80fd"),
     ["Skill"],
   );
   assert.deepEqual(
-    findTerminologyViolations({ key: "nav.skills" }, "Skills"),
+    findTerminologyViolations({ key: "dashboard.context_breakdown.category.skills" }, "Skills"),
     [],
   );
   assert.deepEqual(
@@ -38,15 +39,15 @@ test("product glossary preserves developer-facing English terms by copy key", ()
     [],
   );
   assert.deepEqual(
-    findTerminologyViolations({ key: "widgets.cta.download" }, "\u4e0b\u8f7d Mac \u5e94\u7528"),
+    findTerminologyViolations({ key: "settings.section.menubar" }, "\u5e94\u7528"),
     ["App"],
   );
 });
 
-test("source-identical glossary labels are allowed without allowing full English sentences", () => {
-  assert.equal(isAllowedSourceIdentical({ key: "nav.skills", text: "Skills" }), true);
+test("language-neutral glossary labels are allowed without allowing full English sentences", () => {
+  assert.equal(isLanguageNeutral({ key: "dashboard.context_breakdown.category.skills", text: "Skills" }), true);
   assert.equal(
-    isAllowedSourceIdentical({ key: "skills.action.search_aria", text: "Search skills" }),
+    isLanguageNeutral({ key: "sessions.card.context_tooltip", text: "Analyze context usage" }),
     false,
   );
 });
@@ -54,4 +55,16 @@ test("source-identical glossary labels are allowed without allowing full English
 test("Dashboard remains localized while glossary terms may stay in English", () => {
   assert.equal(hasUnlocalizedUiTerm({ key: "example" }, "\u6253开 Dashboard"), true);
   assert.equal(hasUnlocalizedUiTerm({ key: "example" }, "\u6253开 Skills"), false);
+});
+
+test("Chinese copy validation rejects empty, duplicate, untranslated, and malformed entries", () => {
+  const issues = validateChineseCopy([
+    { key: "button.save", text: "保存 {{name}}" },
+    { key: "button.save", text: "" },
+    { key: "button.cancel", text: "Cancel" },
+    { key: "message", text: "你好 {{name}" },
+  ]);
+  assert.deepEqual(issues.map(({ problem }) => problem), [
+    "duplicate key", "empty text", "untranslated UI text", "malformed placeholder",
+  ]);
 });

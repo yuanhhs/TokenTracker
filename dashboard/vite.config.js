@@ -213,9 +213,9 @@ const ROUTE_SEO_PAGES = [
   {
     file: "ip-check.html",
     url: "https://www.tokentracker.cc/ip-check",
-    title: "Claude IP Check — Exit IP Reputation, Geo & Risk Score",
+    title: "Claude IP 检测 — 出口 IP、归属地与风险评分",
     description:
-      "Free Claude IP check: see the exit IP used to reach Claude Code plus reputation, geo and cleanliness/risk (纯净度/风险) signals that can trigger sign-in blocks or rate limits.",
+      "查看访问 Claude Code 时使用的出口 IP、归属地、网络类型及纯净度和风险信息。",
     jsonld: {
       "@context": "https://schema.org",
       "@graph": [
@@ -229,16 +229,16 @@ const ROUTE_SEO_PAGES = [
           "@type": "WebPage",
           "@id": "https://www.tokentracker.cc/ip-check#webpage",
           url: "https://www.tokentracker.cc/ip-check",
-          name: "Claude IP Check — Exit IP Reputation, Geo & Risk Score",
+          name: "Claude IP 检测 — 出口 IP、归属地与风险评分",
           isPartOf: { "@id": "https://www.tokentracker.cc/#website" },
           description:
-            "Check the exit IP used to reach Claude Code, with reputation, geolocation and cleanliness/risk (纯净度/风险) signals.",
+            "检测访问 Claude Code 时使用的出口 IP，查看信誉、归属地和纯净度风险。",
         },
         {
           "@type": "BreadcrumbList",
           itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.tokentracker.cc/" },
-            { "@type": "ListItem", position: 2, name: "Claude IP Check", item: "https://www.tokentracker.cc/ip-check" },
+            { "@type": "ListItem", position: 1, name: "首页", item: "https://www.tokentracker.cc/" },
+            { "@type": "ListItem", position: 2, name: "Claude IP 检测", item: "https://www.tokentracker.cc/ip-check" },
           ],
         },
         {
@@ -246,58 +246,43 @@ const ROUTE_SEO_PAGES = [
           mainEntity: [
             {
               "@type": "Question",
-              name: "What is a Claude IP check?",
+              name: "Claude IP 检测是什么？",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "A Claude IP check shows the public exit IP that your network uses to reach Claude Code and Claude.ai, along with its reputation, geolocation and cleanliness/risk score, so you can tell whether the IP is likely to trigger sign-in blocks, verification, or rate limits.",
+                text: "Claude IP 检测展示访问 Claude Code 和 Claude.ai 时使用的公网出口 IP，并提供归属地、信誉和风险信息。",
               },
             },
             {
               "@type": "Question",
-              name: "Why does my Claude exit IP reputation matter?",
+              name: "出口 IP 信誉有什么影响？",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Anthropic and its anti-abuse providers score the reputation of the exit IP. Shared, datacenter, VPN, or previously abused IPs (low 纯净度 / high 风险) are more likely to face extra verification, throttling, or blocked logins, even on a paid plan.",
+                text: "共享、机房、VPN 或曾被滥用的 IP 可能触发额外验证或访问限制。风险评分仅供排查网络问题时参考。",
               },
             },
             {
               "@type": "Question",
-              name: "How do I check the exit IP used for Claude Code?",
+              name: "如何查看 Claude Code 使用的出口 IP？",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Open the Token Tracker IP check page. It detects your current public exit IP and shows its geolocation, network type, and reputation/risk signals so you can decide whether to switch networks before using Claude Code.",
+                text: "打开 Token Tracker 的 IP 检测页，查看当前公网出口 IP、归属地、网络类型和风险信息。",
               },
             },
           ],
         },
       ],
     },
-    seed: `<main class="aeo-seed-content" aria-label="Claude IP Check AI-readable summary">
-      <h1>Claude IP Check: exit IP reputation, geolocation and cleanliness/risk score</h1>
-      <p>
-        This free Claude IP check detects the public exit IP your network uses to reach Claude Code and
-        Claude.ai, then reports its reputation, geolocation, network type, and a cleanliness/risk score.
-        A low-reputation, datacenter, VPN, or previously abused exit IP is more likely to trigger extra
-        sign-in verification, rate limiting, or blocked logins — even on a paid Claude plan.
-      </p>
-      <h2>Claude IP 纯净度与风险检测</h2>
-      <p>
-        本页用于检测你访问 Claude Code / Claude.ai 时使用的出口 IP：展示该 IP 的归属地、网络类型、
-        信誉度与"纯净度 / 风险"评分。共享 IP、机房 IP、VPN 或历史被滥用的 IP 通常纯净度低、风险高，
-        更容易触发 Claude 的登录验证、限速甚至封禁。检测后可据此决定是否更换网络再使用 Claude Code。
-      </p>
-      <h2>What this Claude IP check reports</h2>
+    seed: `<main class="aeo-seed-content" aria-label="Claude IP 检测说明">
+      <h1>Claude IP 检测：出口 IP、归属地与风险评分</h1>
+      <p>检测访问 Claude Code 和 Claude.ai 时使用的公网出口 IP，查看网络类型、归属地、信誉和纯净度风险信息。</p>
+      <h2>检测内容</h2>
       <ul>
-        <li>Your current public exit IP address (the IP Anthropic actually sees).</li>
-        <li>Geolocation and network type (residential, datacenter, mobile, VPN/proxy).</li>
-        <li>IP reputation and a cleanliness/risk score (纯净度 / 风险).</li>
-        <li>Whether the IP is likely to trigger Claude sign-in verification or rate limits.</li>
+        <li>当前公网出口 IP。</li>
+        <li>归属地、网络类型和 IP 风险信息。</li>
+        <li>DNS 与 WebRTC 泄漏情况。</li>
       </ul>
-      <h2>Part of Token Tracker</h2>
-      <p>
-        Token Tracker is a free, open-source, local-first dashboard that monitors AI token usage and cost
-        across 27 AI coding tools including Claude Code. Install with <code>npx tokentracker-cli</code>.
-      </p>
+      <h2>Token Tracker 本地仪表板</h2>
+      <p>Token Tracker 免费开源，支持 29 种 AI 编程工具的用量和花费统计，提供简体中文界面。可运行 <code>npx tokentracker-cli</code> 安装。</p>
     </main>`,
   },
 ];
@@ -1145,11 +1130,7 @@ function localDataApiPlugin() {
           // build resume commands). Keep it off :7680 so a stale packaged app
           // there does not 404 the Sessions page.
           || url.pathname === "/functions/tokentracker-sessions";
-        // Skills inventory evolves with both the dashboard and skills-manager.
-        // Serve the checkout implementation so a stale packaged desktop app (or
-        // Windows DoSvc occupying :7680) cannot hide newly supported tool roots.
-        const isRepoSkillsApi = url.pathname === "/functions/tokentracker-skills";
-        if (isRepoLocalApi || isRepoProjectUsageApi || isRepoSessionAnalyticsApi || isRepoSkillsApi) {
+        if (isRepoLocalApi || isRepoProjectUsageApi || isRepoSessionAnalyticsApi) {
           Promise.resolve(handleRepoLocalApi(req, res, url))
             .then((handled) => { if (!handled) next(); })
             .catch(next);
@@ -1183,8 +1164,6 @@ export default defineConfig(({ mode }) => {
   const rollupInput = {
     main: path.resolve(ROOT_DIR, "index.html"),
     share: path.resolve(ROOT_DIR, "share.html"),
-    island: path.resolve(ROOT_DIR, "island.html"),
-    widget: path.resolve(ROOT_DIR, "widget.html"),
   };
 
   return {

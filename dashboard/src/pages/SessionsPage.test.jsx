@@ -16,7 +16,7 @@ vi.mock("../ui/components/Toast.jsx", () => ({
 }));
 
 vi.mock("../hooks/useLocale", () => ({
-  useLocale: () => ({ resolvedLocale: "en" }),
+  useLocale: () => ({ resolvedLocale: "zh-CN" }),
 }));
 
 const daysAgo = (days) => {
@@ -160,14 +160,14 @@ describe("SessionsPage", () => {
     expect(await screen.findByText("Fix authentication flow")).toBeInTheDocument();
     expect(screen.getByText("Review release")).toBeInTheDocument();
     expect(screen.getByText("Debug local proxy")).toBeInTheDocument();
-    expect(screen.getByText("Reported cost")).toBeInTheDocument();
-    expect(screen.getByText("Input 8.6K · Cache read 192.9K · Cache write 0 · Output 1.4K · Reasoning 1.4K")).toBeInTheDocument();
-    expect(screen.getByText("Model calls 7 · API 55.9s · Tools 5 · Errors 1")).toBeInTheDocument();
-    expect(screen.getByText("Context 31.4K / 500K (6%)")).toBeInTheDocument();
+    expect(screen.getByText("官方费用")).toBeInTheDocument();
+    expect(screen.getByText("输入 8.6K · 缓存读取 192.9K · 缓存写入 0 · 输出 1.4K · 推理 1.4K")).toBeInTheDocument();
+    expect(screen.getByText("模型调用 7 次 · API 55.9 秒 · 工具调用 5 次 · 错误 1 个")).toBeInTheDocument();
+    expect(screen.getByText("上下文 31.4K / 500K（6%）")).toBeInTheDocument();
     // The whole list is fetched once; no row cap and no server-side window.
     expect(getSessions).toHaveBeenCalledWith({ refresh: false });
 
-    const sourceTabs = within(screen.getByRole("tablist", { name: "Filter by session source" }));
+    const sourceTabs = within(screen.getByRole("tablist", { name: "按会话来源筛选" }));
     fireEvent.click(sourceTabs.getByRole("tab", { name: "Codex" }));
     expect(screen.queryByText("Fix authentication flow")).not.toBeInTheDocument();
     expect(screen.getByText("Review release")).toBeInTheDocument();
@@ -177,8 +177,8 @@ describe("SessionsPage", () => {
     expect(screen.queryByText("Review release")).not.toBeInTheDocument();
     expect(screen.getByText("Debug local proxy")).toBeInTheDocument();
 
-    fireEvent.click(sourceTabs.getByRole("tab", { name: "All" }));
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+    fireEvent.click(sourceTabs.getByRole("tab", { name: "全部" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索会话" }), {
       target: { value: "auth" },
     });
     expect(screen.getByText("Fix authentication flow")).toBeInTheDocument();
@@ -237,18 +237,18 @@ describe("SessionsPage", () => {
     expect(await screen.findByText("Root session")).toBeInTheDocument();
     expect(screen.queryByText("Direct child")).not.toBeInTheDocument();
     expect(screen.queryByText("Grandchild agent")).not.toBeInTheDocument();
-    expect(screen.getByText(/1 root sessions.*2 subagents collapsed/)).toBeInTheDocument();
+    expect(screen.getByText(/1 个主线程.*2 个子代理已折叠/)).toBeInTheDocument();
 
-    const expand = screen.getByRole("button", { name: "Expand 2 subagents" });
+    const expand = screen.getByRole("button", { name: "展开 2 个子代理" });
     expect(expand).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(expand);
 
-    expect(screen.getByRole("button", { name: "Collapse 2 subagents" })).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("Subagent model usage")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收起 2 个子代理" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("子代理模型用量")).toBeInTheDocument();
     expect(screen.getByText("Direct child")).toBeInTheDocument();
     expect(screen.getByText("Grandchild agent")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse 2 subagents" }));
+    fireEvent.click(screen.getByRole("button", { name: "收起 2 个子代理" }));
     expect(screen.queryByText("Direct child")).not.toBeInTheDocument();
     expect(screen.queryByText("Grandchild agent")).not.toBeInTheDocument();
   });
@@ -321,8 +321,8 @@ describe("SessionsPage", () => {
     expect(await screen.findByText("Root A")).toBeInTheDocument();
     expect(screen.getByText("Root B")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand 2 subagents" }));
-    fireEvent.click(screen.getByRole("button", { name: "Expand 1 subagents" }));
+    fireEvent.click(screen.getByRole("button", { name: "展开 2 个子代理" }));
+    fireEvent.click(screen.getByRole("button", { name: "展开 1 个子代理" }));
     expect(screen.getByText("A keep")).toBeInTheDocument();
     expect(screen.getByText("A hide")).toBeInTheDocument();
     expect(screen.getByText("B child")).toBeInTheDocument();
@@ -364,7 +364,7 @@ describe("SessionsPage", () => {
     render(<SessionsPage />);
     expect(await screen.findByText("Root hidden by search")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search sessions" }), {
+    fireEvent.change(screen.getByRole("searchbox", { name: "搜索会话" }), {
       target: { value: "Visible child only" },
     });
 
@@ -372,7 +372,7 @@ describe("SessionsPage", () => {
       expect(screen.getByText("Visible child only")).toBeInTheDocument();
       expect(screen.queryByText("Root hidden by search")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Expand .* subagents/ })).not.toBeInTheDocument();
   });
 
@@ -406,7 +406,7 @@ describe("SessionsPage", () => {
     await screen.findByText("Ancient session");
     expect(getSessions).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("tab", { name: "7d" }));
+    fireEvent.click(screen.getByRole("tab", { name: "7 天" }));
 
     expect(screen.getByText("Fix authentication flow")).toBeInTheDocument();
     expect(screen.getByText("Long running migration")).toBeInTheDocument();
@@ -424,33 +424,33 @@ describe("SessionsPage", () => {
 
     // Titled rows expose the path on the project chip; untitled rows put it on
     // the heading (which is the project name). Both must reach the same path.
-    fireEvent.click(screen.getByRole("button", { name: "Copy the local path for tokentracker" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制 tokentracker 的本地路径" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("/work/tokentracker"));
 
     // The tooltip carries the full path plus the click-to-copy hint.
     expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("/work/tokentracker");
-    expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("Click to copy this path");
+    expect(screen.getAllByRole("tooltip")[0]).toHaveTextContent("点击复制该路径");
   });
 
-  it("reports a truncated list instead of silently dropping sessions", async () => {
+  it("reports a truncated list instead / silently dropping sessions", async () => {
     getSessions.mockResolvedValue({ ...response, session_count: 1297, returned_count: 2 });
     render(<SessionsPage />);
     expect(await screen.findByText(/1297/)).toBeInTheDocument();
   });
 
-  it("shows a retryable error instead of the empty state when loading fails", async () => {
+  it("shows a retryable error instead / the empty state when loading fails", async () => {
     getSessions.mockRejectedValueOnce(new Error("boom"));
     render(<SessionsPage />);
 
-    expect(await screen.findByText("Could not load sessions")).toBeInTheDocument();
-    expect(screen.queryByText("No sessions yet")).not.toBeInTheDocument();
+    expect(await screen.findByText("无法加载会话")).toBeInTheDocument();
+    expect(screen.queryByText("还没有会话")).not.toBeInTheDocument();
 
     getSessions.mockResolvedValue(response);
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByText("Fix authentication flow")).toBeInTheDocument();
   });
 
-  it("renders a bounded window of rows and extends it on demand", async () => {
+  it("renders a bounded window / rows and extends it on demand", async () => {
     const many = Array.from({ length: 150 }, (_, index) => ({
       ...response.sessions[0],
       session_hash: `row-${index}`,
@@ -468,7 +468,7 @@ describe("SessionsPage", () => {
     expect(screen.getByText("Session 99")).toBeInTheDocument();
     expect(screen.queryByText("Session 100")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show more sessions" }));
+    fireEvent.click(screen.getByRole("button", { name: "显示更多会话" }));
     expect(await screen.findByText("Session 149")).toBeInTheDocument();
   });
 });

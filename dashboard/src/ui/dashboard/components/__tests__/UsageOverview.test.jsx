@@ -99,8 +99,8 @@ describe("UsageOverview", () => {
       />,
     );
 
-    const dayTab = screen.getByRole("tab", { name: "Day" });
-    const weekTab = screen.getByRole("tab", { name: "Week" });
+    const dayTab = screen.getByRole("tab", { name: "日" });
+    const weekTab = screen.getByRole("tab", { name: "周" });
     expect(dayTab).toHaveAttribute("tabindex", "0");
     expect(weekTab).toHaveAttribute("tabindex", "-1");
 
@@ -150,8 +150,8 @@ describe("UsageOverview", () => {
       />,
     );
 
-    const allButton = screen.getByRole("button", { name: /All tools:/i });
-    const codexButton = screen.getByRole("button", { name: /CODEX:/i });
+    const allButton = screen.getByRole("button", { name: /全部工具：/ });
+    const codexButton = screen.getByRole("button", { name: /CODEX：/i });
 
     // Collapsed by default — drill-down is an explicit user action.
     expect(allButton).toHaveAttribute("aria-expanded", "false");
@@ -190,7 +190,7 @@ describe("UsageOverview", () => {
       />,
     );
     // A scope change collapses back to the card grid.
-    expect(screen.getByRole("button", { name: /All tools:/i })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: /全部工具：/ })).toHaveAttribute("aria-expanded", "false");
     expect(container.querySelectorAll("[data-model-rank-row]")).toHaveLength(0);
   });
 
@@ -353,7 +353,7 @@ describe("UsageOverview", () => {
       />,
     );
 
-    const toggle = screen.getByRole("button", { name: /toggle compact number format/i });
+    const toggle = screen.getByRole("button", { name: /切换紧凑数字格式/ });
     expect(toggle).toHaveAttribute("title", "1,234,567,890");
     // The compact value renders intact (incl. its unit-letter suffix), not
     // truncated.
@@ -381,7 +381,7 @@ describe("UsageOverview", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: /toggle compact number format/i }),
+      screen.queryByRole("button", { name: /切换紧凑数字格式/ }),
     ).toBeNull();
     expect(screen.getByTitle("1,234,567,890")).toHaveTextContent("1.23B");
   });

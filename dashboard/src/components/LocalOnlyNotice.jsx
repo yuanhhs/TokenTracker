@@ -4,7 +4,7 @@ import { copy } from "../lib/copy";
 import { WIN_SETUP_URL } from "../lib/config";
 
 /**
- * Empty state for local-first pages (Limits, Skills) when viewed on the
+ * Empty state for local-first pages (Limits, Sessions) when viewed on the
  * deployed web app, where there is no local Windows runtime to read data.
  */
 export function LocalOnlyNotice() {

@@ -5,7 +5,7 @@ const DEFAULT_DURATION_MS = 1800;
 const LIVE_COMMIT_MS = 250;
 
 function defaultFormat(value) {
-  return Math.round(value).toLocaleString("en-US");
+  return Math.round(value).toLocaleString("zh-CN");
 }
 
 /**

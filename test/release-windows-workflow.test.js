@@ -56,10 +56,9 @@ test("installer is per-user and bundles the publish directory", () => {
   assert.match(source, /MyAppVersion/);
 });
 
-test("bundled Chinese installer language files exist with UTF-8 BOM", () => {
-  const installerDir = path.dirname(ISS_PATH);
-  for (const name of ["ChineseSimplified.isl", "ChineseTraditional.isl"]) {
-    const buffer = fs.readFileSync(path.join(installerDir, name));
-    assert.deepEqual([...buffer.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
-  }
+test("installer bundles Simplified Chinese messages with UTF-8 BOM", () => {
+  const buffer = fs.readFileSync(path.join(path.dirname(ISS_PATH), "ChineseSimplified.isl"));
+  assert.deepEqual([...buffer.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  const languages = installer().split("[Languages]")[1].split("[Tasks]")[0];
+  assert.deepEqual([...languages.matchAll(/Name: "([^"]+)"/g)].map((match) => match[1]), ["chinesesimplified"]);
 });

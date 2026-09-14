@@ -1,10 +1,10 @@
 export function toDisplayNumber(value: any) {
   if (value == null) return "-";
   try {
-    if (typeof value === "bigint") return new Intl.NumberFormat().format(value);
-    if (typeof value === "number") return new Intl.NumberFormat().format(value);
+    if (typeof value === "bigint") return new Intl.NumberFormat("zh-CN").format(value);
+    if (typeof value === "number") return new Intl.NumberFormat("zh-CN").format(value);
     const s = String(value).trim();
-    if (/^[0-9]+$/.test(s)) return new Intl.NumberFormat().format(BigInt(s));
+    if (/^[0-9]+$/.test(s)) return new Intl.NumberFormat("zh-CN").format(BigInt(s));
     return s;
   } catch (_e) {
     return String(value);
@@ -119,7 +119,7 @@ export function formatUsdCurrency(value: any, options: FormatUsdCurrencyOptions 
   const fracPart = match[2] || "";
   let formattedInt = intPart;
   try {
-    formattedInt = new Intl.NumberFormat().format(BigInt(intPart));
+    formattedInt = new Intl.NumberFormat("zh-CN").format(BigInt(intPart));
   } catch (_e) {
     formattedInt = intPart;
   }

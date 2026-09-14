@@ -67,7 +67,7 @@ function formatCreditAmount(
 ) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getCopyLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits:
       maximumFractionDigits ?? (n >= 100 ? 0 : 2),

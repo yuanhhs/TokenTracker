@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace TokenTrackerWin;
 
 internal static class Program
@@ -8,6 +10,9 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.GetCultureInfo("zh-CN");
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("zh-CN");
+
         var launchedAtStartup = args.Any(a =>
             string.Equals(a, LaunchAtStartup.StartupArgument, StringComparison.OrdinalIgnoreCase));
         Diag.Log("program", $"Main argc={args.Length} startup={launchedAtStartup}");

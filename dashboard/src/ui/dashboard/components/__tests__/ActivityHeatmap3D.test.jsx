@@ -27,7 +27,7 @@ const sampleWeeks = [
 describe("ActivityHeatmap3D", () => {
   test("empty weeks renders empty-state copy", () => {
     const { container } = render(<ActivityHeatmap3D weeks={[]} />);
-    expect(container.textContent).toMatch(/no activity|empty|tokens/i);
+    expect(container.textContent).toMatch(/尚无活动数据/);
   });
 
   test("non-empty weeks emit 3 paths per cell (top, right, left)", () => {

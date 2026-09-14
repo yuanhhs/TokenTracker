@@ -206,7 +206,7 @@ export function formatIssueLabel(data: ShareCardData): string {
 
 export function formatTokens(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return Math.round(n).toLocaleString("en-US");
+  return Math.round(n).toLocaleString("zh-CN");
 }
 
 export function formatCost(
@@ -218,7 +218,7 @@ export function formatCost(
   if (!Number.isFinite(n) || n <= 0) return `${symbol}0.00`;
   const converted =
     currency !== "USD" && Number.isFinite(rate) && rate > 0 ? n * rate : n;
-  if (converted >= 1000) return `${symbol}${Math.round(converted).toLocaleString("en-US")}`;
+  if (converted >= 1000) return `${symbol}${Math.round(converted).toLocaleString("zh-CN")}`;
   return `${symbol}${converted.toFixed(2)}`;
 }
 

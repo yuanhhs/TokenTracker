@@ -279,7 +279,7 @@ export function TrendMonitorZoomModal({
             ) : null}
             <StatCell
               label={copy("trend.zoom.stats.conversations")}
-              value={stats.conversationCount.toLocaleString()}
+              value={stats.conversationCount.toLocaleString("zh-CN")}
             />
             {stats.peak ? (
               <StatCell

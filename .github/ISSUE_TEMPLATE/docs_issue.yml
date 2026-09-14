@@ -8,7 +8,7 @@ body:
     attributes:
       label: Where is the issue?
       options:
-        - README (English)
+        - README（简体中文）
         - README translations (zh / ja / ko)
         - CONTRIBUTING.md
         - SECURITY.md

@@ -14,19 +14,19 @@ const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), "u
 // has to agree on.
 test("public discovery surfaces describe all 29 supported tools", () => {
   const readme = read("README.md");
-  assert.match(readme, /29 supported AI coding tools/, "README.md has the current provider count");
+  assert.match(readme, /29 种 AI 编程工具/, "README.md has the current provider count");
 
   const index = read("dashboard/index.html");
   assert.doesNotMatch(index, /13 AI coding/);
-  assert.match(index, /Supported AI coding tools \(29\)/);
+  assert.match(index, /支持的 AI 编程工具（29）/);
   assert.match(index, /TRAE Work CN/);
-  assert.match(index, /Service Status page/);
-  assert.match(index, /usage limits for 10 providers/i);
+  assert.doesNotMatch(index, /Service Status page|service-status/);
+  assert.match(index, /10 个 Provider 的使用额度/);
   assert.doesNotMatch(index, /desktop pet|desktop widget/i);
   assert.doesNotMatch(index, /achievement/i, "removed achievements must not be advertised");
 
   const llms = read("dashboard/public/llms.txt");
-  assert.match(llms, /Supported AI coding tools \(29\)/);
+  assert.match(llms, /支持的 AI 编程工具（29）/);
   assert.match(llms, /TRAE Work CN/);
   assert.doesNotMatch(llms, /desktop pet|desktop widget/i);
   assert.doesNotMatch(llms, /achievement/i, "removed achievements must not be advertised");
@@ -62,7 +62,7 @@ test("CLI onboarding advertises the same 29 supported integrations", () => {
 
 test("npm metadata carries the current product hook", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.match(pkg.description, /local-first/i);
+  assert.match(pkg.description, /本地优先/);
   assert.match(pkg.description, /Windows/);
   assert.ok(pkg.keywords.includes("ai-coding-tools"));
   assert.ok(pkg.keywords.includes("windows"));
@@ -88,12 +88,12 @@ test("dashboard JSON-LD scripts parse as valid JSON", () => {
   const faq = graph.find((node) => node["@type"] === "FAQPage");
   assert.ok(faq, "JSON-LD includes an FAQPage");
   const supportedClis = (faq.mainEntity || []).find((entity) =>
-    entity.name === "Which AI coding CLIs does Token Tracker support?",
+    entity.name === "Token Tracker 支持哪些 AI 编程工具？",
   );
   assert.ok(supportedClis, "FAQ includes the supported-CLIs question");
   assert.equal(supportedClis["@type"], "Question");
 
-  const tools = graph.find((node) => node["@type"] === "ItemList" && node.name === "Supported AI coding agent CLIs");
+  const tools = graph.find((node) => node["@type"] === "ItemList" && node.name === "支持的 AI 编程工具");
   assert.ok(tools, "JSON-LD includes the coding-tools ItemList");
   assert.ok(Array.isArray(tools.itemListElement), "coding-tools ItemList is an array");
 });

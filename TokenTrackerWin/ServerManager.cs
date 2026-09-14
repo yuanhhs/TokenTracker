@@ -66,8 +66,8 @@ internal sealed class ServerManager : IDisposable
         var runtime = FindEmbeddedServer() ?? FindDevServer() ?? FindRepoDevServer();
         if (runtime is null)
         {
-            Fail("No embedded server bundle found and no Node CLI available. "
-                 + "Run scripts\\bundle-node.ps1, or set TOKENTRACKER_NODE / TOKENTRACKER_ENTRY for dev.");
+            Fail("未找到内嵌的本地服务，也未找到 Node CLI。"
+                 + "请运行 scripts\\bundle-node.ps1，或在开发时设置 TOKENTRACKER_NODE / TOKENTRACKER_ENTRY。");
             return;
         }
         Log($"runtime node={runtime.Value.NodePath} entry={runtime.Value.EntryPath}");
@@ -83,7 +83,7 @@ internal sealed class ServerManager : IDisposable
         }
         else
         {
-            Fail($"Server did not respond on {BaseUrl} within {Constants.StartupTimeoutSeconds}s.");
+            Fail($"本地服务在 {Constants.StartupTimeoutSeconds} 秒内未响应：{BaseUrl}。");
         }
     }
 
@@ -277,14 +277,14 @@ internal sealed class ServerManager : IDisposable
                 _serverProcess.Exited += (_, _) =>
                 {
                     if (Status == ServerStatus.Running)
-                        Fail("Server process exited unexpectedly.");
+                        Fail("本地服务进程意外退出。");
                 };
             }
         }
         catch (Exception ex)
         {
             Log($"LaunchServer failed: {ex}");
-            Fail($"Failed to launch server: {ex.Message}");
+            Fail($"本地服务启动失败：{ex.Message}");
         }
     }
 

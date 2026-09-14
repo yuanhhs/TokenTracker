@@ -7,7 +7,7 @@ Token Tracker is a Windows-only, local-first AI token usage tracker.
 - `src/`: CommonJS Node.js local parser and loopback API.
 - `dashboard/`: React 18 + Vite dashboard embedded in the Windows app.
 - `TokenTrackerWin/`: .NET 8 WinForms/WPF/WebView2 system-tray application.
-- `TokenTrackerWin.Tests/`: Windows updater and native behavior tests.
+- `TokenTrackerWin.Tests/`: Windows native behavior tests.
 
 The Windows application bundles `bin/`, `src/`, production Node dependencies, and `dashboard/dist/` through `TokenTrackerWin/scripts/bundle-node.ps1`.
 
@@ -52,7 +52,9 @@ Cost is computed from the individual categories, never from `total_tokens` alone
 - Keep all product data local and never collect prompts, messages, or response bodies.
 - Preserve existing provider credential readers and parsers unless the task targets them.
 - Prefer existing helpers and patterns over new abstractions.
-- Add user-facing dashboard text through `dashboard/src/content/copy.csv`.
+- The dashboard, Windows app, and installer use Simplified Chinese only.
+- Add user-facing dashboard text through the sole copy registry, `dashboard/src/content/copy.csv`.
+- Remote update checks, external service-status probes, Dynamic Island, desktop widgets, and Skills/MCP management are not part of this fork.
 - Windows native adaptations are gated by `isNativeWindowsApp()` in `dashboard/src/lib/native-bridge.js`.
 - `TokenTrackerWin/EmbeddedServer/` is generated and gitignored.
 

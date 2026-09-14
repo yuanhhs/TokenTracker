@@ -1,8 +1,8 @@
 import { createElement } from "react";
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { copy, setCopyLocale } from "../../../lib/copy";
-import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
+import { copy } from "../../../lib/copy";
+import { ZH_CN_LOCALE } from "../../../lib/locale";
 import { UsageLimitsPanel } from "./UsageLimitsPanel.jsx";
 import { buildResetBankRows } from "./usage-limits-reset-bank.js";
 
@@ -34,7 +34,7 @@ function renderCodex(resetCredits) {
   return within(group);
 }
 
-function formatExpiry(iso, locale = EN_LOCALE) {
+function formatExpiry(iso, locale = ZH_CN_LOCALE) {
   return new Intl.DateTimeFormat(locale, {
     month: "numeric",
     day: "numeric",
@@ -62,10 +62,6 @@ afterEach(() => {
 });
 
 describe("buildResetBankRows", () => {
-  afterEach(() => {
-    setCopyLocale(EN_LOCALE);
-  });
-
   it("returns one Reset row per credit with minute-precision expiry labels without years", () => {
     const firstExpiry = "2030-01-11T10:45:00.000Z";
     const secondExpiry = "2030-01-12T08:30:00.000Z";
@@ -153,10 +149,6 @@ describe("buildResetBankRows", () => {
 });
 
 describe("UsageLimitsPanel Codex Reset Bank", () => {
-  afterEach(() => {
-    setCopyLocale(EN_LOCALE);
-  });
-
   it("renders Reset rows inside the Codex group with minute precision and no years", () => {
     const firstExpiry = "2030-01-11T10:45:00.000Z";
     const secondExpiry = "2030-01-12T08:30:00.000Z";
@@ -187,7 +179,6 @@ describe("UsageLimitsPanel Codex Reset Bank", () => {
       credits: [credit("2030-01-01T10:45:00.000Z", "2030-01-11T10:45:00.000Z")],
     };
 
-    setCopyLocale(ZH_CN_LOCALE);
     render(usageLimitsPanelElement(resetCredits));
     const codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
     expect(codexGroup.getByText(copy("limits.codex_reset_bank.title"))).toBeInTheDocument();
@@ -205,7 +196,6 @@ describe("UsageLimitsPanel Codex Reset Bank", () => {
       credits: [credit("2030-01-01T10:45:00.000Z", "not-a-date")],
     };
 
-    setCopyLocale(ZH_CN_LOCALE);
     render(usageLimitsPanelElement(resetCredits));
     const codexGroup = within(screen.getByText("Codex").closest("[role='button']"));
     expect(codexGroup.getByText(copy("limits.codex_reset_bank.count_only", { count: 2 }))).toBeInTheDocument();

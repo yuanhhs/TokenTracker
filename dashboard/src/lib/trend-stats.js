@@ -84,7 +84,7 @@ function pad2(n) {
 }
 
 function resolveDateLocale(locale) {
-  return typeof locale === "string" && locale.trim() ? locale : "en-US";
+  return typeof locale === "string" && locale.trim() ? locale : "zh-CN";
 }
 
 function parseDayKey(value) {

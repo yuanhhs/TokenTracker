@@ -29,7 +29,6 @@ const {
 } = require("./cursor-config");
 const { fetchGrokLimits } = require("./grok-limits");
 const { fetchZcodeLimits } = require("./zcode-limits");
-const { fetchProviderServiceStatus } = require("./provider-status");
 const { readSqliteJsonRows, readSqliteJsonRowsAsync } = require("./sqlite-reader");
 const {
   runCommand,
@@ -3236,7 +3235,7 @@ async function fetchUsageLimitsUncached({
     : null;
 
   const providerFetch = withFetchTimeout(fetchImpl, providerTimeoutMs);
-  const [claudeResult, codexResult, cursor, kimi, gemini, kiro, antigravity, copilot, grok, zcode, claudeServiceStatus] = await Promise.all([
+  const [claudeResult, codexResult, cursor, kimi, gemini, kiro, antigravity, copilot, grok, zcode] = await Promise.all([
     claudeToken && !freshClaudeCache && !claudeRetryAtMs
       ? withProviderTimeout(fetchClaudeUsageLimits(claudeToken, { fetchImpl: providerFetch, maxAttempts: 1 }), "Claude", providerTimeoutMs).then(
           (value) => ({ status: "fulfilled", value }),
@@ -3267,12 +3266,6 @@ async function fetchUsageLimitsUncached({
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
     withProviderTimeout(fetchZcodeLimits({ home, env, fetchImpl: providerFetch }), "ZCode", providerTimeoutMs)
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
-    // Public status-page probe (fail-soft, own 5-min cache in provider-status.js).
-    // Only probed for configured accounts — without a token the Claude section
-    // never renders, so the reading would have nowhere to go.
-    claudeToken
-      ? fetchProviderServiceStatus("claude", { fetchImpl, nowMs })
-      : Promise.resolve(null),
   ]);
 
   let claude;
@@ -3347,15 +3340,6 @@ async function fetchUsageLimitsUncached({
     if (claudeCooldownMs) {
       claude.retry_at = new Date(claudeCooldownMs).toISOString();
     }
-  }
-
-  // Attach the service-status reading AFTER assembly so it rides on every path
-  // (live, fresh-cache, stale-cache, error) but never gets persisted by
-  // writeClaudeLimitsCache above — a disk cache must not resurrect an incident
-  // banner hours later. Only active incidents ship; "none" is omitted so the
-  // client renders nothing in the happy path.
-  if (claude.configured && claudeServiceStatus && claudeServiceStatus.indicator !== "none") {
-    claude.service_status = claudeServiceStatus;
   }
 
   const codexRefreshRequiresReauth = refreshError?.code === "REFRESH_TOKEN_EXPIRED";

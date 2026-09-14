@@ -1,35 +1,7 @@
 import copyRegistry from "virtual:tokentracker-copy-registry";
-import zhCore from "../content/i18n/zh/core.json";
-import zhDashboard from "../content/i18n/zh/dashboard.json";
-import zhMarketing from "../content/i18n/zh/marketing.json";
-import {
-  getInitialLocalePreference,
-  normalizeResolvedLocale,
-  resolvePreferredLocale,
-  ZH_CN_LOCALE,
-} from "./locale";
-
-const LOCALE_REGISTRIES: Record<string, TranslationRegistry> = {
-  [ZH_CN_LOCALE]: {
-    ...zhCore,
-    ...zhDashboard,
-    ...zhMarketing,
-  },
-};
+import { ZH_CN_LOCALE } from "./locale";
 
 type AnyRecord = Record<string, any>;
-type TranslationRegistry = Record<string, string>;
-
-let currentLocale = resolvePreferredLocale(getInitialLocalePreference());
-
-function getLocaleRegistry() {
-  return (LOCALE_REGISTRIES[currentLocale] || {}) as TranslationRegistry;
-}
-
-function getTranslatedText(key: any) {
-  const value = getLocaleRegistry()[String(key)];
-  return typeof value === "string" && value.trim() ? value : null;
-}
 
 function interpolate(text: any, params?: AnyRecord) {
   if (!params) return text;
@@ -43,15 +15,8 @@ function normalizeText(text: any) {
   return String(text).replace(/\\n/g, "\n");
 }
 
-export function setCopyLocale(locale: any) {
-  currentLocale = normalizeResolvedLocale(locale);
-}
-
-// The resolved locale that copy() is currently translating into. Mirrors the
-// same module-level state copy() reads, so components can localize non-string
-// output (e.g. date-fns formatting) without depending on LocaleProvider context.
 export function getCopyLocale() {
-  return currentLocale;
+  return ZH_CN_LOCALE;
 }
 
 export function copy(key: any, params?: AnyRecord) {
@@ -62,6 +27,6 @@ export function copy(key: any, params?: AnyRecord) {
   if (typeof baseText !== "string" && import.meta?.env?.DEV) {
     console.warn(`Missing copy key: ${normalizedKey}`);
   }
-  const text = getTranslatedText(normalizedKey) || baseText || normalizedKey;
+  const text = baseText || normalizedKey;
   return interpolate(normalizeText(text), params);
 }

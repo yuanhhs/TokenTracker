@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-02T06:28:10.773Z",
+  "generatedAt": "2026-09-14T10:00:13.350Z",
   "root": "dashboard/src",
   "rules": {
     "colors": "hex/rgb(a) literals",
     "rawText": "JSX text nodes containing letters or digits"
   },
   "totals": {
-    "colors": 270,
-    "rawText": 124
+    "colors": 234,
+    "rawText": 99
   },
   "files": {
     "dashboard/src/components/settings/MenuBarSection.jsx": {
@@ -34,13 +34,6 @@
       "rawText": 0,
       "rawTextTokens": []
     },
-    "dashboard/src/island.jsx": {
-      "colors": 0,
-      "rawText": 1,
-      "rawTextTokens": [
-        "; return ("
-      ]
-    },
     "dashboard/src/pages/DashboardPage.jsx": {
       "colors": 1,
       "rawText": 0,
@@ -50,7 +43,7 @@
       "colors": 12,
       "rawText": 17,
       "rawTextTokens": [
-        "', ipAddrCN: ipHeroSkeleton(), ipGeoCN: ipGeoSkeleton(), ipAddr: ipHeroSkeleton(), ipGeo: ipGeoSkeleton(), ipAddrClaude: ipHeroSkeleton(), ipGeoClaude: ipGeoSkeleton(), propsContent: loadingRows([t.propsRegion, t.propsCity, t.propsType, t.propsAsn, t.propsOrg]), securityContent: loadingRows([t.secVpn, t.secProxy, t.secTor, t.secCrawler, t.secAbuser]), claudeAvailContent: row(\"claude.ai\", undefined, true) + row(\"anthropic.com\", undefined, true), dnsLeakContent: row(t.dnsStatus, undefined, true) + row(t.dnsOutletIp, undefined, true), udpLeakContent: row(t.udpStatus, undefined, true) + row(t.udpOutletIp, undefined, true), deviceContent: loadingRows([t.devTz, t.devLang, t.devOs, t.devTouch, t.devNet, t.devDnt, t.devWebglRender, t.devCanvasFp]), ipHistoryContent: `",
+        "', ipAddrCN: ipHeroSkeleton(), ipGeoCN: ipGeoSkeleton(), ipAddr: ipHeroSkeleton(), ipGeo: ipGeoSkeleton(), ipAddrClaude: ipHeroSkeleton(), ipGeoClaude: ipGeoSkeleton(), propsContent: loadingRows([t.propsRegion, t.propsCity, t.propsType, t.propsAsn, t.propsOrg]), securityContent: loadingRows([t.secVpn, t.secProxy, t.secTor, t.secCrawler, t.secAbuser]), dnsLeakContent: row(t.dnsStatus, undefined, true) + row(t.dnsOutletIp, undefined, true), udpLeakContent: row(t.udpStatus, undefined, true) + row(t.udpOutletIp, undefined, true), deviceContent: loadingRows([t.devTz, t.devLang, t.devOs, t.devTouch, t.devNet, t.devDnt, t.devWebglRender, t.devCanvasFp]), ipHistoryContent: `",
         "// via its user-agent stylesheet (Blink does not). Chrome looks fine, the // app does not.",
         "25",
         "50",
@@ -74,34 +67,6 @@
       "rawTextTokens": [
         ") : filtered.length === 0 ? (",
         ") : isLoading ? ("
-      ]
-    },
-    "dashboard/src/pages/SkillDetailPanel.jsx": {
-      "colors": 2,
-      "rawText": 1,
-      "rawTextTokens": [
-        ") : skill.directory && skill.directory !== title ? ("
-      ]
-    },
-    "dashboard/src/pages/SkillsPage.jsx": {
-      "colors": 4,
-      "rawText": 9,
-      "rawTextTokens": [
-        ") : null; const hintNode = !manageOpen && !isSkillsSh && !isPopular && repos.length",
-        ") : null; contentNode = (",
-        ") : source === SOURCE_POPULAR ? null : (",
-        "); const browseLoadingNode = (",
-        "0 ? (",
-        "0 || browseAnyFilter) ? (",
-        "t.id === id)?.label || id) .join(\", \") : copy(\"skills.action.choose_targets\"); return ("
-      ]
-    },
-    "dashboard/src/pages/WidgetsPage.jsx": {
-      "colors": 10,
-      "rawText": 2,
-      "rawTextTokens": [
-        "10.3B",
-        "normalizeDesktopWidgetItems(settings?.desktopWidgets), [settings?.desktopWidgets], ); const ready = available && settings?.desktopWidgetsSupported === true; const alwaysOnTop = settings?.desktopWidgetsAlwaysOnTop !== false; return ("
       ]
     },
     "dashboard/src/pages/WrappedPage.jsx": {
@@ -259,7 +224,7 @@
       "colors": 0,
       "rawText": 2,
       "rawTextTokens": [
-        ", ); expect(screen.getByText(\"Codex\")).toBeInTheDocument(); const row = screen.getByText(\"Credits\").closest(\"div\"); expect(within(row).getByText(\"",
+        ", ); expect(screen.getByText(\"Codex\")).toBeInTheDocument(); const row = screen.getByText(\"额度\").closest(\"div\"); expect(within(row).getByText(\"",
         ", ); expect(screen.getByText(\"Cursor\")).toBeInTheDocument(); rerender("
       ]
     },
@@ -393,22 +358,6 @@
         "0; return (",
         "The Token Tracker",
         "→ tokentracker.cc"
-      ]
-    },
-    "dashboard/src/widget.jsx": {
-      "colors": 20,
-      "rawText": 12,
-      "rawTextTokens": [
-        "0 ?",
-        "0 ? \"detail positive\" : delta",
-        "; case \"limits\": return",
-        "; case \"topModels\": return",
-        "; default: return",
-        "; else content =",
-        "; else if (error && !data) content =",
-        "; else if (loading && !data) content =",
-        "; return (",
-        "sum + displayTokens(cell), 0); return ("
       ]
     }
   }

@@ -27,10 +27,10 @@ import { Select } from "../../components/Select.jsx";
 import { useTheme } from "../../../hooks/useTheme.js";
 import { useCurrency } from "../../../hooks/useCurrency.js";
 import { useTokenFormat } from "../../../hooks/useTokenFormat.js";
-import { copy, getCopyLocale } from "../../../lib/copy";
+import { copy } from "../../../lib/copy";
 import { CURRENCY_USD, getCurrencySymbol } from "../../../lib/currency";
 import { formatProviderDisplayName } from "../../../lib/provider-display";
-import { DateRangePopover, formatDateShort, getDateFnsLocale } from "./DateRangePopover.jsx";
+import { DateRangePopover, formatDateShort } from "./DateRangePopover.jsx";
 import { ProviderIcon } from "./ProviderIcon.jsx";
 import { formatUsdCurrency } from "../../../lib/format";
 import { buildAllModels } from "../../../lib/model-breakdown";
@@ -226,7 +226,6 @@ export function UsageOverview({
   onDeviceChange,
 }) {
   const tabs = normalizePeriods(periods);
-  const dateLocale = getDateFnsLocale(getCopyLocale());
   const summaryCounterValue = parseAnimatedCounterValue(String(summaryValue ?? ""));
   // The digit-by-digit Counter renders at a fixed 72px and would clip on
   // phones. Below sm we drop it and render the plain value, which scales
@@ -346,7 +345,7 @@ export function UsageOverview({
 
               if (p.key === "custom") {
                 const customLabel = isActive && customFrom && customTo
-                  ? `${formatDateShort(customFrom, dateLocale)} — ${formatDateShort(customTo, dateLocale)}`
+                  ? `${formatDateShort(customFrom)} — ${formatDateShort(customTo)}`
                   : p.label;
 
                 return (

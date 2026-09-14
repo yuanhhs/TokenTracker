@@ -687,7 +687,7 @@ export function TrendMonitor({
                     {Number(hoveredBar.row?.conversation_count) > 0 && (
                       <span>
                         <span className="font-semibold text-oai-gray-700 dark:text-oai-gray-200">
-                          {Number(hoveredBar.row.conversation_count).toLocaleString()}
+                          {Number(hoveredBar.row.conversation_count).toLocaleString(locale)}
                         </span>{" "}
                         {copy("trend.zoom.tooltip.conversations")}
                       </span>

@@ -6,38 +6,29 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const COPY_PATH = path.join(ROOT, "dashboard", "src", "content", "copy.csv");
-const I18N_ROOT = path.join(ROOT, "dashboard", "src", "content", "i18n");
-const LOCALES = ["zh"];
-const LOCALE_FILES = ["core.json", "dashboard.json", "marketing.json"];
 const REQUIRED_COLUMNS = ["key", "module", "page", "component", "slot", "text"];
 
 // These values are deliberately language-neutral: commands, URLs, product
 // and model names, protocol abbreviations, or formatting-only labels. Keep
 // this key-based so a newly added English sentence cannot silently pass.
-const SOURCE_IDENTICAL_KEY_ALLOWLIST = [
+const LANGUAGE_NEUTRAL_KEY_ALLOWLIST = [
   /^landing[.]install[.]command$/,
-  /^(landing|share)[.]meta[.]/,
+  /^(landing|share)[.]meta[.](?:og_site_name|og_type|og_image|og_url|twitter_card|twitter_image)$/,
   /^landing[.]cta[.]secondary$/,
   /^landing[.]v2[.]hero[.]title_line2$/,
   /^landing[.]v2[.]install[.]os_/,
   /^landing[.]v2[.]nav[.]github$/,
   /^heatmap[.]legend[.]utc$/,
-  /^leaderboard[.]range(?:_loading)?$/,
-  /^leaderboard[.]column[.]/,
-  /^leaderboard[.]community[.]modal[.]global_spend_detail$/,
-  /^leaderboard[.]community[.]modal[.]platform[.]/,
+  /^heatmap[.](?:unit|tooltip)[.]tokens$/,
+  /^wrapped[.]tokens$/,
+  /^settings[.]footer[.]version$/,
   /^dashboard[.]install[.]cmd[.]/,
-  /^settings[.]menubar[.]iconStyle[.](?:clawd|bot)$/,
-  /^settings[.]menubar[.]updates[.]footerCore$/,
   /^limits[.]provider[.]/,
   /^provider[.]display[.](?:omp|deepseek_harness)$/,
   /^limits[.]label[.](?:cursor_api|zcode_glm52|zcode_glm5t|claude_opus|codex_spark_[57][hd]|gemini_(?:pro|flash|lite)|antigravity_)/,
-  /^skills[.]mode[.]skillssh$/,
-  /^skills[.]repo[.]placeholder$/,
   /^ipcheck[.]props[.]asn$/,
   /^ipcheck[.]security[.](?:vpn|tor)$/,
   /^shared[.]app_name$/,
-  /^pet[.]character[.](?:clawd|bot|sprout|byte|ember)$/,
 ];
 
 // Developer-facing product terms stay in English in Chinese UI copy. Scope
@@ -47,21 +38,17 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
   {
     term: "Skill",
     translatedTerm: /技能/u,
-    sourceIdentical: /^Skills?$/i,
+    languageNeutralText: /^Skills?$/i,
     keyPatterns: [
-      /^nav[.]skills$/,
-      /^skills[.]/,
       /^sessions[.]card[.]context_tooltip$/,
       /^dashboard[.]context_breakdown[.](?:system_prefix_tooltip|category[.]skills)$/,
-      /^cmdk[.](?:placeholder|group[.]skills)$/,
     ],
   },
   {
     term: "Agent",
     translatedTerm: /智能体|智慧代理/u,
-    sourceIdentical: /^(?:Agent|Agents|Sub-agent)$/i,
+    languageNeutralText: /^(?:Agent|Agents|Sub-agent)$/i,
     keyPatterns: [
-      /^skills[.]/,
       /^sessions[.]card[.]subagents$/,
       /^dashboard[.]context_breakdown[.]category[.]custom_agents$/,
       /^landing[.]v3[.](?:tools[.]count|how[.]step1[.]title|how[.]step4[.]body|cap[.]title)$/,
@@ -70,7 +57,7 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
   {
     term: "Provider",
     translatedTerm: /服务商|服務商/u,
-    sourceIdentical: /^Providers?$/i,
+    languageNeutralText: /^Providers?$/i,
     keyPatterns: [
       /(?:^|[.])providers?(?:[.]|$)/,
       /^dashboard[.]device_card[.]account_scope_tip$/,
@@ -80,7 +67,7 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
   {
     term: "Star",
     translatedTerm: /加星|星标|星標/u,
-    sourceIdentical: /^Star$/i,
+    languageNeutralText: /^Star$/i,
     keyPatterns: [
       /^shared[.]github[.]star$/,
     ],
@@ -88,7 +75,7 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
   {
     term: "Prompt",
     translatedTerm: /提示词|提示詞/u,
-    sourceIdentical: /^Prompt$/i,
+    languageNeutralText: /^Prompt$/i,
     keyPatterns: [
       /(?:^|[._])prompt(?:[._]|$)/,
       /^sessions[.]card[.]privacy$/,
@@ -101,30 +88,22 @@ const PRODUCT_TERMINOLOGY_GLOSSARY = [
   {
     term: "Hook",
     translatedTerm: /钩子|鉤子/u,
-    sourceIdentical: /^Hook$/i,
+    languageNeutralText: /^Hook$/i,
     keyPatterns: [/^landing[.]v3[.]how[.]step2[.]title$/],
-  },
-  {
-    term: "Core",
-    translatedTerm: /核心/u,
-    sourceIdentical: /^Core$/i,
-    keyPatterns: [/^settings[.]menubar[.]updates[.]footer(?:Core|Combined)$/],
   },
   {
     term: "App",
     translatedTerm: /应用(?:程序)?|應用(?:程式)?/u,
-    sourceIdentical: /^(?:App|Mac app)$/i,
+    languageNeutralText: /^(?:App|Mac app)$/i,
     keyPatterns: [
       /^local_only[.]/,
-      /^pet[.](?:codex[.]subtitle|controls[.]native_only)$/,
-      /^settings[.]section[.]menubar$/,
-      /^widgets[.]cta[.]download$/,
+          /^settings[.]section[.]menubar$/,
     ],
   },
 ];
 
 // Dashboard is ordinary interface vocabulary in this product and should be
-// localized as “仪表板” / “儀表板” rather than preserved in English.
+// localized as “仪表板” rather than preserved in English.
 const UNLOCALIZED_UI_TERM_REGEX = /\bdashboard\b/i;
 
 function parseCsv(raw) {
@@ -194,67 +173,12 @@ function readCopyRegistry(copyPath = COPY_PATH) {
   return records;
 }
 
-function readLocale(locale) {
-  const values = new Map();
-  const duplicateKeys = [];
-
-  for (const filename of LOCALE_FILES) {
-    const relativePath = path.join(locale, filename);
-    const filePath = path.join(I18N_ROOT, relativePath);
-    const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = JSON.parse(raw);
-    const fileKeys = new Set();
-    for (const line of raw.split(/\r?\n/)) {
-      const match = /^\s*"((?:\\.|[^"\\])+)"\s*:/.exec(line);
-      if (!match) continue;
-      const key = JSON.parse(`"${match[1]}"`);
-      if (fileKeys.has(key)) duplicateKeys.push(`${key} (${relativePath}, repeated)`);
-      fileKeys.add(key);
-    }
-    for (const [key, value] of Object.entries(parsed)) {
-      if (values.has(key)) {
-        duplicateKeys.push(`${key} (${values.get(key).file}, ${relativePath})`);
-      }
-      values.set(key, { value, file: relativePath });
-    }
-  }
-
-  return { values, duplicateKeys };
-}
-
-function groupByPage(records) {
-  const groups = new Map();
-  for (const record of records) {
-    const group = `${record.module}/${record.page}`;
-    const values = groups.get(group) || [];
-    values.push(record.key);
-    groups.set(group, values);
-  }
-  return groups;
-}
-
-function printGrouped(label, records) {
-  if (!records.length) return;
-  console.error(`${label} (${records.length}):`);
-  for (const [group, keys] of groupByPage(records)) {
-    console.error(`- ${group}: ${keys.join(", ")}`);
-  }
-}
-
-function placeholders(value) {
-  return [...String(value).matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
-}
-
-function samePlaceholders(left, right) {
-  return JSON.stringify(placeholders(left)) === JSON.stringify(placeholders(right));
-}
-
-function isAllowedSourceIdentical(record) {
-  if (SOURCE_IDENTICAL_KEY_ALLOWLIST.some((pattern) => pattern.test(record.key))) return true;
-  const sourceText = record.text.trim();
+function isLanguageNeutral(record) {
+  if (LANGUAGE_NEUTRAL_KEY_ALLOWLIST.some((pattern) => pattern.test(record.key))) return true;
+  const text = record.text.trim();
   return PRODUCT_TERMINOLOGY_GLOSSARY.some((entry) => (
     entry.keyPatterns.some((pattern) => pattern.test(record.key)) &&
-    entry.sourceIdentical.test(sourceText)
+    entry.languageNeutralText.test(text)
   ));
 }
 
@@ -272,107 +196,36 @@ function findTerminologyViolations(record, localized) {
   )).map((entry) => entry.term);
 }
 
+function validateChineseCopy(records) {
+  const issues = [];
+  const seen = new Set();
+  for (const record of records) {
+    const { key, text } = record;
+    if (seen.has(key)) issues.push({ key, problem: "duplicate key" });
+    seen.add(key);
+    if (!text.trim()) issues.push({ key, problem: "empty text" });
+    const visible = text.replace(/\{\{\w+\}\}/g, "");
+    if (/[{}]/.test(visible)) issues.push({ key, problem: "malformed placeholder" });
+    if (/[A-Za-z]{2,}/.test(visible) && !/\p{Script=Han}/u.test(visible) && !isLanguageNeutral(record)) {
+      issues.push({ key, problem: "untranslated UI text" });
+    }
+    if (hasUnlocalizedUiTerm(record, text)) issues.push({ key, problem: "untranslated UI term" });
+    for (const term of findTerminologyViolations(record, text)) {
+      issues.push({ key, problem: "preserve product term: " + term });
+    }
+  }
+  return issues;
+}
+
 function main() {
-  const showDetails = process.argv.includes("--details");
-  const localeArg = process.argv.find((argument) => argument.startsWith("--locale="));
-  const locales = localeArg ? [localeArg.slice("--locale=".length)] : LOCALES;
-  const unknownLocales = locales.filter((locale) => !LOCALES.includes(locale));
-  if (unknownLocales.length) {
-    throw new Error(`Unsupported locale: ${unknownLocales.join(", ")}`);
-  }
   const registry = readCopyRegistry();
-  const registryByKey = new Map(registry.map((record) => [record.key, record]));
-  let failed = false;
-
-  for (const locale of locales) {
-    const { values, duplicateKeys } = readLocale(locale);
-    const missing = registry.filter((record) => {
-      const localized = values.get(record.key)?.value;
-      return typeof localized !== "string" || localized.trim() === "";
-    });
-    const extra = [...values.keys()].filter((key) => !registryByKey.has(key));
-    const placeholderMismatches = registry.filter((record) => {
-      const localized = values.get(record.key)?.value;
-      return typeof localized === "string" && !samePlaceholders(record.text, localized);
-    });
-    const identicalText = registry.filter((record) => {
-      const localized = values.get(record.key)?.value;
-      const fixedText = record.text.replace(/\{\{\w+\}\}/g, "");
-      return (
-        localized === record.text &&
-        /[A-Za-z]{2,}/.test(fixedText) &&
-        !isAllowedSourceIdentical(record)
-      );
-    });
-    const mixedUnlocalizedText = registry.filter((record) => {
-      const localized = values.get(record.key)?.value;
-      return typeof localized === "string" && hasUnlocalizedUiTerm(record, localized);
-    });
-    const terminologyViolations = registry.flatMap((record) => {
-      const localized = values.get(record.key)?.value;
-      if (typeof localized !== "string") return [];
-      return findTerminologyViolations(record, localized).map((term) => ({ record, term }));
-    });
-
-    console.log(
-      `${locale}: ${registry.length - missing.length}/${registry.length} copy keys localized ` +
-        `(${((registry.length - missing.length) / registry.length * 100).toFixed(1)}%).`,
-    );
-
-    if (duplicateKeys.length) {
-      failed = true;
-      console.error(`${locale} duplicate keys (${duplicateKeys.length}):`);
-      duplicateKeys.forEach((entry) => console.error(`- ${entry}`));
-    }
-    if (extra.length) {
-      failed = true;
-      console.error(`${locale} keys absent from copy.csv (${extra.length}):`);
-      extra.forEach((key) => console.error(`- ${key}`));
-    }
-    if (missing.length) {
-      failed = true;
-      printGrouped(`${locale} missing translations`, missing);
-      if (showDetails) {
-        console.error(`${locale} source text:`);
-        missing.forEach((record) => console.error(`- ${record.key} = ${JSON.stringify(record.text)}`));
-      }
-    }
-    if (placeholderMismatches.length) {
-      failed = true;
-      console.error(`${locale} placeholder mismatches (${placeholderMismatches.length}):`);
-      placeholderMismatches.forEach((record) => {
-        const localized = values.get(record.key).value;
-        console.error(
-          `- ${record.key}: source=${JSON.stringify(placeholders(record.text))} ` +
-            `localized=${JSON.stringify(placeholders(localized))}`,
-        );
-      });
-    }
-    if (identicalText.length) {
-      failed = true;
-      console.error(`${locale} source-identical UI text (${identicalText.length}):`);
-      identicalText.forEach((record) => console.error(`- ${record.key} = ${JSON.stringify(record.text)}`));
-    }
-    if (mixedUnlocalizedText.length) {
-      failed = true;
-      console.error(`${locale} mixed untranslated UI terms (${mixedUnlocalizedText.length}):`);
-      mixedUnlocalizedText.forEach((record) => {
-        console.error(`- ${record.key} = ${JSON.stringify(values.get(record.key).value)}`);
-      });
-    }
-    if (terminologyViolations.length) {
-      failed = true;
-      console.error(`${locale} product terminology violations (${terminologyViolations.length}):`);
-      terminologyViolations.forEach(({ record, term }) => {
-        console.error(
-          `- ${record.key}: preserve ${term} in ${JSON.stringify(values.get(record.key).value)}`,
-        );
-      });
-    }
+  const issues = validateChineseCopy(registry);
+  if (issues.length) {
+    for (const { key, problem } of issues) console.error("- " + key + ": " + problem);
+    process.exitCode = 1;
+    return;
   }
-
-  if (failed) process.exit(1);
-  console.log("Chinese locale coverage ok.");
+  console.log("Simplified Chinese copy ok (" + registry.length + " keys).");
 }
 
 if (require.main === module) main();
@@ -381,7 +234,8 @@ module.exports = {
   PRODUCT_TERMINOLOGY_GLOSSARY,
   findTerminologyViolations,
   hasUnlocalizedUiTerm,
-  isAllowedSourceIdentical,
+  isLanguageNeutral,
   parseCsv,
   readCopyRegistry,
+  validateChineseCopy,
 };

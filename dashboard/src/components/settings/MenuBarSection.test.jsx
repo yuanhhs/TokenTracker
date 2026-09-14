@@ -2,8 +2,8 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MenuBarSection } from "./MenuBarSection.jsx";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MenuBarSection, NativeAppFooter } from "./MenuBarSection.jsx";
 
 const nativeSettingsMock = vi.hoisted(() => ({
   settings: {
@@ -11,7 +11,6 @@ const nativeSettingsMock = vi.hoisted(() => ({
     confettiOnReset: true,
     launchAtLogin: false,
     launchAtLoginSupported: true,
-    autoUpdateEnabled: true,
   },
   setSetting: vi.fn(),
   runAction: vi.fn(),
@@ -27,7 +26,7 @@ vi.mock("../../hooks/use-native-settings.js", () => ({
 }));
 
 vi.mock("../../lib/copy", () => ({
-  copy: (key) => key,
+  copy: (key, params) => key === "settings.footer.version" ? `TokenTracker v${params.version}` : key,
 }));
 
 describe("MenuBarSection limit-reset feedback", () => {
@@ -62,27 +61,20 @@ describe("MenuBarSection limit-reset feedback", () => {
     expect(nativeSettingsMock.setSetting).toHaveBeenCalledWith("confettiOnReset", false);
   });
 
-  it("toggles automatic updates independently of manual checks", async () => {
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter>
-        <MenuBarSection />
-      </MemoryRouter>,
-    );
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
 
-    const autoUpdateSwitch = screen.getByRole("switch", {
-      name: "settings.menubar.autoUpdate",
-    });
-    expect(autoUpdateSwitch).toHaveAttribute("aria-checked", "true");
-
-    await act(async () => {
-      await user.click(autoUpdateSwitch);
-    });
-
-    expect(nativeSettingsMock.setSetting).toHaveBeenCalledWith("autoUpdateEnabled", false);
-    // Manual check stays available: the button is untouched by the toggle.
-    expect(
-      screen.getByRole("button", { name: /settings\.menubar\.checkUpdates/ }),
-    ).toBeEnabled();
+  it("shows the installed version without update controls or remote requests", () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("VITE_APP_VERSION", "1.0.0");
+    render(<MemoryRouter><MenuBarSection /><NativeAppFooter /></MemoryRouter>);
+    expect(screen.getByText("TokenTracker v1.0.0")).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "settings.menubar.autoUpdate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "settings.menubar.checkUpdates" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -5,8 +5,6 @@ import {
   Gauge,
   History,
   Globe,
-  Puzzle,
-  Activity,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -15,15 +13,12 @@ import {
   Sun,
   Moon,
   Monitor,
-  PanelsTopLeft,
 } from "lucide-react";
 import { copy } from "../../lib/copy";
 import { cn } from "../../lib/cn";
 import { useTheme } from "../../hooks/useTheme.js";
-import { useLocale } from "../../hooks/useLocale.js";
 import { shouldFetchGithubStars } from "../dashboard/util/should-fetch-github-stars.js";
 import { isNativeApp, isNativeEmbed, isNativeWindowsApp } from "../../lib/native-bridge.js";
-import { McpIcon } from "../icons/McpIcon.jsx";
 
 const STORAGE_KEY = "tt.sidebarCollapsed";
 
@@ -44,11 +39,7 @@ export function getNavGroups() {
       id: "tools",
       label: copy("nav.group.tools"),
       items: [
-        { id: "skills", to: "/skills", icon: Puzzle, label: copy("nav.skills") },
-        { id: "mcp", to: "/mcp", icon: McpIcon, label: copy("nav.mcp") },
-        { id: "widgets", to: "/widgets", icon: PanelsTopLeft, label: copy("nav.widgets") },
         { id: "ip-check", to: "/ip-check", icon: Globe, label: copy("nav.ip_check") },
-        { id: "service-status", to: "/service-status", icon: Activity, label: copy("nav.service_status") },
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },
       ],
     },
@@ -216,9 +207,9 @@ function StarPill({ repo = "xiufengsun/TokenTracker", glassChrome = false }) {
  * Matches StarPill's h-7 height; popover opens upward (bottom-left anchored).
  */
 const THEME_OPTIONS = [
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "dark", label: "Dark", Icon: Moon },
-  { value: "system", label: "System", Icon: Monitor },
+  { value: "light", label: copy("settings.appearance.theme.light"), Icon: Sun },
+  { value: "dark", label: copy("settings.appearance.theme.dark"), Icon: Moon },
+  { value: "system", label: copy("settings.appearance.theme.system"), Icon: Monitor },
 ];
 
 function ThemePill({ theme, resolvedTheme, onSetTheme, glassChrome = false }) {
@@ -244,10 +235,10 @@ function ThemePill({ theme, resolvedTheme, onSetTheme, glassChrome = false }) {
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        aria-label="Theme"
+        aria-label={copy("settings.appearance.theme.label")}
         aria-expanded={open}
         aria-haspopup="menu"
-        title="Theme"
+        title={copy("settings.appearance.theme.label")}
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500",
@@ -304,8 +295,7 @@ function SidebarBody({ collapsed, onToggleCollapsed, onItemClick, showCloseButto
   const { theme, resolvedTheme, setTheme } = useTheme();
   // Re-compute copy() via getNavGroups when locale changes, otherwise the
   // labels stay stale after a language switch.
-  const { resolvedLocale } = useLocale();
-  const navGroups = useMemo(() => getNavGroups(), [resolvedLocale]);
+  const navGroups = getNavGroups();
 
   return (
     <>

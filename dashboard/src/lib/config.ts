@@ -1,5 +1,3 @@
-export const STATUSPAGE_URL = "https://tokentracker.statuspage.io/";
-
 export const REPO_URL = "https://github.com/xiufengsun/TokenTracker";
 export const PRIVACY_URL = `${REPO_URL}/blob/main/README.md#privacy`;
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;

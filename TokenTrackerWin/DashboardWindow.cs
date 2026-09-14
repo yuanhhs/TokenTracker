@@ -55,15 +55,9 @@ internal sealed class DashboardWindow : Window
     /// <summary>Raised (on the UI thread) when the dashboard's currency/rate localStorage changes.</summary>
     public event Action? CurrencyChanged;
 
-    /// <summary>Raised (on the UI thread) when the dashboard's language localStorage changes.</summary>
-    public event Action? LocaleChanged;
-
     /// <summary>Raised (on the UI thread) when the dashboard's theme localStorage changes.</summary>
     public event Action? ThemeChanged;
 
-    public event Action? NativeSettingsRequested;
-    public event Action<string, JsonElement>? NativeSettingChanged;
-    public event Action<string>? NativeActionRequested;
     public event Action<string, string>? NotificationRequested;
     public event Action<DashboardWindow>? ReleasedForIdle;
 
@@ -302,35 +296,13 @@ internal sealed class DashboardWindow : Window
                 {
                     using var doc = JsonDocument.Parse(msg);
                     if (!doc.RootElement.TryGetProperty("type", out var t)) return;
-                    if (t.GetString() == "getSettings")
-                    {
-                        NativeSettingsRequested?.Invoke();
-                    }
-                    else if (t.GetString() == "setSetting"
-                             && doc.RootElement.TryGetProperty("key", out var nativeKey)
-                             && doc.RootElement.TryGetProperty("value", out var nativeValue)
-                             && nativeKey.GetString() is { } settingKey)
-                    {
-                        NativeSettingChanged?.Invoke(settingKey, nativeValue.Clone());
-                    }
-                    else if (t.GetString() == "action"
-                             && doc.RootElement.TryGetProperty("name", out var nativeAction)
-                             && nativeAction.GetString() is { } actionName)
-                    {
-                        NativeActionRequested?.Invoke(actionName);
-                    }
-                    else if (t.GetString() == "nativeSetting"
+                    if (t.GetString() == "nativeSetting"
                              && doc.RootElement.TryGetProperty("key", out var k)
                              && doc.RootElement.TryGetProperty("value", out var v))
                     {
                         var key = k.GetString();
                         var value = v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-                        if (key == NativeLocalization.PreferenceKey)
-                        {
-                            NativeLocalization.StorePreference(value);
-                            LocaleChanged?.Invoke();
-                        }
-                        else if (key == NativeTheme.PreferenceKey)
+                        if (key == NativeTheme.PreferenceKey)
                         {
                             NativeTheme.StorePreference(value);
                             ThemeChanged?.Invoke();
@@ -357,7 +329,6 @@ internal sealed class DashboardWindow : Window
             switch (msg)
             {
                 case "currency": CurrencyChanged?.Invoke(); break;
-                case "locale": LocaleChanged?.Invoke(); break;
                 case "theme": ThemeChanged?.Invoke(); break;
                 case "win:min": WindowState = WindowState.Minimized; break;
                 case "win:max": ToggleMaximize(); break;
@@ -390,9 +361,6 @@ internal sealed class DashboardWindow : Window
             "if(k==='tokentracker-currency'||k==='tokentracker-exchange-rates'){" +
             "try{window.chrome.webview.postMessage('currency');}catch(e){}" +
             "try{window.chrome.webview.postMessage(JSON.stringify({type:'nativeSetting',key:k,value:v}));}catch(e){}}" +
-            "if(k==='tokentracker-locale'){" +
-            "try{window.chrome.webview.postMessage('locale');}catch(e){}" +
-            "try{window.chrome.webview.postMessage(JSON.stringify({type:'nativeSetting',key:k,value:v}));}catch(e){}}" +
             "if(k==='tokentracker-theme'){" +
             "try{window.chrome.webview.postMessage('theme');}catch(e){}" +
             "try{window.chrome.webview.postMessage(JSON.stringify({type:'nativeSetting',key:k,value:v}));}catch(e){}}};" +
@@ -418,45 +386,6 @@ internal sealed class DashboardWindow : Window
         _pendingPathAndQuery = pathAndQuery;
         if (!_coreReady || _server.Status != ServerManager.ServerStatus.Running) return;
         _webView.CoreWebView2.Navigate(_server.BaseUrl + pathAndQuery);
-    }
-
-    public void PushNativeSettings(
-        bool dynamicIslandEnabled,
-        bool dynamicIslandAutoCollapse,
-        bool dynamicIslandShowLimits,
-        bool dynamicIslandCompactMode,
-        string dynamicIslandLimitDisplayMode,
-        IReadOnlyList<string> dynamicIslandMetrics,
-        bool desktopWidgetsAlwaysOnTop,
-        IReadOnlyList<DesktopWidgetSettings.WidgetItem> desktopWidgets)
-    {
-        if (!_coreReady) return;
-        var json = JsonSerializer.Serialize(new
-        {
-            dynamicIslandSupported = true,
-            dynamicIslandEnabled,
-            dynamicIslandAutoCollapse,
-            dynamicIslandShowLimits,
-            dynamicIslandCompactMode,
-            dynamicIslandLimitDisplayMode,
-            dynamicIslandMetrics,
-            desktopWidgetsSupported = true,
-            desktopWidgetsAlwaysOnTop,
-            desktopWidgets = desktopWidgets.Select(widget => new
-            {
-                id = widget.Id,
-                enabled = widget.Enabled,
-                size = widget.Size,
-                supportedSizes = widget.SupportedSizes,
-            }),
-            nativePlatform = "windows",
-        });
-        try
-        {
-            _ = _webView.CoreWebView2.ExecuteScriptAsync(
-                $"window.dispatchEvent(new CustomEvent('native:settings', {{detail:{json}}}));");
-        }
-        catch { /* page is navigating */ }
     }
 
     /// <summary>
@@ -589,7 +518,6 @@ internal sealed class DashboardWindow : Window
         // The page is loaded → the currency localStorage is now readable; nudge the
         // tray to render the cost in the user's chosen currency immediately.
         CurrencyChanged?.Invoke();
-        LocaleChanged?.Invoke();
         ThemeChanged?.Invoke();
     }
 
@@ -660,13 +588,6 @@ internal sealed class DashboardWindow : Window
         NavigateWhenServerReady("/settings?app=1");
     }
 
-    /// <summary>Open the Windows desktop-widget manager.</summary>
-    public void ShowWidgets()
-    {
-        ShowDashboard();
-        NavigateWhenServerReady("/widgets?app=1");
-    }
-
     /// <summary>Diagnostics → %LOCALAPPDATA%\TokenTracker\windows-host.log (shared with ServerManager).</summary>
     private static void Log(string message) => Diag.Log("dashboard", message);
 
@@ -703,28 +624,6 @@ internal sealed class DashboardWindow : Window
             return (symbol, rate);
         }
         catch { return ("$", 1m); }
-    }
-
-    /// <summary>
-    /// Read the user's language preference from dashboard localStorage. Returns
-    /// "system" until the WebView is ready or on any failure.
-    /// </summary>
-    public async Task<string> ReadLocalePreferenceAsync()
-    {
-        if (!_coreReady) return NativeLocalization.SystemPreference;
-        try
-        {
-            var raw = await _webView.CoreWebView2.ExecuteScriptAsync(
-                "(function(){return localStorage.getItem('tokentracker-locale')||'system';})()");
-            var value = JsonSerializer.Deserialize<string>(raw);
-            var normalized = NativeLocalization.NormalizePreference(value);
-            NativeLocalization.StorePreference(normalized);
-            return normalized;
-        }
-        catch
-        {
-            return NativeLocalization.SystemPreference;
-        }
     }
 
     /// <summary>

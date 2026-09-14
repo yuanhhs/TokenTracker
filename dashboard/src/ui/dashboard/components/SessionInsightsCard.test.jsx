@@ -1,7 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setCopyLocale } from "../../../lib/copy";
-import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
 import { getContextHealth, getSessionInsights } from "../../../lib/api";
 import { SessionInsightsCard } from "./SessionInsightsCard.jsx";
 
@@ -57,7 +55,6 @@ const data = {
 describe("SessionInsightsCard", () => {
   afterEach(() => {
     preference.enabled = true;
-    setCopyLocale(EN_LOCALE);
     vi.clearAllMocks();
   });
 
@@ -86,12 +83,11 @@ describe("SessionInsightsCard", () => {
     expect(screen.queryByText("openai")).not.toBeInTheDocument();
     expect(screen.queryByText("gpt-5.4")).not.toBeInTheDocument();
     expect(screen.getByText("spawn_agent · 7")).toBeInTheDocument();
-    expect(screen.getByText("BETA")).toBeInTheDocument();
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Edit = a user turn containing an observed edit tool");
+    expect(screen.getByText("测试版")).toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("编辑 = 一个包含已观测编辑工具的用户回合");
   });
 
   it("localizes the redesigned metric contract", async () => {
-    setCopyLocale(ZH_CN_LOCALE);
     getSessionInsights.mockResolvedValue(data);
     getContextHealth.mockResolvedValue({ estimated_fixed_tokens: 155_300 });
 

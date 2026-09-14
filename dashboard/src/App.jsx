@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, useCallback, useMemo, useRef } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { useLocale } from "./hooks/useLocale.js";
 import { ThemeProvider } from "./ui/foundation/ThemeProvider.jsx";
 import { ToastProvider } from "./ui/components/Toast.jsx";
 import { getBackendBaseUrl } from "./lib/config";
@@ -24,7 +23,6 @@ const DashboardPage = lazy(() =>
   import("./pages/DashboardPage.jsx").then((m) => ({ default: m.DashboardPage })),
 );
 const IpCheckPage = lazy(() => import("./pages/IpCheckPage.jsx"));
-const ServiceStatusPage = lazy(() => import("./pages/ServiceStatusPage.jsx"));
 const LandingPage = lazy(() =>
   import("./pages/LandingPage.jsx").then((m) => ({ default: m.LandingPage })),
 );
@@ -33,13 +31,6 @@ const LimitsPage = lazy(() =>
 );
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage.jsx").then((m) => ({ default: m.SettingsPage })),
-);
-const SkillsPage = lazy(() =>
-  import("./pages/SkillsPage.jsx").then((m) => ({ default: m.SkillsPage })),
-);
-const McpPage = lazy(() => import("./pages/McpPage.jsx"));
-const WidgetsPage = lazy(() =>
-  import("./pages/WidgetsPage.jsx").then((module) => ({ default: module.WidgetsPage })),
 );
 const SessionsPage = lazy(() =>
   import("./pages/SessionsPage.jsx").then((m) => ({ default: m.SessionsPage })),
@@ -51,16 +42,11 @@ const DASHBOARD_PATHS = new Set([
   "/dashboard",
   "/limits",
   "/settings",
-  "/skills",
-  "/mcp",
-  "/widgets",
   "/sessions",
   "/ip-check",
-  "/service-status",
 ]);
 
 export default function App() {
-  const { resolvedLocale } = useLocale();
   const location = useLocation();
   const dashboardMainContentVisibleRef = useRef(false);
   const dashboardResourcePreloadStartedRef = useRef(false);
@@ -106,12 +92,8 @@ export default function App() {
   if (normalizedPath === "/landing") PageComponent = LandingPage;
   else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
-  else if (normalizedPath === "/skills") PageComponent = SkillsPage;
-  else if (normalizedPath === "/mcp") PageComponent = McpPage;
-  else if (normalizedPath === "/widgets") PageComponent = WidgetsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
   else if (normalizedPath === "/ip-check") PageComponent = IpCheckPage;
-  else if (normalizedPath === "/service-status") PageComponent = ServiceStatusPage;
   else if (normalizedPath === "/wrapped") PageComponent = WrappedPage;
 
   const showSidebar = isLocalMode && isDashboardPath;
@@ -122,7 +104,6 @@ export default function App() {
   if (!isStandalonePage) {
     content = (
       <PageComponent
-        key={resolvedLocale}
         baseUrl={getBackendBaseUrl()}
         publicMode={publicMode}
         publicToken={publicToken}

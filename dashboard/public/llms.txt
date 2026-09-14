@@ -1,24 +1,21 @@
-# Token Tracker LLMs Index
+# Token Tracker 项目索引
 
-Token Tracker is a free, open-source, local-first AI coding usage and cost
-tracker for 34 tools. The Windows system tray app embeds a local dashboard and
-records token counts and timestamps, never prompts, responses, or source code.
+Token Tracker 是免费开源的 Windows 本地 AI 编程用量与花费追踪器，支持 29 种工具。
+应用常驻系统托盘，内置简体中文仪表板，只保存用量元数据，不保存或上传 Prompt、回复和源代码。
 
-## Canonical URL
-- [Homepage](https://www.tokentracker.cc/)
+## 项目入口
 
-## Priority URLs
-- [Homepage](https://www.tokentracker.cc/)
-- [GitHub repository](https://github.com/xiufengsun/TokenTracker)
-- [Claude IP check](https://www.tokentracker.cc/ip-check)
+- [主页](https://www.tokentracker.cc/)
+- [GitHub 源代码](https://github.com/xiufengsun/TokenTracker)
+- [Windows 安装包](https://github.com/xiufengsun/TokenTracker/releases/latest)
+- [npm 安装包](https://www.npmjs.com/package/tokentracker-cli)
 
-## Product
-- Install command: `npx tokentracker-cli`
-- Windows app: `TokenTracker-Setup.exe` from the latest GitHub Release
-- [npm package](https://www.npmjs.com/package/tokentracker-cli)
-- [Latest release](https://github.com/xiufengsun/TokenTracker/releases/latest)
+## 安装
 
-## Supported AI coding tools (29)
+下载 `TokenTracker-Setup.exe` 或便携版，也可运行 `npx tokentracker-cli`。
+本地仪表板默认位于 http://localhost:7680，无需注册账号。
+
+## 支持的 AI 编程工具（29）
 - Claude Code
 - Codex CLI
 - Cursor
@@ -49,24 +46,19 @@ records token counts and timestamps, never prompts, responses, or source code.
 - DeepSeek Harness
 - TRAE Work CN
 
-## Capabilities
-- Unified local usage dashboard and cost analysis across 2,200+ models
-- Project attribution, activity heatmap, trends, and usage-limit monitoring
-- Provider-aware deduplication for overlapping and mirrored session sources
-- Local-only operation with no account, sign-in, or cloud sync
+## 主要功能
 
-## Post-install local views
-After running `npx tokentracker-cli` on Windows, the private dashboard is available at
-http://localhost:7680 on the user's own machine. It includes usage, cost,
-limits, projects, heatmap, skills, and settings.
+- 按模型、项目和时间段分析 Token 用量与预估花费
+- 活动热力图、会话记录、趋势图和 Provider 额度查询
+- 对重复或镜像会话来源进行去重
+- 本地日志解析、聚合和展示，无需云同步
+- 简体中文界面、货币与 Token 数字格式设置
 
-## Policy and discovery
-- [llms.txt](https://www.tokentracker.cc/llms.txt)
-- [sitemap.xml](https://www.tokentracker.cc/sitemap.xml)
-- [feed.xml](https://www.tokentracker.cc/feed.xml)
-- [robots.txt](https://www.tokentracker.cc/robots.txt)
-- Local-only by design; no account or cloud sync is required.
-- Token counts only; prompts and conversation content are never collected.
+## 隐私和连接
 
-## Contact
-- [GitHub issues](https://github.com/xiufengsun/TokenTracker/issues)
+只保存 Token 数量、模型名称、时间戳及项目归属等用量元数据。
+Provider 实时额度查询和网络诊断需要联网。
+
+## 反馈
+
+- [GitHub 问题反馈](https://github.com/xiufengsun/TokenTracker/issues)

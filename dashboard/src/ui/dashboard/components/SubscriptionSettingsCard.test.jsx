@@ -63,8 +63,8 @@ describe("SubscriptionSettingsCard", () => {
   it("shows the empty state when there are no subscriptions", () => {
     render(<SubscriptionSettingsCard subscriptions={[]} onChanged={vi.fn()} />);
 
-    expect(screen.getByText("No subscriptions yet")).toBeInTheDocument();
-    expect(screen.getByText("Add subscription")).toBeInTheDocument();
+    expect(screen.getByText("还没有订阅")).toBeInTheDocument();
+    expect(screen.getByText("添加订阅")).toBeInTheDocument();
   });
 
   it("lists subscriptions and opens edit on click", () => {
@@ -92,11 +92,11 @@ describe("SubscriptionSettingsCard", () => {
       expect(screen.getByText("GPT")).toBeInTheDocument();
       expect(screen.getByText("Plus")).toBeInTheDocument();
       expect(screen.getByText("Claude")).toBeInTheDocument();
-      expect(screen.getByText("Expired")).toBeInTheDocument();
+      expect(screen.getByText("已到期")).toBeInTheDocument();
 
       fireEvent.click(screen.getByText("GPT"));
-      expect(screen.getByLabelText("Linked tool")).toBeInTheDocument();
-      expect(screen.getByLabelText("Plan")).toHaveValue("Plus");
+      expect(screen.getByLabelText("关联工具")).toBeInTheDocument();
+      expect(screen.getByLabelText("套餐")).toHaveValue("Plus");
     } finally {
       vi.useRealTimers();
     }
@@ -106,9 +106,9 @@ describe("SubscriptionSettingsCard", () => {
     const onChanged = vi.fn();
     render(<SubscriptionSettingsCard subscriptions={[]} onChanged={onChanged} />);
 
-    fireEvent.click(screen.getByText("Add subscription"));
-    fireEvent.change(screen.getByLabelText("Plan"), { target: { value: "Plus" } });
-    fireEvent.change(screen.getByLabelText("Subscription date"), {
+    fireEvent.click(screen.getByText("添加订阅"));
+    fireEvent.change(screen.getByLabelText("套餐"), { target: { value: "Plus" } });
+    fireEvent.change(screen.getByLabelText("订阅时间"), {
       target: { value: "2026-08-16T14:00" },
     });
     // The linked-tool picker is the shared Base UI Select, so open the popup
@@ -116,12 +116,12 @@ describe("SubscriptionSettingsCard", () => {
     // ignores synthetic clicks on unhovered items, so press first like a real
     // pointer would. The tool choice also names the subscription — there is
     // no separate service field anymore.
-    fireEvent.click(screen.getByLabelText("Linked tool"));
+    fireEvent.click(screen.getByLabelText("关联工具"));
     const codexOption = await screen.findByRole("option", { name: "Codex" });
     fireEvent.pointerDown(codexOption, { pointerType: "mouse" });
     fireEvent.click(codexOption);
 
-    fireEvent.click(screen.getByText("Save"));
+    fireEvent.click(screen.getByText("保存"));
 
     await waitFor(() => {
       expect(createSubscription).toHaveBeenCalledTimes(1);
@@ -143,15 +143,15 @@ describe("SubscriptionSettingsCard", () => {
     const onChanged = vi.fn();
     render(<SubscriptionSettingsCard subscriptions={[]} onChanged={onChanged} />);
 
-    fireEvent.click(screen.getByText("Add subscription"));
-    fireEvent.click(screen.getByLabelText("Linked tool"));
+    fireEvent.click(screen.getByText("添加订阅"));
+    fireEvent.click(screen.getByLabelText("关联工具"));
     const codexOption = screen.getByRole("option", { name: "Codex" });
     fireEvent.pointerDown(codexOption, { pointerType: "mouse" });
     fireEvent.click(codexOption);
-    fireEvent.change(screen.getByLabelText("Subscription date"), {
+    fireEvent.change(screen.getByLabelText("订阅时间"), {
       target: { value: "2026-01-31T10:00" },
     });
-    fireEvent.click(screen.getByText("Save"));
+    fireEvent.click(screen.getByText("保存"));
 
     expect(createSubscription).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -164,13 +164,13 @@ describe("SubscriptionSettingsCard", () => {
   it("refuses to save without a linked tool and explains why", () => {
     render(<SubscriptionSettingsCard subscriptions={[]} onChanged={vi.fn()} />);
 
-    fireEvent.click(screen.getByText("Add subscription"));
-    fireEvent.change(screen.getByLabelText("Subscription date"), {
+    fireEvent.click(screen.getByText("添加订阅"));
+    fireEvent.change(screen.getByLabelText("订阅时间"), {
       target: { value: "2026-08-16T14:00" },
     });
-    fireEvent.click(screen.getByText("Save"));
+    fireEvent.click(screen.getByText("保存"));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Select a linked tool.");
+    expect(screen.getByRole("alert")).toHaveTextContent("请选择关联的工具");
     expect(createSubscription).not.toHaveBeenCalled();
   });
 
@@ -193,19 +193,19 @@ describe("SubscriptionSettingsCard", () => {
     );
 
     // Adding: tools that already have a record are disabled and labelled.
-    fireEvent.click(screen.getByText("Add subscription"));
-    fireEvent.click(screen.getByLabelText("Linked tool"));
-    expect(screen.getByRole("option", { name: "Codex (already subscribed)" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("option", { name: "Claude (already subscribed)" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByText("添加订阅"));
+    fireEvent.click(screen.getByLabelText("关联工具"));
+    expect(screen.getByRole("option", { name: "Codex （已有订阅）" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("option", { name: "Claude （已有订阅）" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("option", { name: "Cursor" })).not.toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(screen.getByText("Cancel"));
+    fireEvent.click(screen.getByText("取消"));
 
     // Editing: the record's own tool stays selectable while the other taken
     // tool remains off-limits. Clicking the row now directly opens edit.
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByLabelText("Linked tool"));
+    fireEvent.click(screen.getByLabelText("关联工具"));
     expect(screen.getByRole("option", { name: "Codex" })).not.toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("option", { name: "Claude (already subscribed)" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("option", { name: "Claude （已有订阅）" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("keeps allowing a record to keep its own tool when edited", async () => {
@@ -218,10 +218,10 @@ describe("SubscriptionSettingsCard", () => {
     );
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.change(screen.getByLabelText("Subscription date"), {
+    fireEvent.change(screen.getByLabelText("订阅时间"), {
       target: { value: "2026-08-16T14:00" },
     });
-    fireEvent.click(screen.getByText("Save"));
+    fireEvent.click(screen.getByText("保存"));
 
     await waitFor(() => {
       expect(updateSubscription).toHaveBeenCalledTimes(1);
@@ -259,9 +259,9 @@ describe("SubscriptionSettingsCard", () => {
 
     // The form opens pre-filled and sits between the edited row and the next
     // list entry — not in a separate section above the list.
-    expect(screen.getByLabelText("Plan")).toHaveValue("Plus");
+    expect(screen.getByLabelText("套餐")).toHaveValue("Plus");
     const gptRow = screen.getByText("GPT");
-    const planField = screen.getByLabelText("Plan");
+    const planField = screen.getByLabelText("套餐");
     const claudeRow = screen.getByText("Claude");
     expect(
       gptRow.compareDocumentPosition(planField) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -274,12 +274,12 @@ describe("SubscriptionSettingsCard", () => {
   it("renders the add form as the last entry of the list", () => {
     render(<SubscriptionSettingsCard subscriptions={[makeSubscription()]} onChanged={vi.fn()} />);
 
-    fireEvent.click(screen.getByText("Add subscription"));
+    fireEvent.click(screen.getByText("添加订阅"));
 
     expect(
       screen
         .getByText("GPT")
-        .compareDocumentPosition(screen.getByLabelText("Plan")) &
+        .compareDocumentPosition(screen.getByLabelText("套餐")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -296,7 +296,7 @@ describe("SubscriptionSettingsCard", () => {
 
     fireEvent.click(screen.getByText("GPT"));
 
-    const value = screen.getByLabelText("Subscription date").value;
+    const value = screen.getByLabelText("订阅时间").value;
     // datetime-local renders in local time; compare instants, not strings.
     expect(new Date(value).getTime()).toBe(Date.parse("2026-01-31T10:07:00.000Z"));
   });
@@ -312,7 +312,7 @@ describe("SubscriptionSettingsCard", () => {
 
     fireEvent.click(screen.getByText("GPT"));
 
-    const value = screen.getByLabelText("Subscription date").value;
+    const value = screen.getByLabelText("订阅时间").value;
     expect(new Date(value).getTime()).toBe(Date.parse("2026-02-28T10:07:00.000Z"));
   });
 
@@ -323,9 +323,9 @@ describe("SubscriptionSettingsCard", () => {
     );
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Delete"));
+    fireEvent.click(screen.getByText("删除"));
 
-    const confirmButton = await screen.findAllByText("Delete");
+    const confirmButton = await screen.findAllByText("删除");
     fireEvent.click(confirmButton[confirmButton.length - 1]);
 
     await waitFor(() => {

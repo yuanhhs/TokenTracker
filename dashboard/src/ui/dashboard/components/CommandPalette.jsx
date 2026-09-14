@@ -3,25 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CornerDownLeft, Search } from "lucide-react";
 import { getNavGroups } from "../../components/Sidebar.jsx";
-import { ProviderIcon } from "./ProviderIcon.jsx";
-import { getInstalledSkills } from "../../../lib/skills-api";
 import { copy } from "../../../lib/copy";
 import { cn } from "../../../lib/cn";
 
-const IS_LOCAL_HOST =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-// A token tracker's command palette indexes things a skill manager has no concept
-// of: the usage/cost views (Usage, Limits, Leaderboard) alongside installed
-// skills. Cmd/Ctrl+K from anywhere with the dashboard chrome.
+// Open dashboard pages with Cmd/Ctrl+K from anywhere in the app.
 export function CommandPalette() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [skills, setSkills] = useState([]);
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
@@ -39,24 +30,18 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Load installed skills once per open (local CLI only — no cloud source).
+  // Reset the search and focus the input whenever the palette opens.
   useEffect(() => {
     if (!open) return;
     setQuery("");
     setActive(0);
     const id = requestAnimationFrame(() => inputRef.current?.focus());
-    if (IS_LOCAL_HOST && !skills.length) {
-      getInstalledSkills()
-        .then((data) => setSkills(data?.skills || []))
-        .catch(() => setSkills([]));
-    }
     return () => cancelAnimationFrame(id);
-  }, [open, skills.length]);
+  }, [open]);
 
   const items = useMemo(() => {
-    const pages = getNavGroups().flatMap((group) =>
+    return getNavGroups().flatMap((group) =>
       group.items.map((item) => ({
-        kind: "page",
         id: `page:${item.id}`,
         label: item.label,
         sub: copy("cmdk.group.pages"),
@@ -64,16 +49,7 @@ export function CommandPalette() {
         run: () => navigate(item.to),
       })),
     );
-    const skillItems = (skills || []).map((skill) => ({
-      kind: "skill",
-      id: `skill:${skill.id || skill.directory}`,
-      label: skill.name || skill.directory,
-      sub: skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : copy("cmdk.group.skills"),
-      provider: (skill.targets || [])[0] || "claude",
-      run: () => navigate(`/skills?skill=${encodeURIComponent(skill.directory || skill.id)}`),
-    }));
-    return [...pages, ...skillItems];
-  }, [navigate, skills]);
+  }, [navigate]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -200,11 +176,7 @@ export function CommandPalette() {
                       )}
                     >
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-oai-gray-500 dark:text-oai-gray-400">
-                        {item.kind === "skill" ? (
-                          <ProviderIcon provider={item.provider} size={16} />
-                        ) : (
-                          <item.Icon className="h-4 w-4" aria-hidden />
-                        )}
+                        <item.Icon className="h-4 w-4" aria-hidden />
                       </span>
                       <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
                       <span className="shrink-0 truncate text-xs text-oai-gray-400 dark:text-oai-gray-500">

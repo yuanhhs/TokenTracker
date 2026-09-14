@@ -10,7 +10,7 @@ import { cn } from "../../../lib/cn";
  * never to the card body — so clicks on buttons/inputs/tabs inside the card
  * are never mistaken for a drag.
  *
- * Some cards (WidgetOnboardingCard, QualityPerDollarCard, MacAppBanner, ...)
+ * Some cards (for example, QualityPerDollarCard)
  * render `null` for their own internal reasons even when their column slot
  * is "visible". A `display:none` sibling still has a zero-size rect that
  * dnd-kit factors into every other item's drag transform, which is exactly

@@ -762,15 +762,6 @@ html.native-windows-app .tt-native-glass-shell aside[data-native-sidebar] {
     height: 100%;
   }
 
-  /* Marquee — used by SkillsPage empty state provider rail */
-  @keyframes marquee-x {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  .animate-marquee-x {
-    animation: marquee-x 14s linear infinite;
-  }
-
   /* Shared "zoom to inspect" modal motion (ProjectDetailModal; also inlined
      by TrendMonitorZoomModal / ActivityHeatmap's 3D insight modal — keep in
      sync until those inline copies are removed). */

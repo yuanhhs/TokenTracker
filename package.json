@@ -1,7 +1,7 @@
 {
   "name": "tokentracker-cli",
-  "version": "0.96.0",
-  "description": "Local-first AI coding token usage and cost tracker for Windows.",
+  "version": "1.0.0",
+  "description": "面向 Windows 的本地优先 AI 编程工具 Token 用量与花费追踪器。",
   "main": "src/cli.js",
   "bin": {
     "tokentracker-cli": "bin/tracker.js",
@@ -44,7 +44,6 @@
     "version": "node scripts/sync-versions.cjs && git add TokenTrackerWin/TokenTrackerWin.csproj"
   },
   "dependencies": {
-    "@iarna/toml": "^2.2.5",
     "@mongodb-js/zstd": "^2.0.1",
     "undici": "^8.7.0",
     "yauzl": "^3.4.0"

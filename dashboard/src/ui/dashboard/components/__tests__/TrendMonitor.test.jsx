@@ -77,7 +77,7 @@ describe("TrendMonitor", () => {
     expect(previewBar?.style.opacity).toBe("0.35");
     expect(previewBar?.style.backgroundImage).toBe("");
     expect(container.querySelector('[data-trend-prediction-legend="true"]')?.textContent).toContain(
-      "~ Estimated",
+      "~ 预测值",
     );
     // Predicted heights are clipped to the y-axis max and rendered as a percentage.
     expect(previewBar?.parentElement?.style.height).toMatch(/%$/);

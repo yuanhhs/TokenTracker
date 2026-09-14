@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { cn } from "../../lib/cn";
 import { getDashboardEntryPath } from "../../lib/host-mode";
 import { HeaderGithubStar } from "../components/HeaderGithubStar.jsx";
-import { STATUSPAGE_URL } from "../../lib/config";
 import { LV3_CSS_VARS } from "./v3/palette.js";
 import { PRIVACY_URL, REPO_URL } from "../../lib/config";
 import { HeroSection } from "./v3/HeroSection.jsx";
@@ -118,14 +117,6 @@ export function MarketingLanding({
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 text-sm text-oai-gray-400 sm:flex-row sm:px-6">
           <p>{copy("landing.v2.footer.line")}</p>
           <div className="flex items-center gap-6">
-            <a
-              href={STATUSPAGE_URL}
-              className="font-medium text-oai-gray-400 transition-colors hover:text-white"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {copy("landing.v2.nav.status")}
-            </a>
             <a
               href={REPO_URL}
               className="font-medium text-oai-gray-400 transition-colors hover:text-white"

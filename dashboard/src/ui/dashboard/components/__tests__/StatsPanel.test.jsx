@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import { setCopyLocale } from "../../../../lib/copy";
 import { TokenFormatContext } from "../../../foundation/TokenFormatProvider.jsx";
 import { StatsPanel } from "../StatsPanel.jsx";
 
@@ -25,7 +24,7 @@ it("shows current-period conversations instead of fixed rolling 30-day conversat
   renderPanel({ period: "month", periodConversations: 42 });
 
   expect(screen.getByText("42")).toBeInTheDocument();
-  expect(screen.getByText("convs")).toBeInTheDocument();
+  expect(screen.getByText("对话")).toBeInTheDocument();
   expect(screen.queryByText("999")).not.toBeInTheDocument();
 });
 
@@ -33,7 +32,7 @@ it("uses the same compact conversations label across periods", () => {
   renderPanel({ period: "day", periodConversations: 7 });
 
   expect(screen.getByText("7")).toBeInTheDocument();
-  expect(screen.getByText("convs")).toBeInTheDocument();
+  expect(screen.getByText("对话")).toBeInTheDocument();
   expect(screen.queryByText("today")).not.toBeInTheDocument();
 });
 
@@ -43,8 +42,8 @@ it("keeps rolling card values compact when the global token format is full", () 
       value={{
         mode: "full",
         setMode: () => {},
-        formatTokens: (value) => Number(value).toLocaleString("en-US"),
-        formatTokensTooltip: (value) => Number(value).toLocaleString("en-US"),
+        formatTokens: (value) => Number(value).toLocaleString("zh-CN"),
+        formatTokensTooltip: (value) => Number(value).toLocaleString("zh-CN"),
       }}
     >
       <StatsPanel
@@ -81,19 +80,9 @@ it("keeps the rolling stats readable in a narrow desktop sidebar", () => {
   }
 });
 
-it("localizes compact rolling stats labels", () => {
-  const cases = [
-    ["en", ["7d", "30d", "avg", "convs"]],
-    ["zh-CN", ["7 天", "30 天", "平均", "对话"]],
-  ];
-
-  for (const [locale, labels] of cases) {
-    setCopyLocale(locale);
-    const view = renderPanel({ periodConversations: 42 });
-    for (const label of labels) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
-    view.unmount();
+it("renders compact rolling stats labels in Simplified Chinese", () => {
+  renderPanel({ periodConversations: 42 });
+  for (const label of ["7 天", "30 天", "平均", "对话"]) {
+    expect(screen.getByText(label)).toBeInTheDocument();
   }
-  setCopyLocale("en");
 });

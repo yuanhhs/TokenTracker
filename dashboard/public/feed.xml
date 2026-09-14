@@ -1,34 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Token Tracker Updates</title>
+    <title>Token Tracker 版本动态</title>
     <link>https://www.tokentracker.cc/</link>
-    <description>Product updates for Token Tracker — the local-first token usage tracker for AI coding agent CLIs.</description>
-    <language>en-us</language>
+    <description>Token Tracker 版本动态：在本机统计 AI 编程工具的 Token 用量。</description>
+    <language>zh-CN</language>
     <lastBuildDate>Thu, 07 May 2026 00:00:00 GMT</lastBuildDate>
 
     <item>
-      <title>v0.6.4 — Project usage attribution and token formatting fixes</title>
+      <title>v0.6.4 — 修复项目用量归属和 Token 数字格式</title>
       <link>https://www.tokentracker.cc/</link>
       <guid isPermaLink="false">https://www.tokentracker.cc/#v0.6.4</guid>
       <pubDate>Thu, 07 May 2026 00:00:00 GMT</pubDate>
-      <description>Auto-verify projects from canonical git owner/repo paths, align dev and production endpoints for project attribution, and format token numbers with thousands separators across the dashboard.</description>
+      <description>根据 Git 仓库路径验证项目归属，统一开发和生产接口，并在仪表板中使用千位分隔符显示 Token 数量。</description>
     </item>
 
     <item>
-      <title>v0.6.3 — Domain migrated to www.tokentracker.cc</title>
+      <title>v0.6.3 — 域名迁移至 www.tokentracker.cc</title>
       <link>https://www.tokentracker.cc/</link>
       <guid isPermaLink="false">https://www.tokentracker.cc/#v0.6.3</guid>
       <pubDate>Sun, 04 May 2026 00:00:00 GMT</pubDate>
-      <description>Production domain migrated to www.tokentracker.cc with apex 307 redirect and updated canonical URLs.</description>
+      <description>生产域名迁移至 www.tokentracker.cc，配置主域名 307 重定向并更新规范链接。</description>
     </item>
 
     <item>
-      <title>13 AI coding agent CLIs supported</title>
+      <title>支持 13 种 AI 编程工具</title>
       <link>https://www.tokentracker.cc/</link>
       <guid isPermaLink="false">https://www.tokentracker.cc/#providers-13</guid>
       <pubDate>Mon, 28 Apr 2026 00:00:00 GMT</pubDate>
-      <description>Track Claude Code, Codex, Cursor, Gemini, Every Code, Kiro, GitHub Copilot, Kimi Code, oh-my-pi, and CodeBuddy in one unified dashboard.</description>
+      <description>在统一仪表板中查看 Claude Code、Codex、Cursor、Gemini、Every Code、Kiro、GitHub Copilot、Kimi Code、oh-my-pi 和 CodeBuddy 的用量。</description>
     </item>
   </channel>
 </rss>

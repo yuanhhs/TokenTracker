@@ -100,7 +100,7 @@ test("formatCost formats usd correctly", () => {
 });
 
 test("formatShortDate returns month + year", () => {
-  assert.equal(mod.formatShortDate("2026-04-11"), "APR 2026");
+  assert.equal(mod.formatShortDate("2026-04-11"), "2026 年 4 月");
   assert.equal(mod.formatShortDate(null), "—");
 });
 
@@ -117,10 +117,10 @@ test("formatIssueLabel responds to period", () => {
   };
   assert.equal(
     mod.formatIssueLabel({ ...base, period: "total", periodFrom: null, periodTo: null }),
-    "ALL TIME",
+    "总计",
   );
   assert.match(
     mod.formatIssueLabel({ ...base, period: "month", periodFrom: "2026-04-01", periodTo: "2026-04-30" }),
-    /APR 2026/,
+    /2026 年 4 月/,
   );
 });

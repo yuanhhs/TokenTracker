@@ -165,14 +165,14 @@ describe("remainingLabel / countdownText", () => {
     expect(remainingLabel(now + 17 * 3600000, now)).toBe("17h");
     expect(remainingLabel(now + 6 * 86400000, now)).toBe("6d");
     expect(countdownText(now + 6 * 86400000 + 2 * 3600000 + 3 * 60000, now)).toBe(
-      "in 6d 2h 3m",
+      "6 天 2 小时 3 分后",
     );
   });
 
   it("says Expired once the end has passed", () => {
     const now = UTC(2026, 7, 16, 0, 0);
-    expect(remainingLabel(now - 1, now)).toBe("Expired");
-    expect(countdownText(now - 1, now)).toBe("Expired");
+    expect(remainingLabel(now - 1, now)).toBe("已到期");
+    expect(countdownText(now - 1, now)).toBe("已到期");
   });
 
   it("floors the minutes at exact boundaries", () => {
@@ -181,9 +181,9 @@ describe("remainingLabel / countdownText", () => {
     const hour = 3600000;
     const minute = 60000;
     // Exactly 2d 3h 4m: the boundary itself still reads as 4 minutes.
-    expect(countdownText(now + 2 * day + 3 * hour + 4 * minute, now)).toBe("in 2d 3h 4m");
+    expect(countdownText(now + 2 * day + 3 * hour + 4 * minute, now)).toBe("2 天 3 小时 4 分后");
     // 1ms past the boundary floors to the previous minute.
-    expect(countdownText(now + 2 * day + 3 * hour + 4 * minute - 1, now)).toBe("in 2d 3h 3m");
+    expect(countdownText(now + 2 * day + 3 * hour + 4 * minute - 1, now)).toBe("2 天 3 小时 3 分后");
   });
 
   it("does not mutate the record it renders", () => {

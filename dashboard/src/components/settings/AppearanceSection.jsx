@@ -1,10 +1,9 @@
 import React from "react";
-import { Info, Languages, Monitor, Moon, Sun } from "lucide-react";
+import { Info, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "../../hooks/useTheme.js";
-import { useLocale } from "../../hooks/useLocale.js";
 import { useCurrency } from "../../hooks/useCurrency.js";
 import { useTokenFormat } from "../../hooks/useTokenFormat.js";
-import { EN_LOCALE, SYSTEM_LOCALE, ZH_CN_LOCALE } from "../../lib/locale";
+import { ZH_CN_LOCALE } from "../../lib/locale";
 import { CURRENCY_USD, getSupportedCurrencies } from "../../lib/currency";
 import { copy } from "../../lib/copy";
 import { Select } from "../../ui/components";
@@ -19,20 +18,12 @@ function buildThemeOptions() {
   ];
 }
 
-function buildLanguageOptions() {
-  return [
-    { value: SYSTEM_LOCALE, label: copy("settings.appearance.language.system") },
-    { value: EN_LOCALE, label: copy("settings.appearance.language.english") },
-    { value: ZH_CN_LOCALE, label: copy("settings.appearance.language.chinese") },
-  ];
-}
-
 function formatUpdatedAt(ts) {
   if (!ts) return null;
   try {
     const d = new Date(ts);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleString();
+    return d.toLocaleString(ZH_CN_LOCALE);
   } catch {
     return null;
   }
@@ -45,25 +36,6 @@ function buildSourceTooltip(rateSource, rateFetchedAt) {
     ? copy("settings.appearance.currency.rate_updated", { when: updatedAt })
     : copy("settings.appearance.currency.rate_never");
   return `${source} · ${when}`;
-}
-
-function LanguageDropdown({ locale, setLocale }) {
-  const options = buildLanguageOptions();
-  return (
-    <Select
-      value={locale}
-      onValueChange={setLocale}
-      options={options}
-      ariaLabel={copy("settings.appearance.language.label")}
-      className="px-2.5 py-1.5 text-xs font-medium"
-      leadingIcon={
-        <Languages
-          className="h-3.5 w-3.5 text-oai-gray-500 dark:text-oai-gray-400"
-          aria-hidden
-        />
-      }
-    />
-  );
 }
 
 function CurrencyDropdown({ currency, setCurrency }) {
@@ -104,7 +76,6 @@ function CurrencyHint({ currency, rate, rateSource, rateFetchedAt }) {
 
 export function AppearanceSection() {
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useLocale();
   const { currency, rate, rateSource, rateFetchedAt, setCurrency } = useCurrency();
   const { mode: tokenFormatMode, setMode: setTokenFormatMode } = useTokenFormat();
 
@@ -114,11 +85,6 @@ export function AppearanceSection() {
         label={copy("settings.appearance.theme.label")}
         hint={copy("settings.appearance.theme.hint")}
         control={<SegmentedControl options={buildThemeOptions()} value={theme} onChange={setTheme} />}
-      />
-      <SettingsRow
-        label={copy("settings.appearance.language.label")}
-        hint={copy("settings.appearance.language.hint")}
-        control={<LanguageDropdown locale={locale} setLocale={setLocale} />}
       />
       <SettingsRow
         label={copy("settings.appearance.currency.label")}

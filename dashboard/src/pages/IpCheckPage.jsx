@@ -16,8 +16,6 @@ import { copy } from "../lib/copy";
 // `access-control-allow-origin: *`, and — crucially — a direct browser fetch
 // exits from the visitor's own IP, so the probe still reports the user's real
 // IP (a cloud proxy would report the server's IP, which is useless here).
-// `/claude/status.json` lacks CORS; that one call degrades gracefully (the
-// page already wraps every fetch in try/catch + timeout).
 const IPCHECK_IS_LOCAL =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
@@ -177,8 +175,7 @@ export default function IpCheckPage() {
     let aborted = false;
 
     // ─── Localized string surface ─────────────────────────────────────────
-    // Capture all i18n strings once per mount. App.jsx remounts the page on
-    // locale change (key={resolvedLocale}), so this stays in sync.
+    // Capture labels used by the network diagnostics.
     const t = {
       unknown: copy("ipcheck.common.unknown"),
       failed: copy("ipcheck.ip.failed"),
@@ -225,22 +222,6 @@ export default function IpCheckPage() {
       secAbuserYes: copy("ipcheck.security.abuser_yes"),
       secAbuserNo: copy("ipcheck.security.abuser_no"),
       secClean: copy("ipcheck.security.clean"),
-      // Availability
-      availSvc: copy("ipcheck.avail.svc_row"),
-      availLat: {
-        normal: copy("ipcheck.avail.latency.normal"),
-        good: copy("ipcheck.avail.latency.good"),
-        slow: copy("ipcheck.avail.latency.slow"),
-        unreachable: copy("ipcheck.avail.latency.unreachable"),
-      },
-      availSvcStatus: {
-        none: copy("ipcheck.avail.svc.none"),
-        minor: copy("ipcheck.avail.svc.minor"),
-        major: copy("ipcheck.avail.svc.major"),
-        critical: copy("ipcheck.avail.svc.critical"),
-        maintenance: copy("ipcheck.avail.svc.maintenance"),
-        other: copy("ipcheck.avail.svc.other"),
-      },
       // DNS leak
       dnsStatus: copy("ipcheck.dns.status"),
       dnsOutlet: copy("ipcheck.dns.outlet"),
@@ -380,7 +361,6 @@ export default function IpCheckPage() {
       ipGeoClaude: ipGeoSkeleton(),
       propsContent: loadingRows([t.propsRegion, t.propsCity, t.propsType, t.propsAsn, t.propsOrg]),
       securityContent: loadingRows([t.secVpn, t.secProxy, t.secTor, t.secCrawler, t.secAbuser]),
-      claudeAvailContent: row("claude.ai", undefined, true) + row("anthropic.com", undefined, true),
       dnsLeakContent: row(t.dnsStatus, undefined, true) + row(t.dnsOutletIp, undefined, true),
       udpLeakContent: row(t.udpStatus, undefined, true) + row(t.udpOutletIp, undefined, true),
       deviceContent: loadingRows([t.devTz, t.devLang, t.devOs, t.devTouch, t.devNet, t.devDnt, t.devWebglRender, t.devCanvasFp]),
@@ -771,52 +751,6 @@ export default function IpCheckPage() {
       el.innerHTML = html;
     }
 
-    // ─── Claude availability ──────────────────────────────────────────────
-    async function detectClaudeAvail() {
-      const el = $("claudeAvailContent");
-      if (!el) return;
-      el.innerHTML = row("claude.ai", undefined, true) + row("anthropic.com", undefined, true);
-      const targets = [
-        { name: "claude.ai", url: "https://claude.ai/cdn-cgi/trace" },
-        { name: "anthropic.com", url: "https://www.anthropic.com/favicon.ico" },
-      ];
-      const results = await Promise.allSettled(targets.map(async (target) => {
-        const start = performance.now();
-        try {
-          await fetch(target.url, { mode: "no-cors", signal: AbortSignal.timeout(6000) });
-          return { name: target.name, ms: Math.round(performance.now() - start), ok: true };
-        } catch {
-          return { name: target.name, ms: -1, ok: false };
-        }
-      }));
-      const restricted = restrictedRegion();
-      let html = "";
-      results.forEach((r) => {
-        const d = r.value;
-        if (restricted) {
-          html += row(d.name, tag(t.availLat.unreachable, "danger"));
-        } else if (d.ok) {
-          const variant = d.ms < 250 ? "safe" : d.ms < 500 ? "info" : "warn";
-          const label = d.ms < 250 ? t.availLat.normal : d.ms < 500 ? t.availLat.good : t.availLat.slow;
-          html += row(d.name, `${tag(label, variant)} <span class="text-xs text-oai-gray-500 dark:text-oai-gray-400 font-normal">${d.ms}ms</span>`);
-        } else {
-          html += row(d.name, tag(t.availLat.unreachable, "danger"));
-        }
-      });
-      try {
-        const statusResp = await fetch(`${PROXY}/claude/status.json`, { signal: AbortSignal.timeout(3000) });
-        if (statusResp.ok) {
-          const st = await statusResp.json();
-          const ind = st.overall_indicator || "none";
-          const indText = t.availSvcStatus[ind] || t.availSvcStatus.other;
-          const indVar = { none: "safe", minor: "warn", major: "danger", critical: "danger", maintenance: "warn" };
-          html += row(t.availSvc, tag(indText, indVar[ind] || "warn"));
-        }
-      } catch { /* service status is optional */ }
-      el.innerHTML = html;
-    }
-    root.__detectClaudeAvail = detectClaudeAvail;
-
     // ─── Device info ──────────────────────────────────────────────────────
     function renderDeviceInfo() {
       const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || t.unknown;
@@ -1074,7 +1008,7 @@ export default function IpCheckPage() {
       await Promise.allSettled(tasks);
       if (aborted) return;
       render();
-      Promise.allSettled([detectDNSLeak(), detectWebRTCLeak(), detectClaudeAvail()]);
+      Promise.allSettled([detectDNSLeak(), detectWebRTCLeak()]);
       renderDeviceInfo();
       saveAndRenderIPHistory();
       // No /api/session telemetry: the upstream collects all three IPs for
@@ -1089,7 +1023,6 @@ export default function IpCheckPage() {
       if (state.scoreAnimId) cancelAnimationFrame(state.scoreAnimId);
       delete root.__setMaskOn;
       delete root.__clearIPHistory;
-      delete root.__detectClaudeAvail;
     };
   }, []);
 
@@ -1099,7 +1032,6 @@ export default function IpCheckPage() {
     containerRef.current?.__setMaskOn?.(next);
   };
   const handleClearHistory = () => containerRef.current?.__clearIPHistory?.();
-  const handleRefreshAvail = () => containerRef.current?.__detectClaudeAvail?.();
 
   // ─── Layout ──────────────────────────────────────────────────────────────
   const heroEmpty = { __html: "" };
@@ -1211,15 +1143,8 @@ export default function IpCheckPage() {
             </Card>
           </div>
 
-          {/* Availability + DNS leak + WebRTC leak */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card
-              title={<span className="flex items-center gap-1.5">{copy("ipcheck.avail.title")}<Tooltip text={copy("ipcheck.avail.tooltip")} /></span>}
-              action={<CardAction label={copy("ipcheck.avail.refresh")} onClick={handleRefreshAvail} />}
-              className="animate-fade-in-up stagger-5"
-            >
-              <div id="claudeAvailContent" className="divide-y divide-oai-gray-100 dark:divide-oai-gray-800 pt-1" dangerouslySetInnerHTML={heroEmpty} />
-            </Card>
+          {/* DNS leak + WebRTC leak */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card title={copy("ipcheck.dns.title")} className="animate-fade-in-up stagger-5">
               <div id="dnsLeakContent" className="divide-y divide-oai-gray-100 dark:divide-oai-gray-800 pt-1" dangerouslySetInnerHTML={heroEmpty} />
             </Card>

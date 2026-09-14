@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { copy, setCopyLocale } from "../../../lib/copy";
-import { EN_LOCALE, ZH_CN_LOCALE } from "../../../lib/locale";
+import { copy } from "../../../lib/copy";
+import { ZH_CN_LOCALE } from "../../../lib/locale";
 import { UsageLimitsPanel } from "./UsageLimitsPanel.jsx";
 
 function formatExpiry(iso) {
-  return new Intl.DateTimeFormat(EN_LOCALE, {
+  return new Intl.DateTimeFormat(ZH_CN_LOCALE, {
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -15,7 +15,7 @@ function formatExpiry(iso) {
 }
 
 function formatAmount(value) {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(ZH_CN_LOCALE, {
     minimumFractionDigits: 0,
     maximumFractionDigits: value >= 100 ? 0 : 2,
   }).format(value);
@@ -41,10 +41,6 @@ afterEach(() => {
 });
 
 describe("UsageLimitsPanel", () => {
-  afterEach(() => {
-    setCopyLocale(EN_LOCALE);
-  });
-
   it("shows provider status rows instead of hiding configured providers with errors", () => {
     render(
       <UsageLimitsPanel
@@ -63,8 +59,8 @@ describe("UsageLimitsPanel", () => {
     expect(screen.getByText("Codex")).toBeInTheDocument();
     expect(screen.getByText("Cursor")).toBeInTheDocument();
     expect(screen.getByText(/Claude API returned 403/)).toBeInTheDocument();
-    expect(screen.getByText("Not connected")).toBeInTheDocument();
-    expect(screen.getByText("Plan")).toBeInTheDocument();
+    expect(screen.getByText("未连接")).toBeInTheDocument();
+    expect(screen.getByText("套餐")).toBeInTheDocument();
   });
 
   it("renders Claude model-scoped weekly windows with their server-provided labels", () => {
@@ -105,11 +101,11 @@ describe("UsageLimitsPanel", () => {
     );
 
     expect(screen.getByText("Kimi")).toBeInTheDocument();
-    expect(screen.getByText("Weekly")).toBeInTheDocument();
+    expect(screen.getByText("周")).toBeInTheDocument();
     expect(screen.getByText("5h")).toBeInTheDocument();
-    expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("Parallel: 20")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Usage Limits\s*·\s*Used/ })).toBeInTheDocument();
+    expect(screen.getByText("总量")).toBeInTheDocument();
+    expect(screen.getByText("并发：20")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /使用限制\s*·\s*已用/ })).toBeInTheDocument();
     expect(screen.getByText("64%")).toBeInTheDocument();
     expect(screen.getByText("4%")).toBeInTheDocument();
     expect(screen.getByText("1%")).toBeInTheDocument();
@@ -117,7 +113,7 @@ describe("UsageLimitsPanel", () => {
     rerender(<UsageLimitsPanel kimi={{ configured: false }} order={["kimi"]} />);
 
     expect(screen.getByText("Kimi")).toBeInTheDocument();
-    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.getByText("未连接")).toBeInTheDocument();
   });
 
   it("shows Kiro credits observed from local usage_summary records", () => {
@@ -268,9 +264,9 @@ describe("UsageLimitsPanel", () => {
 
     const group = screen.getByText("Antigravity").closest("[role='button']");
     expect(group).not.toBeNull();
-    expect(within(group).getByText(/cached\s*·/i)).toBeInTheDocument();
+    expect(within(group).getByText(/缓存\s*·/)).toBeInTheDocument();
     expect(group.querySelector("span.bg-amber-500")).not.toBeNull();
-    expect(within(group).queryByText(/^Stale/i)).not.toBeInTheDocument();
+    expect(within(group).queryByText(/^过期/)).not.toBeInTheDocument();
   });
 
   it("flags an expired Claude sign-in on cached bars instead of the generic stale badge", () => {
@@ -297,17 +293,13 @@ describe("UsageLimitsPanel", () => {
     const group = screen.getByText("Claude").closest("[role='button']");
     expect(group).not.toBeNull();
     expect(within(group).getByText(new RegExp(copy("limits.reauth.badge")))).toBeInTheDocument();
-    expect(within(group).queryByText(/^Stale/i)).not.toBeInTheDocument();
+    expect(within(group).queryByText(/^过期/)).not.toBeInTheDocument();
   });
 
-  it.each([
-    [EN_LOCALE, "Live", "Stale"],
-    [ZH_CN_LOCALE, "实时", "过期"],
-  ])("localizes live and stale status labels for %s", (locale, liveLabel, staleLabel) => {
-    setCopyLocale(locale);
+  it("uses Chinese live and stale status labels", () => {
 
-    expect(copy("limits.provenance.fresh")).toBe(liveLabel);
-    expect(copy("limits.provenance.stale")).toBe(staleLabel);
+    expect(copy("limits.provenance.fresh")).toBe("实时");
+    expect(copy("limits.provenance.stale")).toBe("过期");
   });
 
   it("renders Codex Spark quota windows through compact copy labels", () => {
@@ -317,7 +309,6 @@ describe("UsageLimitsPanel", () => {
       expect(within(row).getByText(value)).toBeInTheDocument();
     }
 
-    setCopyLocale(ZH_CN_LOCALE);
     render(
       <UsageLimitsPanel
         codex={{
@@ -365,11 +356,11 @@ describe("UsageLimitsPanel", () => {
     );
 
     expect(screen.getByText("Codex")).toBeInTheDocument();
-    const row = screen.getByText("Credits").closest("div");
+    const row = screen.getByText("额度").closest("div");
     expect(within(row).getByText("<1%")).toBeInTheDocument();
     // Amounts show in the hover tooltip, not as an always-visible line.
     expect(within(row).getByRole("tooltip")).toHaveTextContent(
-      `${formatAmount(51.03434884548187)} / ${formatAmount(37_500)} credits used · ${formatAmount(37_448.96565115452)} left`,
+      copy("limits.codex_credits.detail", { used: formatAmount(51.03434884548187), limit: formatAmount(37_500), remaining: formatAmount(37_448.96565115452) }),
     );
   });
 
@@ -492,14 +483,14 @@ describe("UsageLimitsPanel", () => {
     );
 
     expect(screen.getByText("Cursor")).toBeInTheDocument();
-    // Collapsed: top-right auto-renew icon badge and the "Subscription" bar label.
-    expect(screen.getByRole("img", { name: "Auto-renew" })).toBeInTheDocument();
-    expect(screen.getByText("Subscription")).toBeInTheDocument();
+    // Collapsed: top-right auto-renew icon badge and the "订阅" bar label.
+    expect(screen.getByRole("img", { name: "自动续费" })).toBeInTheDocument();
+    expect(screen.getByText("订阅")).toBeInTheDocument();
 
     // Expanding reveals the subscription detail line.
     fireEvent.click(screen.getByText("Cursor").closest("[role='button']"));
-    expect(screen.getByText("Next renewal")).toBeInTheDocument();
-    expect(screen.getByText("Auto-renew on")).toBeInTheDocument();
+    expect(screen.getByText("下次续费")).toBeInTheDocument();
+    expect(screen.getByText("自动续费中")).toBeInTheDocument();
   });
 
   it("does not render subscription rows for a provider without a linked subscription", () => {
@@ -516,7 +507,7 @@ describe("UsageLimitsPanel", () => {
     );
 
     expect(screen.getByText("Cursor")).toBeInTheDocument();
-    expect(screen.queryByText("Auto-renew")).not.toBeInTheDocument();
-    expect(screen.queryByText("Subscription")).not.toBeInTheDocument();
+    expect(screen.queryByText("自动续费")).not.toBeInTheDocument();
+    expect(screen.queryByText("订阅")).not.toBeInTheDocument();
   });
 });

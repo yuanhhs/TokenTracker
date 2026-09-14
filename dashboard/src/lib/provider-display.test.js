@@ -52,7 +52,7 @@ describe("formatProviderDisplayName", () => {
   it.each(["trae-cn", "TRAE-CN", "Trae_Cn", "TRAE Work CN"])(
     "uses the catalog-backed TRAE Work CN name for %s",
     (value) => {
-      expect(formatProviderDisplayName(value)).toBe("TRAE Work CN");
+      expect(formatProviderDisplayName(value)).toBe("TRAE Work 中国版");
     },
   );
 });

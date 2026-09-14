@@ -151,7 +151,7 @@ describe("LimitsPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: "Display settings" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "显示设置" })).toHaveAttribute(
       "href",
       "/settings?section=limits",
     );
@@ -160,16 +160,16 @@ describe("LimitsPage", () => {
   // Saves a subscription through the settings popover the way a user would,
   // which triggers the post-mutation refresh that races the initial GET.
   async function saveThroughPopover() {
-    fireEvent.click(screen.getByRole("button", { name: "Subscriptions" }));
-    fireEvent.click(await screen.findByText("Add subscription"));
-    fireEvent.click(screen.getByLabelText("Linked tool"));
+    fireEvent.click(screen.getByRole("button", { name: "订阅管理" }));
+    fireEvent.click(await screen.findByText("添加订阅"));
+    fireEvent.click(screen.getByLabelText("关联工具"));
     const codexOption = screen.getByRole("option", { name: "Codex" });
     fireEvent.pointerDown(codexOption, { pointerType: "mouse" });
     fireEvent.click(codexOption);
-    fireEvent.change(screen.getByLabelText("Subscription date"), {
+    fireEvent.change(screen.getByLabelText("订阅时间"), {
       target: { value: "2027-08-16T14:00" },
     });
-    fireEvent.click(screen.getByText("Save"));
+    fireEvent.click(screen.getByText("保存"));
   }
 
   it("ignores a stale list response that resolves after a newer refresh", async () => {
@@ -193,7 +193,7 @@ describe("LimitsPage", () => {
     // The mount-time GET finally settles with older rows; it must lose.
     resolveFirst([{ id: "sub-1", service: "Stale" }]);
     await Promise.resolve();
-    expect(screen.getByTestId("limits-panel")).not.toHaveTextContent("Stale");
+    expect(screen.getByTestId("limits-panel")).not.toHaveTextContent("过期");
     expect(screen.getByTestId("limits-panel")).toHaveTextContent("Newer");
   });
 
@@ -209,13 +209,13 @@ describe("LimitsPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("limits-panel")).toHaveTextContent("GPT");
     });
-    expect(screen.queryByText("Failed to load subscriptions.")).not.toBeInTheDocument();
+    expect(screen.queryByText("加载订阅失败。")).not.toBeInTheDocument();
 
     listSubscriptionsMock.mockRejectedValueOnce(new Error("boom"));
     await saveThroughPopover();
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to load subscriptions.")).toBeInTheDocument();
+      expect(screen.getByText("加载订阅失败。")).toBeInTheDocument();
     });
     // Rows stay on screen instead of being wiped to a fake empty state.
     expect(screen.getByTestId("limits-panel")).toHaveTextContent("GPT");
@@ -231,14 +231,14 @@ describe("LimitsPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to load subscriptions.")).toBeInTheDocument();
+      expect(screen.getByText("加载订阅失败。")).toBeInTheDocument();
     });
 
     listSubscriptionsMock.mockResolvedValueOnce([{ id: "sub-1", service: "GPT" }]);
     await saveThroughPopover();
 
     await waitFor(() => {
-      expect(screen.queryByText("Failed to load subscriptions.")).not.toBeInTheDocument();
+      expect(screen.queryByText("加载订阅失败。")).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("limits-panel")).toHaveTextContent("GPT");
   });

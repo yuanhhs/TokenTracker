@@ -7,7 +7,7 @@
 ; shortcuts and never touches machine-wide state.
 ;
 ; Inputs:
-;   ISCC.exe /DMyAppVersion=0.31.1 TokenTracker.iss
+;   ISCC.exe /DMyAppVersion=1.0.0 TokenTracker.iss
 ;
 ; Expects the self-contained publish output next to this script at
 ; ..\publish\ (TokenTracker.exe + the .NET runtime + EmbeddedServer\),
@@ -47,18 +47,13 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 ; Close a running tray instance (and its EmbeddedServer\node.exe child, which
-; holds a file lock) before overwriting its files on upgrade. We drive the
-; relaunch ourselves after a silent update, so don't let Restart Manager do it.
+; holds a file lock) before overwriting its files on upgrade.
 CloseApplications=yes
 RestartApplications=no
 
-; A language picker appears at setup start (Inno shows it automatically when more
-; than one language is listed). English ships with Inno; the Chinese message files
-; are bundled here (UTF-8 with BOM) since Inno does not include them.
+; The bundled Simplified Chinese messages use UTF-8 with BOM.
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
-Name: "chinesetraditional"; MessagesFile: "ChineseTraditional.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked

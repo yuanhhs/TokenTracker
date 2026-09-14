@@ -119,7 +119,7 @@ describe("ActivityHeatmap", () => {
     });
 
     fireEvent.click(getByRole("tab", { name: "3D" }));
-    fireEvent.click(getByTitle("Click to enter 3D fullscreen rotation analysis mode"));
+    fireEvent.click(getByTitle("点击进入 3D 全屏旋转分析模式"));
 
     expect(getAllByText("12.35M")).toHaveLength(2);
   });

@@ -62,7 +62,7 @@ function rotateVector(x, y, z, yaw, pitch) {
 }
 
 // AI 趣味数据洞察文案
-export function getAITooltipMessage(level, value, formatter = (next) => Number(next).toLocaleString()) {
+export function getAITooltipMessage(level, value, formatter = (next) => Number(next).toLocaleString("zh-CN")) {
   const formatVal = formatter(value);
   if (level >= 4) {
     const index = Math.floor(Math.random() * 3) + 1;
@@ -549,7 +549,7 @@ export function ActivityHeatmap3D({
         width={interactive ? "95%" : "100%"}
         height={interactive ? "95%" : "auto"}
         role="img"
-        aria-label={copy("heatmap.iso.aria") || "3D interactive activity heatmap"}
+        aria-label={copy("heatmap.iso.aria")}
         style={{ 
           display: "block", 
           width: "100%", 

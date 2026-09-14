@@ -9,7 +9,7 @@ namespace TokenTrackerWin;
 /// localStorage; these are the fallbacks when a rate is missing.
 ///
 /// The chosen symbol + rate are also cached natively (native-settings.json, alongside
-/// the locale/theme prefs) so the tray can show the right currency on a cold launch.
+/// the theme prefs) so the tray can show the right currency on a cold launch.
 /// </summary>
 internal static class Currency
 {
