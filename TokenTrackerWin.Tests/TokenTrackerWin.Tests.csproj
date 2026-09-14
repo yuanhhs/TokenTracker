@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Compile Include="../TokenTrackerWin/ChildProcessProxy.cs" Link="ChildProcessProxy.cs" />
+    <Compile Include="../TokenTrackerWin/ClipboardHistoryStore.cs" Link="ClipboardHistoryStore.cs" />
   </ItemGroup>
 
 </Project>

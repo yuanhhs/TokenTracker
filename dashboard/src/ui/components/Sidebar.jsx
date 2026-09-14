@@ -5,6 +5,7 @@ import {
   Gauge,
   History,
   Globe,
+  Clipboard,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -39,6 +40,7 @@ export function getNavGroups() {
       id: "tools",
       label: copy("nav.group.tools"),
       items: [
+        { id: "clipboard", to: "/clipboard", icon: Clipboard, label: copy("nav.clipboard") },
         { id: "ip-check", to: "/ip-check", icon: Globe, label: copy("nav.ip_check") },
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },
       ],

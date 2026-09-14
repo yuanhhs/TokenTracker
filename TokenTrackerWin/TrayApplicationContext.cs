@@ -14,6 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ?? System.Windows.Threading.Dispatcher.CurrentDispatcher;
     private readonly NotifyIcon _trayIcon;
     private readonly ServerManager _server = new();
+    private readonly ClipboardHistoryService _clipboard = new();
     private readonly UsagePoller _poller;
     private DashboardWindow? _dashboard;
     private readonly ContextMenuStrip _menu;
@@ -166,7 +167,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void EnsureDashboard()
     {
         if (_dashboard is not null) return;
-        var dashboard = new DashboardWindow(_server);
+        var dashboard = new DashboardWindow(_server, _clipboard);
         _dashboard = dashboard;
         dashboard.ReleasedForIdle += OnDashboardReleasedForIdle;
         dashboard.CurrencyChanged += () => PostToUi(RefreshSummary);
@@ -306,6 +307,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _refreshTimer.Dispose(); _syncTimer.Dispose(); _poller.Dispose(); _server.Dispose();
             _trayIcon.Dispose(); _menu.Dispose(); _menuFont?.Dispose(); _summaryFont?.Dispose();
             _dashboard?.Shutdown();
+            _clipboard.Dispose();
         }
         base.Dispose(disposing);
     }

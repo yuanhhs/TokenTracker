@@ -49,7 +49,7 @@ Cost is computed from the individual categories, never from `total_tokens` alone
 ## Engineering Conventions
 
 - CommonJS in `src/`; ESM + strict TypeScript/JSX in `dashboard/`.
-- Keep all product data local and never collect prompts, messages, or response bodies.
+- Keep all product data local. Token analytics must never collect prompts, messages, or response bodies. The user-requested clipboard archive stores copied content separately and must never send it to analytics, logs, or the Node API.
 - Preserve existing provider credential readers and parsers unless the task targets them.
 - Prefer existing helpers and patterns over new abstractions.
 - The dashboard, Windows app, and installer use Simplified Chinese only.
@@ -57,6 +57,7 @@ Cost is computed from the individual categories, never from `total_tokens` alone
 - Remote update checks, external service-status probes, Dynamic Island, desktop widgets, and Skills/MCP management are not part of this fork.
 - Windows native adaptations are gated by `isNativeWindowsApp()` in `dashboard/src/lib/native-bridge.js`.
 - `TokenTrackerWin/EmbeddedServer/` is generated and gitignored.
+- Clipboard history is owned by the tray's `ClipboardHistoryService` and persists through `ClipboardHistoryStore` under `%LOCALAPPDATA%\TokenTracker\Clipboard`; the dashboard uses a source-checked WebView2 bridge. Browser development uses explicit pastes/imports and IndexedDB. Preserve pins, atomic index writes, local file copies, and clipboard history exclusion formats.
 
 ## Release
 
