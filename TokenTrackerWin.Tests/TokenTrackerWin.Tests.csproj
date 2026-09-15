@@ -19,11 +19,6 @@
 
   <ItemGroup>
     <Compile Include="../TokenTrackerWin/ChildProcessProxy.cs" Link="ChildProcessProxy.cs" />
-    <Compile Include="../TokenTrackerWin/ClipboardHistoryStore.cs" Link="ClipboardHistoryStore.cs" />
-    <Compile Include="../TokenTrackerWin/FloatingWindowGeometry.cs" Link="FloatingWindowGeometry.cs" />
-    <Compile Include="../TokenTrackerWin/FloatingWindowPreferences.cs" Link="FloatingWindowPreferences.cs" />
-    <Compile Include="../TokenTrackerWin/FloatingBridgePolicy.cs" Link="FloatingBridgePolicy.cs" />
-    <Compile Include="../TokenTrackerWin/FloatingUsageSummary.cs" Link="FloatingUsageSummary.cs" />
     <Compile Include="../TokenTrackerWin/UsagePoller.cs" Link="UsagePoller.cs" />
   </ItemGroup>
 

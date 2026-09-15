@@ -4,7 +4,6 @@ import {
   BarChart3,
   Gauge,
   History,
-  Clipboard,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -39,7 +38,6 @@ export function getNavGroups() {
       id: "tools",
       label: copy("nav.group.tools"),
       items: [
-        { id: "clipboard", to: "/clipboard", icon: Clipboard, label: copy("nav.clipboard") },
         { id: "settings", to: "/settings", icon: SettingsIcon, label: copy("nav.settings") },
       ],
     },

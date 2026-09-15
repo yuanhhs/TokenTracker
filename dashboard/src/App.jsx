@@ -34,9 +34,6 @@ const SettingsPage = lazy(() =>
 const SessionsPage = lazy(() =>
   import("./pages/SessionsPage.jsx").then((m) => ({ default: m.SessionsPage })),
 );
-const ClipboardPage = lazy(() =>
-  import("./pages/ClipboardPage.jsx").then((m) => ({ default: m.ClipboardPage })),
-);
 const WrappedPage = lazy(() => import("./pages/WrappedPage.jsx"));
 
 const DASHBOARD_PATHS = new Set([
@@ -45,7 +42,6 @@ const DASHBOARD_PATHS = new Set([
   "/limits",
   "/settings",
   "/sessions",
-  "/clipboard",
 ]);
 
 export default function App() {
@@ -95,7 +91,6 @@ export default function App() {
   else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
-  else if (normalizedPath === "/clipboard") PageComponent = ClipboardPage;
   else if (normalizedPath === "/wrapped") PageComponent = WrappedPage;
 
   const showSidebar = isLocalMode && isDashboardPath;

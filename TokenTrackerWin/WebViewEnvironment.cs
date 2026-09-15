@@ -3,7 +3,7 @@ using Microsoft.Web.WebView2.Core;
 
 namespace TokenTrackerWin;
 
-/// <summary>Both windows share the same local profile and browser-process options.</summary>
+/// <summary>Reopened dashboard windows reuse the local profile and browser-process options.</summary>
 internal static class WebViewEnvironment
 {
     private static Task<CoreWebView2Environment>? _environment;

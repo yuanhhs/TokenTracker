@@ -47,7 +47,6 @@ internal sealed class DashboardWindow : Window
     // support external drag-drop and throws on initialization otherwise.
     private readonly WebView2CompositionControl _webView = new() { AllowExternalDrop = false };
     private readonly ServerManager _server;
-    private readonly ClipboardHistoryService _clipboard;
     private bool _coreReady;
     private bool _exiting;
     private nint _hwnd;
@@ -62,11 +61,9 @@ internal sealed class DashboardWindow : Window
     public event Action<string, string>? NotificationRequested;
     public event Action<DashboardWindow>? ReleasedForIdle;
 
-    public DashboardWindow(ServerManager server, ClipboardHistoryService clipboard)
+    public DashboardWindow(ServerManager server)
     {
         _server = server;
-        _clipboard = clipboard;
-        _clipboard.Changed += OnClipboardHistoryChanged;
 
         Title = Constants.AppDisplayName;
         // Open large (like the macOS window) so the dashboard stays above its
@@ -244,9 +241,6 @@ internal sealed class DashboardWindow : Window
         var core = _webView.CoreWebView2;
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.IsStatusBarEnabled = false;
-        if (Directory.Exists(_clipboard.AssetsDirectory))
-            core.SetVirtualHostNameToFolderMapping("clipboard.tokentracker.local", _clipboard.AssetsDirectory,
-                CoreWebView2HostResourceAccessKind.DenyCors);
 
         // Open target=_blank / external links in the system browser, not a popup WebView.
         core.NewWindowRequested += (_, e) =>
@@ -295,12 +289,7 @@ internal sealed class DashboardWindow : Window
                 {
                     using var doc = JsonDocument.Parse(msg);
                     if (!doc.RootElement.TryGetProperty("type", out var t)) return;
-                    if (t.GetString() == "clipboard:request")
-                    {
-                        if (IsClipboardSourceTrusted(e.Source))
-                            _ = HandleClipboardRequestAsync(doc.RootElement.Clone());
-                    }
-                    else if (t.GetString() == "nativeSetting"
+                    if (t.GetString() == "nativeSetting"
                              && doc.RootElement.TryGetProperty("key", out var k)
                              && doc.RootElement.TryGetProperty("value", out var v))
                     {
@@ -592,12 +581,6 @@ internal sealed class DashboardWindow : Window
         NavigateWhenServerReady("/settings?app=1");
     }
 
-    public void ShowClipboard()
-    {
-        ShowDashboard();
-        NavigateWhenServerReady("/clipboard?app=1");
-    }
-
     /// <summary>Diagnostics → %LOCALAPPDATA%\TokenTracker\windows-host.log (shared with ServerManager).</summary>
     private static void Log(string message) => Diag.Log("dashboard", message);
 
@@ -658,43 +641,6 @@ internal sealed class DashboardWindow : Window
         }
     }
 
-    private bool IsClipboardSourceTrusted(string source) =>
-        Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
-        uri.GetLeftPart(UriPartial.Authority).Equals(_server.BaseUrl, StringComparison.OrdinalIgnoreCase);
-
-    private async Task HandleClipboardRequestAsync(JsonElement message)
-    {
-        if (!message.TryGetProperty("requestId", out var id) || id.ValueKind != JsonValueKind.String) return;
-        var requestId = id.GetString();
-        if (requestId is null || requestId.Length > 100) return;
-        try
-        {
-            var action = message.GetProperty("action").GetString() ?? "";
-            var args = message.TryGetProperty("args", out var supplied) && supplied.ValueKind == JsonValueKind.Object
-                ? supplied : JsonSerializer.SerializeToElement(new { });
-            var result = await _clipboard.ExecuteAsync(action, args, this);
-            PostClipboardMessage(new { type = "clipboard:response", requestId, result });
-        }
-        catch (Exception error)
-        {
-            PostClipboardMessage(new { type = "clipboard:response", requestId, error = ClipboardHistoryService.ErrorCode(error) });
-        }
-    }
-
-    private void OnClipboardHistoryChanged() =>
-        PostClipboardMessage(new { type = "clipboard:changed" });
-
-    private void PostClipboardMessage(object message)
-    {
-        if (!_coreReady) return;
-        try
-        {
-            if (IsClipboardSourceTrusted(_webView.CoreWebView2.Source))
-                _webView.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(message, ClipboardHistoryStore.JsonOptions));
-        }
-        catch (InvalidOperationException) { /* window closed while an archive operation completed */ }
-    }
-
     /// <summary>Really close the window + tear down (called from the tray "Quit").</summary>
     public void Shutdown()
     {
@@ -716,7 +662,6 @@ internal sealed class DashboardWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _clipboard.Changed -= OnClipboardHistoryChanged;
         _coreReady = false;
         Content = null;
         _webView.Dispose();

@@ -1039,7 +1039,6 @@ export default defineConfig(({ mode }) => {
   const rollupInput = {
     main: path.resolve(ROOT_DIR, "index.html"),
     share: path.resolve(ROOT_DIR, "share.html"),
-    floating: path.resolve(ROOT_DIR, "floating.html"),
   };
 
   return {

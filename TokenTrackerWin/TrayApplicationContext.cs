@@ -14,9 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ?? System.Windows.Threading.Dispatcher.CurrentDispatcher;
     private readonly NotifyIcon _trayIcon;
     private readonly ServerManager _server = new();
-    private readonly ClipboardHistoryService _clipboard = new();
     private readonly UsagePoller _poller;
-    private readonly FloatingWindow _floating;
     private DashboardWindow? _dashboard;
     private readonly ContextMenuStrip _menu;
     private readonly TrayMenuRenderer _menuRenderer;
@@ -24,8 +22,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _openDashboardItem;
     private readonly ToolStripMenuItem _syncItem;
     private readonly ToolStripMenuItem _startupItem;
-    private readonly ToolStripMenuItem _floatingItem;
-    private readonly ToolStripMenuItem _resetFloatingItem;
     private readonly ToolStripMenuItem _starItem;
     private readonly ToolStripMenuItem _quitItem;
     private UsagePoller.UsageStats? _lastStats;
@@ -42,26 +38,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public TrayApplicationContext()
     {
         _poller = new UsagePoller(() => _server.BaseUrl);
-        _floating = new FloatingWindow(_server, _clipboard);
-        _floating.DashboardRequested += page =>
-        {
-            EnsureDashboard();
-            if (page == "clipboard") _dashboard!.ShowClipboard(); else _dashboard!.ShowDashboard();
-        };
-        _floating.RefreshRequested += () => { _poller.RefreshNow(); TriggerBackgroundSync(); };
         _menuRenderer = new TrayMenuRenderer(_menuPalette);
         _summaryItem = CreateMenuItem("", (_, _) => OpenDashboard());
         _openDashboardItem = CreateMenuItem("", (_, _) => OpenDashboard());
         _syncItem = CreateMenuItem("", (_, _) => _server.TriggerSync());
         _startupItem = CreateMenuItem("", OnToggleStartup);
         _startupItem.Checked = LaunchAtStartup.IsEnabled;
-        _floatingItem = CreateMenuItem("显示悬浮球", (_, _) =>
-        {
-            if (_floating.Enabled) _floating.HideFloating(); else _floating.ShowFloating();
-        });
-        _floatingItem.Checked = _floating.Enabled;
-        _resetFloatingItem = CreateMenuItem("重置悬浮球位置", (_, _) => _floating.ResetPosition());
-        _floating.EnabledChanged += () => _floatingItem.Checked = _floating.Enabled;
         _starItem = CreateMenuItem("", (_, _) => OpenInBrowser(Constants.GitHubUrl));
         _quitItem = CreateMenuItem("", (_, _) => Quit());
 
@@ -80,8 +62,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _menu.Items.Add(CreateSeparator());
         _menu.Items.Add(_openDashboardItem);
         _menu.Items.Add(_syncItem);
-        _menu.Items.Add(_floatingItem);
-        _menu.Items.Add(_resetFloatingItem);
         _menu.Items.Add(CreateSeparator());
         _menu.Items.Add(_startupItem);
         _menu.Items.Add(_starItem);
@@ -104,8 +84,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ContextMenuStrip = _menu,
         };
         _trayIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleDashboard(); };
-        _floating.Failed += () => _trayIcon.ShowBalloonTip(5000, Constants.AppDisplayName,
-            "悬浮窗口未能启动，请重启应用后重试。", ToolTipIcon.Warning);
         _server.StatusChanged += OnServerStatusChanged;
         _server.SyncStarted += OnSyncStarted;
         _server.SyncCompleted += OnSyncCompleted;
@@ -113,7 +91,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _refreshTimer.Tick += (_, _) => RefreshSummary();
         _syncTimer.Tick += (_, _) => TriggerBackgroundSync();
         _refreshTimer.Start();
-        if (_floating.Enabled) _floating.ShowFloating();
         _ = _server.EnsureServerRunningAsync();
     }
 
@@ -190,7 +167,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void EnsureDashboard()
     {
         if (_dashboard is not null) return;
-        var dashboard = new DashboardWindow(_server, _clipboard);
+        var dashboard = new DashboardWindow(_server);
         _dashboard = dashboard;
         dashboard.ReleasedForIdle += OnDashboardReleasedForIdle;
         dashboard.CurrencyChanged += () => PostToUi(RefreshSummary);
@@ -239,7 +216,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void OnStatsUpdated(UsagePoller.UsageStats stats) => PostToUi(() =>
     {
         _lastStats = stats;
-        _floating.UpdateStats(stats);
         RefreshSummary();
     });
 
@@ -253,7 +229,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _cachedCurrency = (symbol, rate);
             Currency.Persist(symbol, rate);
         }
-        _floating.UpdateAppearance(symbol, rate, _themePreference);
         if (_lastStats is not { } s)
         {
             _summaryItem.Text = $"{_strings.TodayTitle}: {_strings.NoData}";
@@ -341,8 +316,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _refreshTimer.Dispose(); _syncTimer.Dispose(); _poller.Dispose(); _server.Dispose();
             _trayIcon.Dispose(); _menu.Dispose(); _menuFont?.Dispose(); _summaryFont?.Dispose();
             _dashboard?.Shutdown();
-            _floating.Shutdown();
-            _clipboard.Dispose();
         }
         base.Dispose(disposing);
     }
