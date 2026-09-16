@@ -101,6 +101,8 @@ promo-video/
 
 # Local release artifacts (large binaries — not part of the repo)
 release-artifacts/
+release/
+temp/
 
 # Local skill tooling lockfile (hyperframes — not part of the repo)
 skills-lock.json
