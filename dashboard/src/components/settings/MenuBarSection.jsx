@@ -11,35 +11,11 @@ export function MenuBarSection() {
 
   // Keep only Windows tray controls and system-level actions in this section.
   const launchAtLogin = Boolean(settings?.launchAtLogin);
-  const toastOnReset = settings?.toastOnReset !== false;
-  const confettiOnReset = settings?.confettiOnReset !== false;
   const launchAtLoginSupported = settings?.launchAtLoginSupported !== false;
   const isSyncing = Boolean(settings?.isSyncing);
 
   return (
     <SectionCard title={copy("settings.section.menubar")}>
-      <SettingsRow
-        label={copy("settings.menubar.toastOnReset")}
-        hint={copy("settings.menubar.toastOnResetHint")}
-        control={
-          <ToggleSwitch
-            checked={toastOnReset}
-            onChange={() => setSetting("toastOnReset", !toastOnReset)}
-            ariaLabel={copy("settings.menubar.toastOnReset")}
-          />
-        }
-      />
-      <SettingsRow
-        label={copy("settings.menubar.confettiOnReset")}
-        hint={copy("settings.menubar.confettiOnResetHint")}
-        control={
-          <ToggleSwitch
-            checked={confettiOnReset}
-            onChange={() => setSetting("confettiOnReset", !confettiOnReset)}
-            ariaLabel={copy("settings.menubar.confettiOnReset")}
-          />
-        }
-      />
       {launchAtLoginSupported ? (
         <SettingsRow
           label={copy("settings.menubar.launchAtLogin")}

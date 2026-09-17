@@ -10,7 +10,7 @@ const {
   readCopilotAuthDbToken,
   readCopilotAuthDbTokenAsync,
   decryptCopilotAuthDbToken,
-} = require("../src/lib/usage-limits");
+} = require("../src/lib/copilot-auth");
 
 // Mirror copilot-language-server's auth.db scheme: AES-256-GCM with the
 // ciphertext laid out as iv(12) ‖ ciphertext ‖ authTag(16), key base64-encoded.

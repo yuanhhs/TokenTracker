@@ -1,22 +1,15 @@
 {
-  "generatedAt": "2026-09-14T10:00:13.350Z",
+  "generatedAt": "2026-09-17T10:54:10.513Z",
   "root": "dashboard/src",
   "rules": {
     "colors": "hex/rgb(a) literals",
     "rawText": "JSX text nodes containing letters or digits"
   },
   "totals": {
-    "colors": 235,
-    "rawText": 82
+    "colors": 222,
+    "rawText": 73
   },
   "files": {
-    "dashboard/src/components/settings/MenuBarSection.jsx": {
-      "colors": 0,
-      "rawText": 1,
-      "rawTextTokens": [
-        "GitHub"
-      ]
-    },
     "dashboard/src/components/SortableColumnHeader.jsx": {
       "colors": 4,
       "rawText": 0,
@@ -90,10 +83,9 @@
     },
     "dashboard/src/ui/components/Sidebar.jsx": {
       "colors": 0,
-      "rawText": 2,
+      "rawText": 1,
       "rawTextTokens": [
-        "Token Tracker",
-        "getNavGroups(), [resolvedLocale]); return ("
+        "Token Tracker"
       ]
     },
     "dashboard/src/ui/dashboard/components/ActivityHeatmap.jsx": {
@@ -167,13 +159,6 @@
         "0 && ("
       ]
     },
-    "dashboard/src/ui/dashboard/components/SubscriptionSettingsCard.jsx": {
-      "colors": 0,
-      "rawText": 1,
-      "rawTextTokens": [
-        "item.id === editingId) : null; const editingView = editingSub ? cycleView(editingSub, now) : null; return ("
-      ]
-    },
     "dashboard/src/ui/dashboard/components/TrendMonitor.jsx": {
       "colors": 29,
       "rawText": 5,
@@ -189,21 +174,6 @@
       "rawText": 1,
       "rawTextTokens": [
         "(outside #root) mount and composite in the renderer // but are NOT presented on-screen, so the modal looked like it \"didn't open\". // The 3D heatmap modal renders inline for the same reason and works. macOS // WKWebView / browsers are unaffected either way. return ("
-      ]
-    },
-    "dashboard/src/ui/dashboard/components/UsageLimitsPanel.jsx": {
-      "colors": 0,
-      "rawText": 1,
-      "rawTextTokens": [
-        "0 ? groups :"
-      ]
-    },
-    "dashboard/src/ui/dashboard/components/UsageLimitsPanel.test.jsx": {
-      "colors": 0,
-      "rawText": 2,
-      "rawTextTokens": [
-        ", ); expect(screen.getByText(\"Codex\")).toBeInTheDocument(); const row = screen.getByText(\"额度\").closest(\"div\"); expect(within(row).getByText(\"",
-        ", ); expect(screen.getByText(\"Cursor\")).toBeInTheDocument(); rerender("
       ]
     },
     "dashboard/src/ui/dashboard/components/UsageOverview.jsx": {
@@ -243,15 +213,6 @@
       "rawTextTokens": [
         "); expect(plain.container.textContent).not.toContain(\"14:00\"); const zoomed = render(",
         "); expect(without.queryByRole(\"button\")).toBeNull(); const withCfg = render("
-      ]
-    },
-    "dashboard/src/ui/foundation/__tests__/LocaleProvider.test.jsx": {
-      "colors": 0,
-      "rawText": 3,
-      "rawTextTokens": [
-        "en",
-        "zh",
-        "zh-tw"
       ]
     },
     "dashboard/src/ui/marketing/components/BorderGlow.jsx": {
@@ -337,16 +298,6 @@
         "The Token Tracker",
         "→ tokentracker.cc"
       ]
-    },
-    "dashboard/src/floating/bloub/decor.ts": {
-      "colors": 1,
-      "rawText": 0,
-      "rawTextTokens": []
-    },
-    "dashboard/src/floating/bloub/skins.ts": {
-      "colors": 12,
-      "rawText": 0,
-      "rawTextTokens": []
     }
   }
 }

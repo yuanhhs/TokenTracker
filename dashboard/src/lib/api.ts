@@ -50,7 +50,6 @@ const PATHS = {
   projectUsageSummary: "tokentracker-project-usage-summary",
   projectUsageDetail: "tokentracker-project-usage-detail",
   localSync: "tokentracker-local-sync",
-  usageLimits: "tokentracker-usage-limits",
   outcomes: "tokentracker-outcomes",
   sessionInsights: "tokentracker-session-insights",
   contextHealth: "tokentracker-context-health",
@@ -335,11 +334,6 @@ export async function getUsageMonthly({
     ...filterParams,
     ...tzParams,
   }, { accessToken });
-}
-
-export async function getUsageLimits(opts: { refresh?: boolean } = {}) {
-  const params = opts?.refresh ? { refresh: "1" } : undefined;
-  return fetchLocalJson(PATHS.usageLimits, params);
 }
 
 export async function getUsageHeatmap({

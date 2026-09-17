@@ -2,17 +2,7 @@ import React, { useLayoutEffect, useRef } from "react";
 import { SpotlightCard } from "../components/SpotlightCard.jsx";
 import { gsap } from "./gsap.js";
 
-const CARD_KEYS = ["limits", "heatmap"];
-
-function LimitsGlyph() {
-  return (
-    <svg viewBox="0 0 48 24" className="h-6 w-12" fill="none" aria-hidden="true">
-      <path d="M2 22 A 22 22 0 0 1 46 22" stroke="var(--lv3-line)" strokeWidth="3" strokeLinecap="round" />
-      <path d="M2 22 A 22 22 0 0 1 32 4.5" stroke="var(--lv3-accent)" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="32" cy="4.5" r="2.6" fill="var(--lv3-accent-soft)" />
-    </svg>
-  );
-}
+const CARD_KEYS = ["heatmap"];
 
 function HeatmapGlyph() {
   const cells = [0.15, 0.5, 0.9, 0.3, 0.7, 0.2, 1, 0.45, 0.6, 0.25, 0.8, 0.35];
@@ -29,7 +19,7 @@ function HeatmapGlyph() {
   );
 }
 
-const GLYPHS = { limits: LimitsGlyph, heatmap: HeatmapGlyph };
+const GLYPHS = { heatmap: HeatmapGlyph };
 
 /**
  * Capability cards with a large, perspective-tilted product screenshot that
@@ -117,7 +107,7 @@ export function CapabilitiesSection({ copy, animate, screenshotSrc, screenshotAl
           <p className="mt-4 text-base leading-relaxed text-oai-gray-400">{copy("landing.v3.cap.subtitle")}</p>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="mt-12 grid grid-cols-1 gap-5 sm:max-w-md">
           {CARD_KEYS.map((key) => {
             const Glyph = GLYPHS[key];
             return (

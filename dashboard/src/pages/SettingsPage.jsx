@@ -1,18 +1,10 @@
 import React from "react";
-import { FlaskConical, Gauge, Globe, Monitor, Palette, Settings } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { LimitsSettingsPanel } from "../components/LimitsSettingsPanel.jsx";
+import { FlaskConical, Globe, Monitor, Palette } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { AppearanceSection } from "../components/settings/AppearanceSection.jsx";
 import { LabsSection } from "../components/settings/LabsSection.jsx";
-import {
-  SectionCard,
-  SegmentedControl,
-  SettingsRow,
-  ToggleSwitch,
-} from "../components/settings/Controls.jsx";
 import { MenuBarSection, NativeAppFooter } from "../components/settings/MenuBarSection.jsx";
 import { NetworkSection } from "../components/settings/NetworkSection.jsx";
-import { LIMIT_DISPLAY_MODES, useLimitsDisplayPrefs } from "../hooks/use-limits-display-prefs.js";
 import { useNativeSettings } from "../hooks/use-native-settings.js";
 import { useProxySettings } from "../hooks/use-proxy-settings.js";
 import { cn } from "../lib/cn";
@@ -22,36 +14,14 @@ const SETTINGS_SECTION_IDS = {
   APPEARANCE: "appearance",
   NATIVE_APP: "native-app",
   NETWORK: "network",
-  LIMITS: "limits",
   LABS: "labs",
 };
 
-function LimitsDisplayModeControl({ prefs }) {
-  return (
-    <SegmentedControl
-      options={[
-        { value: LIMIT_DISPLAY_MODES.USED, label: copy("limits.settings.display_mode_used") },
-        { value: LIMIT_DISPLAY_MODES.REMAINING, label: copy("limits.settings.display_mode_remaining") },
-      ]}
-      value={prefs.displayMode}
-      onChange={prefs.setDisplayMode}
-    />
-  );
-}
-
 export function SettingsPage() {
-  const limitsPrefs = useLimitsDisplayPrefs();
-  const {
-    available: nativeSettingsAvailable,
-    settings: nativeSettings,
-    setSetting: setNativeSetting,
-  } = useNativeSettings();
+  const { available: nativeSettingsAvailable } = useNativeSettings();
   const proxySettings = useProxySettings();
   const { available: proxySettingsAvailable } = proxySettings;
-  const toastOnReset = nativeSettings?.toastOnReset !== false;
-  const confettiOnReset = nativeSettings?.confettiOnReset !== false;
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const requestedSection = searchParams.get("section");
   const requestedSectionAvailable =
     Object.values(SETTINGS_SECTION_IDS).includes(requestedSection) &&
@@ -94,70 +64,6 @@ export function SettingsPage() {
           content: <NetworkSection proxySettings={proxySettings} />,
         }]
       : []),
-    {
-      id: SETTINGS_SECTION_IDS.LIMITS,
-      label: copy("settings.section.limits"),
-      Icon: Gauge,
-      content: (
-        <div className="space-y-4">
-          <SectionCard title={copy("settings.section.limits")}>
-            <SettingsRow
-              label={copy("limits.settings.display_mode_label")}
-              control={<LimitsDisplayModeControl prefs={limitsPrefs} />}
-            />
-            <SettingsRow
-              label={copy("settings.menubar.toastOnReset")}
-              hint={copy("settings.menubar.toastOnResetHint")}
-              control={
-                <ToggleSwitch
-                  checked={toastOnReset}
-                  disabled={!nativeSettingsAvailable}
-                  onChange={() => setNativeSetting("toastOnReset", !toastOnReset)}
-                  ariaLabel={copy("settings.menubar.toastOnReset")}
-                />
-              }
-            />
-            <SettingsRow
-              label={copy("settings.menubar.confettiOnReset")}
-              hint={copy("settings.menubar.confettiOnResetHint")}
-              control={
-                <ToggleSwitch
-                  checked={confettiOnReset}
-                  disabled={!nativeSettingsAvailable}
-                  onChange={() => setNativeSetting("confettiOnReset", !confettiOnReset)}
-                  ariaLabel={copy("settings.menubar.confettiOnReset")}
-                />
-              }
-            />
-            <SettingsRow
-              label={copy("settings.limits.showSubscriptions")}
-              hint={copy("settings.limits.showSubscriptionsHint")}
-              control={
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/limits?openSubscriptions=1")}
-                    aria-label={copy("limits.page.openSubscriptions")}
-                    title={copy("limits.page.openSubscriptions")}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-oai-gray-200 dark:border-oai-gray-700 bg-white dark:bg-oai-gray-900 text-oai-gray-500 dark:text-oai-gray-400 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 hover:text-oai-black dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
-                  >
-                    <Settings size={14} aria-hidden />
-                  </button>
-                  <ToggleSwitch
-                    checked={limitsPrefs.showSubscriptions !== false}
-                    onChange={() => limitsPrefs.setShowSubscriptions(!limitsPrefs.showSubscriptions)}
-                    ariaLabel={copy("settings.limits.showSubscriptions")}
-                  />
-                </div>
-              }
-            />
-          </SectionCard>
-          <SectionCard title={copy("settings.limits.providers")}>
-            <LimitsSettingsPanel prefs={limitsPrefs} />
-          </SectionCard>
-        </div>
-      ),
-    },
     {
       id: SETTINGS_SECTION_IDS.LABS,
       label: copy("settings.section.labs"),

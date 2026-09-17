@@ -32,7 +32,7 @@ AI tool logs or local usage APIs -> `src/commands/sync.js` -> `~/.tokentracker/t
 
 Token Tracker has no account system, login, cloud sync, leaderboard, pet, or telemetry heartbeat. Keep the loopback mutation token that `src/lib/local-api.js` mints and serves at `/api/local-auth`, and the `dashboard/src/lib/local-api-auth.ts` helper that sends it; it protects local writes and is not a user login.
 
-Third-party provider credentials remain allowed where needed to read that provider's own usage. Do not confuse Codex, Claude, Cursor, Gemini, Copilot, Kimi, or other provider authentication with a Token Tracker account.
+Third-party provider credentials remain allowed where needed to read that provider's own usage logs during sync (for example the Copilot OAuth token in `src/lib/copilot-auth.js` and the Cursor session token in `src/lib/cursor-config.js`). Do not confuse Codex, Claude, Cursor, Gemini, Copilot, Kimi, or other provider authentication with a Token Tracker account.
 
 ## Token Normalization
 
@@ -55,6 +55,7 @@ Cost is computed from the individual categories, never from `total_tokens` alone
 - The dashboard, Windows app, and installer use Simplified Chinese only.
 - Add user-facing dashboard text through the sole copy registry, `dashboard/src/content/copy.csv`.
 - Remote update checks, external service-status probes, Dynamic Island, desktop widgets, and Skills/MCP management are not part of this fork.
+- Provider usage-limit/quota lookups and the manual subscription manager were removed. Nothing may read a provider access token to call that provider's quota API, and there is no `/limits` route, `tokentracker-usage-limits` endpoint, or subscription store.
 - Windows native adaptations are gated by `isNativeWindowsApp()` in `dashboard/src/lib/native-bridge.js`.
 - `TokenTrackerWin/EmbeddedServer/` is generated and gitignored.
 

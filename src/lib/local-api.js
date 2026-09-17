@@ -1154,12 +1154,6 @@ function createLocalApiHandler({ queuePath }) {
           allLocalSources: body?.allLocalSources === true,
           waitForLock: false,
         });
-        try {
-          const { resetUsageLimitsCache } = require("./usage-limits");
-          resetUsageLimitsCache();
-        } catch (_e) {
-          // ignore if module load fails
-        }
         json(res, { ok: true, ...result });
       } catch (e) {
         json(res, { ok: false, error: e?.message, code: e?.code ?? null, stdout: e?.stdout || "", stderr: e?.stderr || "" }, 500);
@@ -1929,87 +1923,6 @@ function createLocalApiHandler({ queuePath }) {
         a.models[model] = (a.models[model] || 0) + (row.total_tokens || 0);
       }
       json(res, { from, to, scope, excluded_sources: excludedSources, data: Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)) });
-      return true;
-    }
-
-    // --- subscription manager (manual billing plans, issue #460) ---
-    // User-entered renewal/expiry dates. Local-only store that lives next to
-    // queue.jsonl; distinct from usage-limits window resets and the
-    // auto-detected subscriptions in subscriptions.js.
-    if (p === "/functions/tokentracker-subscription-manager") {
-      const method = String(req.method || "GET").toUpperCase();
-      const manager = require("./subscription-manager");
-      const trackerDir = path.dirname(qp);
-      try {
-        if (method === "GET") {
-          json(res, { subscriptions: await manager.listSubscriptions({ trackerDir }) });
-          return true;
-        }
-        if (method === "POST") {
-          if (!isAuthorizedLocalMutation(req)) {
-            json(res, { ok: false, error: "Unauthorized" }, 401);
-            return true;
-          }
-          const body = await readJsonBody(req);
-          if (body?.action === "create") {
-            json(res, {
-              ok: true,
-              subscription: await manager.createSubscription({
-                trackerDir,
-                fields: body.subscription || body,
-              }),
-            });
-            return true;
-          }
-          if (body?.action === "update") {
-            json(res, {
-              ok: true,
-              subscription: await manager.updateSubscription({
-                trackerDir,
-                id: body.id,
-                fields: body.subscription || body,
-              }),
-            });
-            return true;
-          }
-          if (body?.action === "delete") {
-            json(res, {
-              ok: true,
-              ...(await manager.deleteSubscription({ trackerDir, id: body.id })),
-            });
-            return true;
-          }
-          json(res, { ok: false, error: "Unknown subscription-manager action" }, 400);
-          return true;
-        }
-        json(res, { ok: false, error: "Method Not Allowed" }, 405);
-      } catch (error) {
-        json(res, { ok: false, error: error?.message || "Subscription operation failed" }, 400);
-      }
-      return true;
-    }
-
-    // --- usage-limits ---
-    if (p === "/functions/tokentracker-usage-limits") {
-      const { getUsageLimits, resetUsageLimitsCache } = require("./usage-limits");
-      try {
-        const refreshParam = url.searchParams.get("refresh");
-        const forceRefresh = refreshParam === "1" || refreshParam === "true";
-        if (forceRefresh) {
-          resetUsageLimitsCache();
-        }
-        const data = await getUsageLimits({
-          home: os.homedir(),
-          env: process.env,
-          platform: process.platform,
-          // Punches through the Claude disk fresh-cache (but not the 429
-          // cooldown) — an explicit user refresh should hit upstream.
-          forceRefresh,
-        });
-        json(res, data);
-      } catch (e) {
-        json(res, { error: e?.message || "Unknown error" }, 500);
-      }
       return true;
     }
 

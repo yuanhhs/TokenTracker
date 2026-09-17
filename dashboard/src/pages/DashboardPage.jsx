@@ -4,7 +4,6 @@ import { useDashboardCardOrder } from "../hooks/use-dashboard-card-order.js";
 import { useProjectUsageSummary } from "../hooks/use-project-usage-summary";
 import { useTrendData } from "../hooks/use-trend-data.js";
 import { useUsageData } from "../hooks/use-usage-data.js";
-import { useUsageLimits } from "../hooks/use-usage-limits.js";
 import { useUsageModelBreakdown } from "../hooks/use-usage-model-breakdown.js";
 import { copy } from "../lib/copy";
 import { useLocale } from "../hooks/useLocale.js";
@@ -21,7 +20,6 @@ import {
 } from "../lib/format";
 import { shouldShowInstallCard } from "../lib/install-status";
 import { getMockNow, isMockEnabled } from "../lib/mock-data";
-import { publishUsageLimitsPreloadState } from "../lib/dashboard-preload.js";
 import { startLocalUsageAutoRefresh } from "../lib/local-usage-auto-refresh";
 import { buildDailyBreakdownRange, selectDailyBreakdownRows } from "../lib/daily-breakdown";
 import { buildFleetData, buildTopModels, resolveDisplayTokens } from "../lib/model-breakdown";
@@ -102,7 +100,6 @@ export function DashboardPage({
   baseUrl,
   publicMode = false,
   publicToken = null,
-  onMainContentVisible,
 }) {
   const { resolvedLocale } = useLocale();
   const { currency, rate } = useCurrency();
@@ -119,7 +116,6 @@ export function DashboardPage({
   const [installCopied, setInstallCopied] = useState(false);
   const [manualSyncLoading, setManualSyncLoading] = useState(false);
   const [dashboardContentShown, setDashboardContentShown] = useState(false);
-  const mainContentVisibleNotifiedRef = useRef(false);
   const mockEnabled = isMockEnabled();
 
   // 本地模式判断
@@ -301,17 +297,6 @@ export function DashboardPage({
     tzOffsetMinutes,
     now: mockNow,
   });
-
-  const {
-    data: usageLimits,
-    refresh: refreshUsageLimits,
-  } = useUsageLimits();
-
-  useEffect(() => {
-    if (usageLimits && typeof usageLimits === "object") {
-      publishUsageLimitsPreloadState(usageLimits);
-    }
-  }, [usageLimits]);
 
   const detailsDateKey = useMemo(() => {
     if (period === "day") return "hour";
@@ -556,14 +541,8 @@ export function DashboardPage({
   ]);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([
-      refreshUsageStats(),
-      refreshUsageLimits(),
-    ]);
-  }, [
-    refreshUsageStats,
-    refreshUsageLimits,
-  ]);
+    await refreshUsageStats();
+  }, [refreshUsageStats]);
 
   // Hold the latest aggregate refresher in a ref so the mount / auto-refresh
   // effects below can call it WITHOUT listing it as a dependency.
@@ -893,13 +872,6 @@ export function DashboardPage({
     LEFT_CARD_ORDER_DEFAULTS,
     RIGHT_CARD_ORDER_DEFAULTS,
   );
-
-  useEffect(() => {
-    if (mainContentVisibleNotifiedRef.current) return;
-    if (usageLoadingState) return;
-    mainContentVisibleNotifiedRef.current = true;
-    onMainContentVisible?.();
-  }, [onMainContentVisible, usageLoadingState]);
 
   return (
     <>

@@ -141,8 +141,8 @@ async function readSqliteRowsWithCliAsync(dbPath, sql, { execFile, timeout, maxB
 }
 
 // Async twin of readSqliteJsonRows for hot paths that must not block the event
-// loop (e.g. the usage-limits poll — see the "limits 路径 spawnSync 冻结全端点"
-// lesson). The CLI path runs via async execFile; the node:sqlite fallback is
+// loop — a synchronous spawn on a request path freezes every other endpoint
+// with it. The CLI path runs via async execFile; the node:sqlite fallback is
 // synchronous (no async API exists), but it only runs when the sqlite3 CLI is
 // absent — uncommon on macOS/Linux, where the async path keeps the loop free.
 async function readSqliteJsonRowsAsync(dbPath, sql, options = {}) {

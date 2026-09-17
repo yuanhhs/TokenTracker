@@ -7,8 +7,6 @@ import { MenuBarSection, NativeAppFooter } from "./MenuBarSection.jsx";
 
 const nativeSettingsMock = vi.hoisted(() => ({
   settings: {
-    toastOnReset: true,
-    confettiOnReset: true,
     launchAtLogin: false,
     launchAtLoginSupported: true,
   },
@@ -29,12 +27,12 @@ vi.mock("../../lib/copy", () => ({
   copy: (key, params) => key === "settings.footer.version" ? `TokenTracker v${params.version}` : key,
 }));
 
-describe("MenuBarSection limit-reset feedback", () => {
+describe("MenuBarSection", () => {
   beforeEach(() => {
     nativeSettingsMock.setSetting.mockReset();
   });
 
-  it("shows independent toast and confetti settings", async () => {
+  it("toggles launch at login", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -42,23 +40,29 @@ describe("MenuBarSection limit-reset feedback", () => {
       </MemoryRouter>,
     );
 
-    const toastSwitch = screen.getByRole("switch", {
-      name: "settings.menubar.toastOnReset",
+    const launchSwitch = screen.getByRole("switch", {
+      name: "settings.menubar.launchAtLogin",
     });
-    const confettiSwitch = screen.getByRole("switch", {
-      name: "settings.menubar.confettiOnReset",
-    });
-
-    expect(toastSwitch).toHaveAttribute("aria-checked", "true");
-    expect(confettiSwitch).toHaveAttribute("aria-checked", "true");
+    expect(launchSwitch).toHaveAttribute("aria-checked", "false");
 
     await act(async () => {
-      await user.click(toastSwitch);
-      await user.click(confettiSwitch);
+      await user.click(launchSwitch);
     });
 
-    expect(nativeSettingsMock.setSetting).toHaveBeenCalledWith("toastOnReset", false);
-    expect(nativeSettingsMock.setSetting).toHaveBeenCalledWith("confettiOnReset", false);
+    expect(nativeSettingsMock.setSetting).toHaveBeenCalledWith("launchAtLogin", true);
+  });
+
+  // Usage limits were removed, so the limit-reset toast/confetti toggles they
+  // controlled must not come back with them.
+  it("does not render limit-reset feedback settings", () => {
+    render(
+      <MemoryRouter>
+        <MenuBarSection />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("switch", { name: "settings.menubar.toastOnReset" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "settings.menubar.confettiOnReset" })).not.toBeInTheDocument();
   });
 
   afterEach(() => {

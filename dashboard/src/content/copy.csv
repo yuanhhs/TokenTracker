@@ -65,9 +65,7 @@ landing.v3.how.step4.title,landing,LandingPage,HowItWorksSection,how_step4_title
 landing.v3.how.step4.body,landing,LandingPage,HowItWorksSection,how_step4_body,"本地仪表板即时聚合每个工具、每个模型、每个小时的数据。",,active
 landing.v3.cap.kicker,landing,LandingPage,CapabilitiesSection,cap_kicker,"尽收眼底",,active
 landing.v3.cap.title,landing,LandingPage,CapabilitiesSection,cap_title,"一个仪表板，装下所有 Agent。",,active
-landing.v3.cap.subtitle,landing,LandingPage,CapabilitiesSection,cap_subtitle,"开销、额度、节奏与模型——你的 AI 用量全景，实时在本地聚合。",,active
-landing.v3.cap.limits.title,landing,LandingPage,CapabilitiesSection,cap_limits_title,"额度雷达",,active
-landing.v3.cap.limits.body,landing,LandingPage,CapabilitiesSection,cap_limits_body,"跨 Provider 监控 5 小时、每周与每月窗口——在任务中途撞墙之前就心中有数。",,active
+landing.v3.cap.subtitle,landing,LandingPage,CapabilitiesSection,cap_subtitle,"开销、节奏与模型——你的 AI 用量全景，实时在本地聚合。",,active
 landing.v3.cap.heatmap.title,landing,LandingPage,CapabilitiesSection,cap_heatmap_title,"365 天活跃热力图",,active
 landing.v3.cap.heatmap.body,landing,LandingPage,CapabilitiesSection,cap_heatmap_body,"GitHub 风格的编码节奏一览——每个小时都在你的本机上分桶统计。",,active
 landing.v3.privacy.kicker,landing,LandingPage,PrivacySection,privacy_kicker,"本地优先",,active
@@ -199,10 +197,6 @@ daily.sort.conversations.label,dashboard,DashboardPage,DailyTable,sort_label,"�
 daily.sort.conversations.title,dashboard,DashboardPage,DailyTable,sort_title,"按对话排序",,active
 details.pagination.prev,dashboard,DashboardPage,DailyTable,pagination_prev,"上一页",,active
 details.pagination.next,dashboard,DashboardPage,DailyTable,pagination_next,"下一页",,active
-limits.copilot.otelHint.title,dashboard,LimitsPage,LimitsPage,otel_hint_title,"跟踪 Copilot Token 使用情况",,active
-limits.copilot.otelHint.body,dashboard,LimitsPage,LimitsPage,otel_hint_body,"限额信息通过你的 GitHub OAuth 令牌读取。如果还想记录逐 Token 用量，请启用 Copilot 的 OpenTelemetry 导出，把下面这段加到你的 shell 配置文件（~/.zshrc 或 ~/.bashrc）：",,active
-limits.copilot.otelHint.copy,dashboard,LimitsPage,LimitsPage,otel_hint_copy,"复制",,active
-limits.copilot.otelHint.copied,dashboard,LimitsPage,LimitsPage,otel_hint_copied,"已复制",,active
 dashboard.install.prompt,dashboard,DashboardPage,AsciiBox,install_prompt,"安装 Node.js 18+ 然后运行：",,active
 dashboard.install.cmd.init,dashboard,DashboardPage,AsciiBox,install_cmd,"npx --yes tokentracker-cli init",,active
 dashboard.install.copy,dashboard,DashboardPage,AsciiBox,install_copy,"复制安装命令",,active
@@ -217,19 +211,12 @@ dashboard.identity.fallback,dashboard,DashboardPage,IdentityCard,handle_fallback
 dashboard.overview.layout.drag_handle,dashboard,DashboardPage,SortableCard,drag_handle_aria_label,"拖拽以重新排列",,active
 dashboard.screenshot.twitter_text,dashboard,DashboardPage,ScreenshotShare,share_text,"记录中的 {{total_tokens}} Token。\n{{model_name}} 以 {{model_percent}}% 领先。\n\n我的 AI 使用情况，未经审计 →",,active
 nav.usage,shared,*,Sidebar,nav_usage,"用量",,active
-nav.limits,shared,*,Sidebar,nav_limits,"限额",,active
 nav.collapse,shared,*,Sidebar,nav_collapse,"折叠侧边栏",,active
 nav.expand,shared,*,Sidebar,nav_expand,"展开侧边栏",,active
 nav.menu,shared,*,Sidebar,nav_menu,"打开导航菜单",,active
 nav.close_menu,shared,*,Sidebar,nav_close_menu,"关闭导航菜单",,active
 nav.aside_label,shared,*,Sidebar,aside_label,"主导航",,active
 nav.nav_label,shared,*,Sidebar,nav_label,"导航",,active
-limits.page.subtitle,ui,LimitsPage,LimitsPage,subtitle,"AI 工具的速率限制和配额使用情况。",,active
-limits.settings.toggle_visible,ui,LimitsPage,LimitsSettingsPanel,toggle_visible,"切换可见性",,active
-limits.settings.display_mode_label,ui,LimitsPage,LimitsSettingsPanel,display_mode_label,"用量显示",,active
-limits.settings.display_mode_used,ui,LimitsPage,LimitsSettingsPanel,display_mode_used,"已用",,active
-limits.settings.display_mode_remaining,ui,LimitsPage,LimitsSettingsPanel,display_mode_remaining,"剩余",,active
-limits.page.openSettings,ui,LimitsPage,LimitsPage,open_settings,"显示设置",,active
 shared.dialog.close,shared,*,Dialog,close,"关闭对话框",,active
 nav.group.general,shared,*,Sidebar,group_general,"常规",,active
 nav.group.tools,shared,*,Sidebar,group_tools,"工具",,active
@@ -237,7 +224,6 @@ nav.settings,shared,*,Sidebar,nav_settings,"设置",,active
 settings.page.title,ui,SettingsPage,SettingsPage,title,"设置",,active
 settings.page.subtitle,ui,SettingsPage,SettingsPage,subtitle,"管理你的账户、外观和显示偏好。",,active
 settings.section.appearance,ui,SettingsPage,SettingsPage,sec_appearance,"外观",,active
-settings.section.limits,ui,SettingsPage,SettingsPage,sec_limits,"限额显示",,active
 settings.section.network,ui,SettingsPage,NetworkSection,sec_network,"网络",,active
 settings.network.mode.label,ui,SettingsPage,NetworkSection,mode_label,"出网代理",,active
 settings.network.mode.hint,ui,SettingsPage,NetworkSection,mode_hint,"选择查询 Provider 用量时使用的网络代理。",,active
@@ -269,9 +255,6 @@ settings.network.effective.blocked,ui,SettingsPage,NetworkSection,effective_bloc
 settings.network.apply_error,ui,SettingsPage,NetworkSection,apply_error,"已保存的代理未能生效：{{error}}。代理未生效，出网已被阻断，请检查代理设置。",,active
 settings.network.save_error,ui,SettingsPage,NetworkSection,save_error,"无法保存代理设置：{{error}}",,active
 settings.network.save_error_unprotected,ui,SettingsPage,NetworkSection,save_error_unprotected,"无法保存代理设置：{{error}}。出网当前处于无保护状态——连阻断都失败了。",,active
-settings.limits.providers,ui,SettingsPage,SettingsPage,limits_providers,"Provider",,active
-settings.limits.showSubscriptions,ui,SettingsPage,SettingsPage,show_subscriptions,"显示订阅",,active
-settings.limits.showSubscriptionsHint,ui,SettingsPage,SettingsPage,show_subscriptions_hint,"在限额面板中显示手动记录的订阅续费进度。",,active
 settings.labs.qpd.label,ui,SettingsPage,LabsSection,qpd_label,"PR 研发性价比分析",,active
 settings.labs.qpd.hint,ui,SettingsPage,LabsSection,qpd_hint,"基于已合并 PR 与 AI 归因提交，分析各模型的平均交付成本与有效 Token。",,active
 settings.labs.qpd.aria,ui,SettingsPage,LabsSection,qpd_aria,"切换 PR 性价比分析",,active
@@ -320,10 +303,6 @@ stats.period.last_30d,ui,DashboardPage,StatsPanel,period_last_30d,"30 天",,acti
 stats.period.avg,ui,DashboardPage,StatsPanel,period_avg,"平均",,active
 stats.period.convs,ui,DashboardPage,StatsPanel,period_convs,"对话",,active
 settings.section.menubar,ui,SettingsPage,SettingsPage,sec_menubar,"Windows 桌面 App",,active
-settings.menubar.toastOnReset,ui,SettingsPage,SettingsPage,mb_reset_toast,"额度重置时显示提示",,active
-settings.menubar.toastOnResetHint,ui,SettingsPage,SettingsPage,mb_reset_toast_hint,"用量额度重置时显示一条简短提示。",,active
-settings.menubar.confettiOnReset,ui,SettingsPage,SettingsPage,mb_confetti,"额度重置时撒花",,active
-settings.menubar.confettiOnResetHint,ui,SettingsPage,SettingsPage,mb_confetti_hint,"在接近上限后，额度重置时放一场烟花庆祝。",,active
 settings.menubar.launchAtLogin,ui,SettingsPage,SettingsPage,mb_login,"登录时启动",,active
 settings.menubar.launchAtLoginHint,ui,SettingsPage,SettingsPage,mb_login_hint,"登录 Windows 时自动启动 TokenTracker。",,active
 settings.menubar.syncNow,ui,SettingsPage,SettingsPage,mb_sync_now,"立即同步",,active
@@ -416,82 +395,9 @@ usage.overview.cache_hit_rate_label,ui,DashboardPage,UsageOverview,cache_hit_rat
 usage.overview.cache_hit_rate_detail,ui,DashboardPage,UsageOverview,cache_hit_rate_detail,"{{reused}} 复用 / {{input}} 输入",,active
 usage.overview.antigravity_notice_title,ui,DashboardPage,UsageOverview,antigravity_notice_title,"Token 为估算值",,active
 usage.overview.antigravity_notice_body,ui,DashboardPage,UsageOverview,antigravity_notice_body,"Antigravity 的本地日志没有真实用量字段，这里的数字是按字符长度（约 4 字符/Token）估算出来的，也没有扣除 Gemini 的 Prompt 缓存折扣。请把它当作上限估算，不要直接对账账单。",,active
-limits.panel.title,ui,LimitsPage,UsageLimitsPanel,title,"使用限制",,active
-limits.panel.mode_separator,ui,LimitsPage,UsageLimitsPanel,title_separator," · ",,active
-limits.label.cursor_plan,ui,LimitsPage,UsageLimitsPanel,cursor_plan,"套餐",,active
-limits.label.cursor_auto,ui,LimitsPage,UsageLimitsPanel,cursor_auto,"自动",,active
-limits.label.cursor_api,ui,LimitsPage,UsageLimitsPanel,cursor_api,"API",,active
-limits.label.cursor_grok_bot,ui,LimitsPage,UsageLimitsPanel,cursor_grok_bot,"Grok 机器人",,active
-limits.label.kiro_month,ui,LimitsPage,UsageLimitsPanel,kiro_month,"月度",,active
-limits.label.kiro_bonus,ui,LimitsPage,UsageLimitsPanel,kiro_bonus,"奖励",,active
-limits.label.kiro_tracked_credits,ui,LimitsPage,UsageLimitsPanel,kiro_tracked_credits,"本地用量：{{credits}} 积分 · {{count}} 个回合",,active
-limits.label.kimi_weekly,ui,LimitsPage,UsageLimitsPanel,kimi_weekly,"周",,active
-limits.label.kimi_5h,ui,LimitsPage,UsageLimitsPanel,kimi_5h,"5h",,active
-limits.label.kimi_total,ui,LimitsPage,UsageLimitsPanel,kimi_total,"总量",,active
-limits.label.kimi_parallel,ui,LimitsPage,UsageLimitsPanel,kimi_parallel,"并发：{{count}}",,active
-limits.explain.used,ui,LimitsPage,UsageLimitsPanel,explain_used,"{{label}}：已用 {{used}}%",,active
-limits.explain.on_track,ui,LimitsPage,UsageLimitsPanel,explain_on_track,"{{label}}：节奏正常，预计用到 {{pct}}%",,active
-limits.explain.ahead_eta,ui,LimitsPage,UsageLimitsPanel,explain_ahead_eta,"{{label}}：偏快，约 {{eta}} 后用完",,active
-limits.explain.ahead_pct,ui,LimitsPage,UsageLimitsPanel,explain_ahead_pct,"{{label}}：偏快，预计用到 {{pct}}%",,active
-limits.explain.body,ui,LimitsPage,UsageLimitsPanel,explain_body,"竖标为匀速到现在应到的位置，填充超过即为偏快。",,active
-limits.explain.remaining,ui,LimitsPage,UsageLimitsPanel,explain_remaining,"{{label}}：剩余 {{used}}%",,active
-limits.explain.on_track_remaining,ui,LimitsPage,UsageLimitsPanel,explain_on_track_remaining,"{{label}}：节奏正常，预计剩余 {{pct}}%",,active
-limits.explain.ahead_pct_remaining,ui,LimitsPage,UsageLimitsPanel,explain_ahead_pct_remaining,"{{label}}：偏快，预计剩余 {{pct}}%",,active
-limits.explain.body_remaining,ui,LimitsPage,UsageLimitsPanel,explain_body_remaining,"竖标为匀速到现在应到的位置，填充不足即为偏快。",,active
-limits.hover.resets_at,ui,LimitsPage,UsageLimitsPanel,hover_resets_at,"{{time}} 重置",,active
-limits.reset_bank.hover_detail,ui,LimitsPage,UsageLimitsPanel,reset_bank_hover_detail,"{{date}} 到期 · 剩余 {{days}} 天",,active
-limits.reset_bank.hover_detail_today,ui,LimitsPage,UsageLimitsPanel,reset_bank_hover_detail_today,"{{date}} 到期 · 今天",,active
-limits.label.copilot_premium,ui,LimitsPage,UsageLimitsPanel,copilot_premium,"高级",,active
-limits.label.copilot_chat,ui,LimitsPage,UsageLimitsPanel,copilot_chat,"对话",,active
-limits.label.grok_month,ui,LimitsPage,UsageLimitsPanel,grok_month,"月度",,active
-limits.label.grok_week,ui,LimitsPage,UsageLimitsPanel,grok_week,"周",,active
-limits.label.grok_day,ui,LimitsPage,UsageLimitsPanel,grok_day,"日",,active
-limits.label.grok_ondemand,ui,LimitsPage,UsageLimitsPanel,grok_ondemand,"按需",,active
-limits.provider.claude,ui,LimitsPage,UsageLimitsPanel,provider_claude,"Claude",,active
-limits.provider.codex,ui,LimitsPage,UsageLimitsPanel,provider_codex,"Codex",,active
-limits.provider.cursor,ui,LimitsPage,UsageLimitsPanel,provider_cursor,"Cursor",,active
-limits.provider.gemini,ui,LimitsPage,UsageLimitsPanel,provider_gemini,"Gemini",,active
-limits.provider.kimi,ui,LimitsPage,UsageLimitsPanel,provider_kimi,"Kimi",,active
-limits.provider.kiro,ui,LimitsPage,UsageLimitsPanel,provider_kiro,"Kiro",,active
-limits.provider.grok,ui,LimitsPage,UsageLimitsPanel,provider_grok,"Grok Build",,active
-limits.provider.copilot,ui,LimitsPage,UsageLimitsPanel,provider_copilot,"GitHub Copilot",,active
-limits.provider.antigravity,ui,LimitsPage,UsageLimitsPanel,provider_antigravity,"Antigravity",,active
-limits.provider.zcode,ui,LimitsPage,UsageLimitsPanel,provider_zcode,"ZCode",,active
 provider.display.omp,ui,*,ProviderDisplay,omp,"oh-my-pi",,active
 provider.display.deepseek_harness,ui,*,ProviderDisplay,deepseek_harness,"DeepSeek Harness",,active
 provider.display.trae_work_cn,ui,*,ProviderDisplay,trae_work_cn,"TRAE Work 中国版",,active
-limits.label.zcode_glm52,ui,LimitsPage,UsageLimitsPanel,zcode_glm52,"GLM-5.2",,active
-limits.label.zcode_glm5t,ui,LimitsPage,UsageLimitsPanel,zcode_glm5t,"GLM-5-Turbo",,active
-limits.label.zcode_5h,ui,LimitsPage,UsageLimitsPanel,zcode_5h,"5 小时",,active
-limits.label.zcode_weekly,ui,LimitsPage,UsageLimitsPanel,zcode_weekly,"每周",,active
-limits.label.zcode_tools,ui,LimitsPage,UsageLimitsPanel,zcode_tools,"工具",,active
-limits.label.claude_5h,ui,LimitsPage,UsageLimitsPanel,claude_5h,"5h",,active
-limits.label.claude_7d,ui,LimitsPage,UsageLimitsPanel,claude_7d,"7d",,active
-limits.label.claude_opus,ui,LimitsPage,UsageLimitsPanel,claude_opus,"Opus",,active
-limits.label.codex_5h,ui,LimitsPage,UsageLimitsPanel,codex_5h,"5h",,active
-limits.label.codex_7d,ui,LimitsPage,UsageLimitsPanel,codex_7d,"7d",,active
-limits.label.codex_credits,ui,LimitsPage,UsageLimitsPanel,codex_credits,"额度",,active
-limits.label.codex_spark_5h,ui,LimitsPage,UsageLimitsPanel,codex_spark_5h,"Spark 5h",,active
-limits.label.codex_spark_7d,ui,LimitsPage,UsageLimitsPanel,codex_spark_7d,"Spark 7d",,active
-limits.codex_credits.detail,ui,LimitsPage,UsageLimitsPanel,codex_credits_detail,"已用 {{used}} / {{limit}} 点额度 · 剩余 {{remaining}}",,active
-limits.codex_reset_bank.title,ui,LimitsPage,UsageLimitsPanel,codex_reset_bank_title,"重置",,active
-limits.codex_reset_bank.row_label,ui,LimitsPage,UsageLimitsPanel,codex_reset_bank_row_label,"重置 {{index}}",,active
-limits.codex_reset_bank.count_only,ui,LimitsPage,UsageLimitsPanel,codex_reset_bank_count_only,"重置额度：可用 {{count}} 次 · 到期时间不可用",,active
-limits.label.gemini_pro,ui,LimitsPage,UsageLimitsPanel,gemini_pro,"Pro",,active
-limits.label.gemini_flash,ui,LimitsPage,UsageLimitsPanel,gemini_flash,"Flash",,active
-limits.label.gemini_lite,ui,LimitsPage,UsageLimitsPanel,gemini_lite,"Lite",,active
-limits.label.antigravity_claude_weekly,ui,LimitsPage,UsageLimitsPanel,antigravity_claude_weekly,"Cl 7d",,active
-limits.label.antigravity_claude_5h,ui,LimitsPage,UsageLimitsPanel,antigravity_claude_5h,"Cl 5h",,active
-limits.label.antigravity_gemini_weekly,ui,LimitsPage,UsageLimitsPanel,antigravity_gemini_weekly,"Gm 7d",,active
-limits.label.antigravity_gemini_5h,ui,LimitsPage,UsageLimitsPanel,antigravity_gemini_5h,"Gm 5h",,active
-limits.label.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live,"实时",,active
-limits.label.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached,"缓存",,active
-limits.tooltip.antigravity_live,ui,LimitsPage,UsageLimitsPanel,antigravity_live_tooltip,"实时额度，直接获取自本地运行的 Antigravity 进程。",,active
-limits.tooltip.antigravity_cached,ui,LimitsPage,UsageLimitsPanel,antigravity_cached_tooltip,"缓存的额度。启动 Antigravity IDE/CLI 以刷新。",,active
-limits.bar.sub_one_percent,ui,LimitsPage,UsageLimitsPanel,bar_sub_one_percent,"<1",,active
-limits.status.not_connected,ui,LimitsPage,UsageLimitsPanel,status_not_connected,"未连接",,active
-limits.status.no_data,ui,LimitsPage,UsageLimitsPanel,status_no_data,"未返回实时限额数据",,active
-limits.status.all_hidden,ui,LimitsPage,UsageLimitsPanel,status_all_hidden,"所有限额提供商都已隐藏。请打开显示设置重新显示。",,active
 shared.time.now,shared,*,Shared,time_now,"刚刚",,active
 shared.time.m_ago,shared,*,Shared,time_m_ago,"{{n}}分钟前",,active
 shared.time.h_ago,shared,*,Shared,time_h_ago,"{{n}}小时前",,active
@@ -597,7 +503,6 @@ cmdk.empty,ui,CommandPalette,CommandPalette,empty,"没有匹配项",,active
 cmdk.group.pages,ui,CommandPalette,CommandPalette,group_pages,"页面",,active
 cmdk.close,ui,CommandPalette,CommandPalette,close,"关闭命令菜单",,active
 cmdk.open_aria,ui,CommandPalette,CommandPalette,open_aria,"命令菜单",,active
-limits.hover.expires_at,ui,LimitsPage,UsageLimitsPanel,hover_expires_at,"{{time}} 到期",,active
 sessions.card.title,dashboard,DashboardPage,SessionInsightsCard,title,"会话效率",,active
 sessions.card.subtitle,dashboard,DashboardPage,SessionInsightsCard,subtitle,"Claude 与 Codex 的统一编辑回合指标",,active
 sessions.card.loading,dashboard,DashboardPage,SessionInsightsCard,loading,"正在分析本地会话元数据…",,active
@@ -676,16 +581,6 @@ sessions.error.retry,ui,SessionsPage,SessionsPage,error_retry,"重试",,active
 sessions.error.outdated_app,ui,SessionsPage,SessionsPage,error_outdated_app,"当前 TokenTracker 版本过旧，无法列出会话。请更新到最新版本。",,active
 sessions.truncated,ui,SessionsPage,SessionsPage,truncated,"仅显示最近 {{shown}} 个会话（共 {{total}} 个）。缩小时间范围可看到更早的会话。",,active
 sessions.privacy,ui,SessionsPage,SessionsPage,privacy,"仅在本地处理。Prompt 与回复正文、命令输出和差异内容绝不保留或上传。",,active
-limits.alert.enable,limits,LimitsPage,LimitsPage,enable_alerts,"开启额度预测提醒",,active
-limits.alert.disable,limits,LimitsPage,LimitsPage,disable_alerts,"关闭额度预测提醒",,active
-limits.alert.title,limits,LimitsPage,LimitsPage,alert_title,"{{provider}} 额度可能提前用尽",,active
-limits.alert.body,limits,LimitsPage,LimitsPage,alert_body,"按当前速度，额度可能在 {{eta}} 后用尽（已用 {{percent}}%）。",,active
-limits.alert.blocked,limits,LimitsPage,LimitsPage,alert_blocked,"通知已关闭——去系统设置中允许",,active
-limits.provenance.fresh,limits,LimitsPage,UsageLimitsPanel,provenance_fresh,"实时",,active
-limits.provenance.stale,limits,LimitsPage,UsageLimitsPanel,provenance_stale,"过期",,active
-limits.provenance.tooltip,limits,LimitsPage,UsageLimitsPanel,provenance_tooltip,"来源：{{source}}；可信度：{{confidence}}",,active
-limits.reauth.badge,limits,LimitsPage,UsageLimitsPanel,reauth_badge,"需重新登录",,active
-limits.reauth.tooltip,limits,LimitsPage,UsageLimitsPanel,reauth_tooltip,"登录已过期——在终端运行一次 `{{command}}` 重新登录，然后刷新。",,active
 shared.github.star,shared,*,GithubStar,star,"Star",,active
 dashboard.cost_breakdown.empty,ui,CostAnalysisModal,CostAnalysisModal,empty,"暂无费用记录。",,active
 dashboard.cost_breakdown.model_column,ui,CostAnalysisModal,CostAnalysisModal,model_column,"模型",,active
@@ -725,39 +620,5 @@ landing.v3.how.scene.files_changed,landing,LandingPage,HowItWorksSection,scene_f
 landing.v3.how.scene.session_title,landing,LandingPage,HowItWorksSection,scene_session_title,"会话日志 · 上一轮",,active
 landing.v3.how.scene.appended,landing,LandingPage,HowItWorksSection,scene_appended,"已在本机追加",,active
 landing.v3.how.scene.total_tokens,landing,LandingPage,HowItWorksSection,scene_total_tokens,"Token 总量",,active
-subscriptions.add,ui,LimitsPage,SubscriptionSettingsCard,add,"添加订阅",,active
-subscriptions.edit,ui,LimitsPage,SubscriptionSettingsCard,edit,"编辑",,active
-subscriptions.delete,ui,LimitsPage,SubscriptionSettingsCard,delete,"删除",,active
-subscriptions.save,ui,LimitsPage,SubscriptionSettingsCard,save,"保存",,active
-subscriptions.confirm_delete_title,ui,LimitsPage,SubscriptionSettingsCard,confirm_delete_title,"确定删除这条订阅？",,active
-subscriptions.delete_error,ui,LimitsPage,SubscriptionSettingsCard,delete_error,"删除失败，请重试。",,active
-subscriptions.form.plan,ui,LimitsPage,SubscriptionSettingsCard,form_plan,"套餐",,active
-subscriptions.form.plan_placeholder,ui,LimitsPage,SubscriptionSettingsCard,form_plan_placeholder,"如 Plus、Pro",,active
-subscriptions.form.auto_renew,ui,LimitsPage,SubscriptionSettingsCard,form_auto_renew,"自动续费",,active
-subscriptions.form.auto_renew_on,ui,LimitsPage,SubscriptionSettingsCard,form_auto_renew_on,"开启",,active
-subscriptions.form.auto_renew_off,ui,LimitsPage,SubscriptionSettingsCard,form_auto_renew_off,"关闭",,active
-subscriptions.form.started_at,ui,LimitsPage,SubscriptionSettingsCard,form_started_at,"订阅时间",,active
-subscriptions.form.cycle,ui,LimitsPage,SubscriptionSettingsCard,form_cycle,"计费周期",,active
-subscriptions.form.cycle_weekly,ui,LimitsPage,SubscriptionSettingsCard,form_cycle_weekly,"每周",,active
-subscriptions.form.cycle_monthly,ui,LimitsPage,SubscriptionSettingsCard,form_cycle_monthly,"每月",,active
-subscriptions.form.cycle_yearly,ui,LimitsPage,SubscriptionSettingsCard,form_cycle_yearly,"每年",,active
-subscriptions.form.error,ui,LimitsPage,SubscriptionSettingsCard,form_error,"出了点问题，请重试。",,active
-subscriptions.status.auto_renew,ui,LimitsPage,SubscriptionSettingsCard,status_auto_renew,"自动续费中",,active
-subscriptions.status.manual,ui,LimitsPage,SubscriptionSettingsCard,status_manual,"已关闭自动续费",,active
-subscriptions.label.renews_at,ui,LimitsPage,SubscriptionSettingsCard,label_renews_at,"下次续费",,active
-subscriptions.label.expires_at,ui,LimitsPage,SubscriptionSettingsCard,label_expires_at,"到期时间",,active
-subscriptions.countdown,ui,LimitsPage,SubscriptionSettingsCard,countdown,"{{days}} 天 {{hours}} 小时 {{minutes}} 分后",,active
-subscriptions.expired,ui,LimitsPage,SubscriptionSettingsCard,expired,"已到期",,active
-subscriptions.empty.title,ui,LimitsPage,SubscriptionSettingsCard,empty_title,"还没有订阅",,active
-subscriptions.empty.body,ui,LimitsPage,SubscriptionSettingsCard,empty_body,"添加一条套餐，随时关注它的下次续费或到期时间。",,active
-subscriptions.load_error,ui,LimitsPage,LimitsPage,load_error,"加载订阅失败。",,active
-subscriptions.inline.label,ui,LimitsPage,UsageLimitsPanel,inline_label,"订阅",,active
-subscriptions.badge.auto_renew,ui,LimitsPage,UsageLimitsPanel,badge_auto_renew,"自动续费",,active
-subscriptions.badge.stops,ui,LimitsPage,UsageLimitsPanel,badge_stops,"到期停止",,active
-subscriptions.form.provider,ui,LimitsPage,SubscriptionSettingsCard,form_provider,"关联工具",,active
-subscriptions.form.provider_required,ui,LimitsPage,SubscriptionSettingsCard,form_provider_required,"请选择关联的工具",,active
-subscriptions.form.provider_taken,ui,LimitsPage,SubscriptionSettingsCard,form_provider_taken,"该工具已有订阅，请编辑现有记录",,active
-subscriptions.form.provider_taken_suffix,ui,LimitsPage,SubscriptionSettingsCard,form_provider_taken_suffix,"（已有订阅）",,active
-limits.page.openSubscriptions,ui,LimitsPage,LimitsPage,open_subscriptions,"订阅管理",,active
 dashboard.device_filter.aria,dashboard,DashboardPage,UsageOverview,select_aria,"按设备筛选",,active
 settings.footer.version,ui,SettingsPage,NativeAppFooter,version,"TokenTracker v{{version}}",,active

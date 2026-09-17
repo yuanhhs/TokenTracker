@@ -6,7 +6,7 @@ Token Tracker 是一款仅面向 Windows 的本地优先 AI 编程工具 Token �
 
 - 支持 29 种 AI 编程工具的本地用量统计
 - Windows 系统托盘集成，可打开仪表板和立即同步
-- 本地仪表板：Token、预估花费、趋势、模型、项目和 Provider 额度
+- 本地仪表板：Token、预估花费、趋势、模型和项目
 - 主题、货币、Token 数字格式和简体中文界面
 - 自包含 .NET 8 Windows 应用，内置 Node.js 本地服务
 

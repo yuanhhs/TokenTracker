@@ -21,13 +21,16 @@ test("public discovery surfaces describe all 29 supported tools", () => {
   assert.match(index, /支持的 AI 编程工具（29）/);
   assert.match(index, /TRAE Work CN/);
   assert.doesNotMatch(index, /Service Status page|service-status/);
-  assert.match(index, /10 个 Provider 的使用额度/);
+  // Provider quota lookups were removed with the usage-limits feature; the
+  // public surfaces must not keep advertising them.
+  assert.doesNotMatch(index, /额度/);
   assert.doesNotMatch(index, /desktop pet|desktop widget/i);
   assert.doesNotMatch(index, /achievement/i, "removed achievements must not be advertised");
 
   const llms = read("dashboard/public/llms.txt");
   assert.match(llms, /支持的 AI 编程工具（29）/);
   assert.match(llms, /TRAE Work CN/);
+  assert.doesNotMatch(llms, /额度/);
   assert.doesNotMatch(llms, /desktop pet|desktop widget/i);
   assert.doesNotMatch(llms, /achievement/i, "removed achievements must not be advertised");
 });

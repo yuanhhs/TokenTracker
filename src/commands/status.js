@@ -28,7 +28,7 @@ const { collectLocalSubscriptions } = require("../lib/subscriptions");
 const {
   describeCopilotOtelStatus,
   readCopilotOauthToken,
-} = require("../lib/usage-limits");
+} = require("../lib/copilot-auth");
 const { collectTrackerDiagnostics } = require("../lib/diagnostics");
 const { detectPassiveProviders, isPassiveModeActive } = require("../lib/passive-mode");
 const { resolveTrackerPaths } = require("../lib/tracker-paths");

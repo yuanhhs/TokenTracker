@@ -7,7 +7,6 @@ const { test } = require("node:test");
 const {
   collectLocalSubscriptions,
   detectClaudeCodeSubscriptionDetails,
-  readClaudeCodeAccessToken,
 } = require("../src/lib/subscriptions");
 
 function base64UrlEncodeJson(value) {
@@ -359,7 +358,6 @@ test("Claude Code credential helpers default to the current platform", async () 
         };
       };
 
-      assert.equal(readClaudeCodeAccessToken({ securityRunner: runner }), "darwin-default-token");
       assert.deepEqual(detectClaudeCodeSubscriptionDetails({ securityRunner: runner }), {
         tool: "claude",
         provider: "anthropic",
@@ -379,7 +377,6 @@ test("Claude Code credential helpers default to the current platform", async () 
         },
       });
 
-      assert.equal(readClaudeCodeAccessToken({ home: tmp }), "file-default-token");
       assert.deepEqual(detectClaudeCodeSubscriptionDetails({ home: tmp }), {
         tool: "claude",
         provider: "anthropic",
@@ -390,7 +387,6 @@ test("Claude Code credential helpers default to the current platform", async () 
       return;
     }
 
-    assert.equal(readClaudeCodeAccessToken({ home: tmp }), null);
     assert.equal(detectClaudeCodeSubscriptionDetails({ home: tmp }), null);
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });

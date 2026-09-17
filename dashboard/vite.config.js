@@ -463,13 +463,6 @@ async function handleLocalApi(req, res, url) {
         background,
         allLocalSources,
       });
-      try {
-        const esmRequire = createRequire(import.meta.url);
-        const { resetUsageLimitsCache } = esmRequire("../src/lib/usage-limits");
-        resetUsageLimitsCache();
-      } catch (_e) {
-        // ignore
-      }
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ ok: true, ...result }));
     } catch (error) {
@@ -878,31 +871,6 @@ async function handleLocalApi(req, res, url) {
     return true;
   }
 
-
-  // 处理 usage-limits
-  if (pathname === "/functions/tokentracker-usage-limits") {
-    try {
-      const esmRequire = createRequire(import.meta.url);
-      const { getUsageLimits, resetUsageLimitsCache } = esmRequire("../src/lib/usage-limits");
-      const forceRefresh = url.searchParams.get("refresh");
-      if (forceRefresh === "1" || forceRefresh === "true") {
-        resetUsageLimitsCache();
-      }
-      const data = await getUsageLimits({
-        home: os.homedir(),
-        env: process.env,
-        platform: process.platform,
-      });
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(data));
-    } catch (e) {
-      res.statusCode = 500;
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ error: e?.message || "Unknown error" }));
-    }
-    return true;
-  }
-
   // 处理 user-status
   if (pathname === "/functions/tokentracker-user-status") {
     res.setHeader("Content-Type", "application/json");
@@ -980,12 +948,7 @@ function localDataApiPlugin() {
           return;
         }
         const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-        const isRepoLocalApi = url.pathname === "/api/local-auth"
-          // The subscription store schema/shape evolves with this checkout
-          // (cycle field, corrupt-store backups); a stale packaged app on
-          // :7680 would 404 the Limits-page subscription UI in dev mode.
-          || url.pathname === "/functions/tokentracker-subscription-manager"
-          ;
+        const isRepoLocalApi = url.pathname === "/api/local-auth";
         // Project usage also runs against the current checkout (not :7680):
         // the endpoints evolve with the dashboard UI, and a stale packaged
         // app on :7680 would 404 the drill-down modal.

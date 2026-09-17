@@ -10,4 +10,4 @@ Contents:
 - `ClawdAnimated` — pixel-art mascot rendered on the dashboard.
 
 For shared design-system atoms (Button / Card / Input / Sidebar / Shell), see `../components/`.
-For feature panels and views (UsageLimitsPanel / ActivityHeatmap / DashboardView), see `../dashboard/`.
+For feature panels and views (ActivityHeatmap / DashboardView), see `../dashboard/`.

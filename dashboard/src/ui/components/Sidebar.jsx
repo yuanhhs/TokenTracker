@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
-  Gauge,
   History,
   Settings as SettingsIcon,
   ChevronLeft,
@@ -31,7 +30,6 @@ export function getNavGroups() {
       items: [
         { id: "usage", to: "/dashboard", icon: BarChart3, label: copy("nav.usage") },
         { id: "sessions", to: "/sessions", icon: History, label: copy("nav.sessions") },
-        { id: "limits", to: "/limits", icon: Gauge, label: copy("nav.limits") },
       ],
     },
     {

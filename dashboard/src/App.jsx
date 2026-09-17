@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useMemo, useRef } from "react";
+import React, { lazy, Suspense, useMemo } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { ThemeProvider } from "./ui/foundation/ThemeProvider.jsx";
@@ -7,10 +7,6 @@ import { getBackendBaseUrl } from "./lib/config";
 import { isMockEnabled } from "./lib/mock-mode";
 import { isScreenshotModeEnabled } from "./lib/screenshot-mode";
 import { AppLayout } from "./ui/components/Sidebar.jsx";
-import {
-  markDashboardMainContentVisible,
-  preloadDashboardPageResources,
-} from "./lib/dashboard-preload.js";
 
 const nullComponent = () => null;
 const CommandPalette = lazy(() =>
@@ -25,9 +21,6 @@ const DashboardPage = lazy(() =>
 const LandingPage = lazy(() =>
   import("./pages/LandingPage.jsx").then((m) => ({ default: m.LandingPage })),
 );
-const LimitsPage = lazy(() =>
-  import("./pages/LimitsPage.jsx").then((m) => ({ default: m.LimitsPage })),
-);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage.jsx").then((m) => ({ default: m.SettingsPage })),
 );
@@ -39,15 +32,12 @@ const WrappedPage = lazy(() => import("./pages/WrappedPage.jsx"));
 const DASHBOARD_PATHS = new Set([
   "/",
   "/dashboard",
-  "/limits",
   "/settings",
   "/sessions",
 ]);
 
 export default function App() {
   const location = useLocation();
-  const dashboardMainContentVisibleRef = useRef(false);
-  const dashboardResourcePreloadStartedRef = useRef(false);
   const mockEnabled = isMockEnabled();
   const screenshotMode = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -68,17 +58,6 @@ export default function App() {
     sharePathname.startsWith("/share/");
 
   const isDashboardPath = DASHBOARD_PATHS.has(normalizedPath);
-  const onMainContentVisible = useCallback(() => {
-    if (!isDashboardPath) return;
-    if (!dashboardMainContentVisibleRef.current) {
-      dashboardMainContentVisibleRef.current = true;
-      markDashboardMainContentVisible();
-    }
-    if (!dashboardResourcePreloadStartedRef.current) {
-      dashboardResourcePreloadStartedRef.current = true;
-      void preloadDashboardPageResources();
-    }
-  }, [isDashboardPath]);
 
   // The hosted site is informational; the usable dashboard is intentionally
   // local-only now that account authentication and cloud data are gone.
@@ -88,7 +67,6 @@ export default function App() {
 
   let PageComponent = DashboardPage;
   if (normalizedPath === "/landing") PageComponent = LandingPage;
-  else if (normalizedPath === "/limits") PageComponent = LimitsPage;
   else if (normalizedPath === "/settings") PageComponent = SettingsPage;
   else if (normalizedPath === "/sessions") PageComponent = SessionsPage;
   else if (normalizedPath === "/wrapped") PageComponent = WrappedPage;
@@ -104,7 +82,6 @@ export default function App() {
         baseUrl={getBackendBaseUrl()}
         publicMode={publicMode}
         publicToken={publicToken}
-        onMainContentVisible={onMainContentVisible}
       />
     );
   }
